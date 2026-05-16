@@ -1,7 +1,7 @@
 import { logger } from "./logger";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "";
-const FROM_EMAIL = "noreply@replitapp.com";
+const FROM_EMAIL = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
 
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   if (!RESEND_API_KEY) {
