@@ -49,7 +49,7 @@ args = "PORT=18184 BASE_PATH=/ pnpm --filter @workspace/edtech-platform run dev"
 waitForPort = 18184
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [postMerge]
