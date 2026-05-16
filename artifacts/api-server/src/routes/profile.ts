@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { UpdateProfileBody } from "@workspace/api-zod";
 import { requireAuth, getUserById } from "../lib/auth";
 import { formatUser } from "./auth";
+import { getDownloadSignedUrl } from "../lib/b2";
 
 const router: IRouter = Router();
 
@@ -13,7 +14,12 @@ router.get("/profile", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(formatUser(user));
+  const base = formatUser(user);
+  let photoUrl: string | null = null;
+  if (user.photoB2Key) {
+    try { photoUrl = await getDownloadSignedUrl(user.photoB2Key); } catch { /* ignore */ }
+  }
+  res.json({ ...base, photoUrl });
 });
 
 router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
@@ -27,12 +33,22 @@ router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
   if (parsed.data.fullName) updates.fullName = parsed.data.fullName;
   if (parsed.data.mobile) updates.mobile = parsed.data.mobile;
 
+  // Allow updating photo b2Key directly
+  if ((req.body as any).photoB2Key) {
+    updates.photoB2Key = (req.body as any).photoB2Key;
+  }
+
   const [user] = await db.update(usersTable)
     .set(updates)
     .where(eq(usersTable.id, req.user!.id))
     .returning();
 
-  res.json(formatUser(user));
+  const base = formatUser(user);
+  let photoUrl: string | null = null;
+  if (user.photoB2Key) {
+    try { photoUrl = await getDownloadSignedUrl(user.photoB2Key); } catch { /* ignore */ }
+  }
+  res.json({ ...base, photoUrl });
 });
 
 export default router;

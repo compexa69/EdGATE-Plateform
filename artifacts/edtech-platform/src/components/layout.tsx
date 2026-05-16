@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { Home, BookOpen, User, LogOut, Settings, Trophy, CalendarDays } from "lucide-react";
+import { Home, BookOpen, User, LogOut, Settings, Trophy, CalendarDays, FolderOpen } from "lucide-react";
 import { PomodoroWidget } from "@/components/pomodoro";
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -17,6 +17,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { label: "Subjects",    href: "/subjects",     icon: <BookOpen     className="w-5 h-5" /> },
     { label: "Planner",     href: "/planner",      icon: <CalendarDays className="w-5 h-5" /> },
     { label: "Leaderboard", href: "/leaderboard",  icon: <Trophy       className="w-5 h-5" /> },
+    { label: "Notes",       href: "/notes",        icon: <FolderOpen   className="w-5 h-5" /> },
     { label: "Profile",     href: "/profile",      icon: <User         className="w-5 h-5" /> },
   ];
 

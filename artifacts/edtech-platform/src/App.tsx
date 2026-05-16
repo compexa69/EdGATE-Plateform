@@ -8,6 +8,9 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import VerifyEmail from "@/pages/verify-email";
+import ForgotPassword from "@/pages/forgot-password";
+import ResetPassword from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
 import Subjects from "@/pages/subjects";
 import SubjectDetail from "@/pages/subject-detail";
@@ -16,6 +19,7 @@ import TopicDetail from "@/pages/topic-detail";
 import ExamInterface from "@/pages/exam-interface";
 import ExamResults from "@/pages/exam-results";
 import Profile from "@/pages/profile";
+import Notes from "@/pages/notes";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminUsers from "@/pages/admin-users";
 import AdminSubjects from "@/pages/admin-subjects";
@@ -26,7 +30,6 @@ import { Layout } from "@/components/layout";
 
 const queryClient = new QueryClient();
 
-// A wrapper to enforce authentication and layout
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: any, adminOnly?: boolean }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [, setLocation] = useLocation();
@@ -66,6 +69,9 @@ function AppRouter() {
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/verify-email" component={VerifyEmail} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       
       <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}
@@ -90,6 +96,9 @@ function AppRouter() {
       </Route>
       <Route path="/profile">
         {() => <ProtectedRoute component={Profile} />}
+      </Route>
+      <Route path="/notes">
+        {() => <ProtectedRoute component={Notes} />}
       </Route>
       <Route path="/leaderboard">
         {() => <ProtectedRoute component={Leaderboard} />}

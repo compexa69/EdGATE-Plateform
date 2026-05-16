@@ -231,5 +231,37 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   res.json(formatUser(user));
 });
 
+router.post("/auth/reset-password", async (req, res): Promise<void> => {
+  const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+
+  if (!token || !newPassword) {
+    res.status(400).json({ error: "token and newPassword are required" });
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.passwordResetToken, token));
+  if (!user) {
+    res.status(400).json({ error: "Invalid or expired reset code" });
+    return;
+  }
+
+  if (user.passwordResetExpiry && user.passwordResetExpiry < new Date()) {
+    res.status(400).json({ error: "Reset code has expired. Please request a new one." });
+    return;
+  }
+
+  const hash = await hashPassword(newPassword);
+  await db.update(usersTable)
+    .set({ passwordHash: hash, passwordResetToken: null, passwordResetExpiry: null })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ success: true, message: "Password reset successfully" });
+});
+
 export { formatUser };
 export default router;

@@ -3,18 +3,21 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, CheckCircle2, XCircle, MinusCircle, Trophy, Target, Clock, AlertTriangle } from "lucide-react";
+import { ChevronRight, CheckCircle2, XCircle, MinusCircle, Trophy, Target, Clock, AlertTriangle, QrCode, Video, ExternalLink } from "lucide-react";
 
 export default function ExamResults() {
   const params = useParams();
   const resultId = params.resultId!;
 
   const { data: result, isLoading } = useGetResult(resultId, {
-    query: { enabled: !!resultId }
+    query: { enabled: !!resultId, queryKey: ["result", resultId] }
   });
 
   if (isLoading) return <div className="p-8">Loading results...</div>;
   if (!result) return <div className="p-8 text-destructive">Result not found</div>;
+
+  const questionsWithVideo = result.questionWise.filter((q) => (q as any).videoUrl || (q as any).qrCodeSvg);
+  const hasVideoContent = questionsWithVideo.length > 0;
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8 pb-24 md:pb-8">
@@ -91,9 +94,14 @@ export default function ExamResults() {
       </div>
 
       <Tabs defaultValue="solutions" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className={`grid w-full ${hasVideoContent ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="solutions">Detailed Solutions</TabsTrigger>
           <TabsTrigger value="topic-wise">Topic Analysis</TabsTrigger>
+          {hasVideoContent && (
+            <TabsTrigger value="videos" className="flex items-center gap-2">
+              <QrCode className="w-4 h-4" /> Video Solutions
+            </TabsTrigger>
+          )}
         </TabsList>
         
         <TabsContent value="solutions" className="space-y-6 mt-6">
@@ -105,8 +113,21 @@ export default function ExamResults() {
                     <span className="font-bold text-muted-foreground shrink-0">Q{idx + 1}.</span>
                     <p className="font-medium text-lg">{q.questionText}</p>
                   </div>
-                  <div className="shrink-0 text-sm font-bold">
-                    {q.marksAwarded > 0 ? <span className="text-success">+{q.marksAwarded}</span> : <span className="text-destructive">{q.marksAwarded}</span>}
+                  <div className="shrink-0 flex items-center gap-2">
+                    {(q as any).videoUrl && (
+                      <a
+                        href={(q as any).videoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:text-primary/80"
+                        title="Watch video solution"
+                      >
+                        <Video className="w-4 h-4" />
+                      </a>
+                    )}
+                    <span className="text-sm font-bold">
+                      {q.marksAwarded > 0 ? <span className="text-success">+{q.marksAwarded}</span> : <span className="text-destructive">{q.marksAwarded}</span>}
+                    </span>
                   </div>
                 </div>
 
@@ -114,9 +135,9 @@ export default function ExamResults() {
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Your Answer</div>
                     <div className="font-medium flex items-center gap-2">
-                      {q.selectedOption !== null ? `Option ${q.selectedOption + 1}` : "Skipped"}
+                      {q.selectedOption != null ? `Option ${q.selectedOption + 1}` : "Skipped"}
                       {q.isCorrect && <CheckCircle2 className="w-4 h-4 text-success" />}
-                      {!q.isCorrect && q.selectedOption !== null && <XCircle className="w-4 h-4 text-destructive" />}
+                      {!q.isCorrect && q.selectedOption != null && <XCircle className="w-4 h-4 text-destructive" />}
                     </div>
                   </div>
                   <div>
@@ -163,6 +184,65 @@ export default function ExamResults() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {hasVideoContent && (
+          <TabsContent value="videos" className="mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {questionsWithVideo.map((q, idx) => {
+                const videoUrl = (q as any).videoUrl as string | null;
+                const qrCodeSvg = (q as any).qrCodeSvg as string | null;
+                const questionIdx = result.questionWise.findIndex(rq => rq.questionId === q.questionId);
+                return (
+                  <Card key={q.questionId} className={`border-card-border ${q.isCorrect ? 'border-l-4 border-l-success' : q.selectedOption === null ? 'border-l-4 border-l-muted-foreground' : 'border-l-4 border-l-destructive'}`}>
+                    <CardContent className="p-6 space-y-4">
+                      <div className="flex items-start gap-3">
+                        <span className="font-bold text-muted-foreground shrink-0 text-sm">Q{questionIdx + 1}.</span>
+                        <p className="text-sm font-medium line-clamp-3">{q.questionText}</p>
+                      </div>
+
+                      {qrCodeSvg ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <div
+                            className="w-40 h-40 bg-white p-2 rounded-lg"
+                            dangerouslySetInnerHTML={{ __html: qrCodeSvg }}
+                          />
+                          <p className="text-xs text-muted-foreground text-center">
+                            Scan to watch the video solution
+                          </p>
+                          {videoUrl && (
+                            <a
+                              href={videoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              Open in browser
+                            </a>
+                          )}
+                        </div>
+                      ) : videoUrl ? (
+                        <a
+                          href={videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-4 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors"
+                        >
+                          <Video className="w-8 h-8 text-primary shrink-0" />
+                          <div>
+                            <p className="font-medium text-sm">Watch Video Solution</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]">{videoUrl}</p>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
+                        </a>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

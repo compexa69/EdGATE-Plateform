@@ -2,7 +2,6 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRegister } from "@workspace/api-client-react";
-import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,21 +17,37 @@ const registerSchema = z.object({
   mobile: z.string().regex(/^(\+91)[\s-]?[6-9]\d{9}$/, "Must be a valid Indian mobile number starting with +91"),
   password: z.string()
     .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
+    .regex(/[A-Z]/, "Must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Must contain at least one special character"),
   confirmPassword: z.string()
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
 
+function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+  if (!password) return { score: 0, label: "", color: "" };
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  if (score <= 2) return { score, label: "Weak", color: "bg-destructive" };
+  if (score === 3) return { score, label: "Fair", color: "bg-warning" };
+  if (score === 4) return { score, label: "Good", color: "bg-secondary" };
+  return { score, label: "Strong", color: "bg-success" };
+}
+
 export default function Register() {
-  const { login: setAuthToken } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -45,20 +60,21 @@ export default function Register() {
     },
   });
 
+  const strength = getPasswordStrength(passwordValue);
+
   const registerMutation = useRegister({
     mutation: {
-      onSuccess: (data) => {
-        setAuthToken(data.token);
+      onSuccess: (_, vars) => {
         toast({
-          title: "Registration successful",
-          description: "Welcome to the platform.",
+          title: "Account created!",
+          description: "Check your email for a verification code.",
         });
-        setLocation("/dashboard");
+        setLocation(`/verify-email?email=${encodeURIComponent(vars.data.email)}`);
       },
       onError: (error) => {
         toast({
           title: "Registration failed",
-          description: error.message || "An error occurred during registration.",
+          description: (error as any)?.response?.data?.error || error.message || "An error occurred during registration.",
           variant: "destructive",
         });
       },
@@ -115,11 +131,12 @@ export default function Register() {
                 name="mobile"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mobile (+91)</FormLabel>
+                    <FormLabel>Mobile Number</FormLabel>
                     <FormControl>
                       <Input placeholder="+919876543210" {...field} />
                     </FormControl>
                     <FormMessage />
+                    <p className="text-xs text-muted-foreground">Indian number required: +91 followed by 10 digits (starting 6–9)</p>
                   </FormItem>
                 )}
               />
@@ -131,7 +148,15 @@ export default function Register() {
                     <FormLabel>Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            setPasswordValue(e.target.value);
+                          }}
+                        />
                         <button
                           type="button"
                           className="absolute right-3 top-2.5 text-muted-foreground"
@@ -141,6 +166,29 @@ export default function Register() {
                         </button>
                       </div>
                     </FormControl>
+                    {passwordValue && (
+                      <div className="mt-2 space-y-1">
+                        <div className="flex gap-1 h-1.5">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <div
+                              key={i}
+                              className={`flex-1 rounded-full transition-colors ${
+                                i <= strength.score ? strength.color : "bg-muted"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        {strength.label && (
+                          <p className={`text-xs font-medium ${
+                            strength.score <= 2 ? "text-destructive" :
+                            strength.score === 3 ? "text-warning" :
+                            strength.score === 4 ? "text-secondary" : "text-success"
+                          }`}>
+                            Password strength: {strength.label}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -152,14 +200,27 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
-                      <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
+                      <div className="relative">
+                        <Input type={showConfirm ? "text" : "password"} placeholder="••••••••" {...field} />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-2.5 text-muted-foreground"
+                          onClick={() => setShowConfirm(!showConfirm)}
+                        >
+                          {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full h-12 text-lg font-semibold mt-6" disabled={registerMutation.isPending}>
-                {registerMutation.isPending ? "Creating Account..." : "Register"}
+              <Button
+                type="submit"
+                className="w-full h-12 text-lg font-semibold mt-6"
+                disabled={registerMutation.isPending}
+              >
+                {registerMutation.isPending ? "Creating Account…" : "Register"}
               </Button>
               <div className="text-center text-sm text-muted-foreground mt-4">
                 Already have an account?{" "}
