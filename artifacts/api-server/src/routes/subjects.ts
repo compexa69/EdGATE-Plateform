@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, subjectsTable, chaptersTable, topicsTable, topicProgressTable, examAttemptsTable, examsTable, examResultsTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { db, subjectsTable, chaptersTable, topicsTable, topicProgressTable, examsTable, examResultsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   CreateSubjectBody,
@@ -9,9 +9,45 @@ import {
   UpdateSubjectParams,
   DeleteSubjectParams,
 } from "@workspace/api-zod";
-import { requireAuth, requireAdmin, requireApproved } from "../lib/auth";
+import { requireAdmin, requireApproved } from "../lib/auth";
 
 const router: IRouter = Router();
+
+// ── Gate helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Subject Test is unlocked when every chapter in the subject has at least one
+ * chapter_test exam result where passed = true.
+ */
+async function isSubjectTestUnlocked(subjectId: string, userId: string): Promise<boolean> {
+  const chapters = await db.select().from(chaptersTable)
+    .where(eq(chaptersTable.subjectId, subjectId));
+  if (chapters.length === 0) return false;
+
+  for (const ch of chapters) {
+    const [chapterExam] = await db.select().from(examsTable)
+      .where(and(eq(examsTable.chapterId, ch.id), eq(examsTable.type, "chapter_test")));
+    if (!chapterExam) return false; // chapter has no test assigned yet
+
+    const [passedResult] = await db.select().from(examResultsTable)
+      .where(and(
+        eq(examResultsTable.examId, chapterExam.id),
+        eq(examResultsTable.userId, userId),
+        eq(examResultsTable.passed, true),
+      ));
+    if (!passedResult) return false;
+  }
+  return true;
+}
+
+/** Returns the exam id for the subject-level test, if one exists. */
+async function getSubjectTestExamId(subjectId: string): Promise<string | null> {
+  const [exam] = await db.select().from(examsTable)
+    .where(and(eq(examsTable.subjectId, subjectId), eq(examsTable.type, "subject_test")));
+  return exam?.id ?? null;
+}
+
+// ── Progress helper ───────────────────────────────────────────────────────────
 
 async function getSubjectWithProgress(subjectId: string, userId: string) {
   const chapters = await db.select().from(chaptersTable).where(eq(chaptersTable.subjectId, subjectId));
@@ -30,11 +66,15 @@ async function getSubjectWithProgress(subjectId: string, userId: string) {
   return { totalChapters: chapters.length, completedChapters };
 }
 
+// ── Routes ────────────────────────────────────────────────────────────────────
+
 router.get("/subjects", requireApproved, async (req, res): Promise<void> => {
   const subjects = await db.select().from(subjectsTable).orderBy(subjectsTable.order);
   const result = await Promise.all(subjects.map(async (s) => {
     const { totalChapters, completedChapters } = await getSubjectWithProgress(s.id, req.user!.id);
     const progressPercent = totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
+    const subjectTestUnlocked = await isSubjectTestUnlocked(s.id, req.user!.id);
+    const subjectTestExamId = await getSubjectTestExamId(s.id);
     return {
       id: s.id,
       name: s.name,
@@ -45,6 +85,8 @@ router.get("/subjects", requireApproved, async (req, res): Promise<void> => {
       completedChapters,
       progressPercent,
       gateStatus: completedChapters === totalChapters && totalChapters > 0 ? "completed" : "unlocked",
+      subjectTestUnlocked,
+      subjectTestExamId,
       createdAt: s.createdAt.toISOString(),
     };
   }));
@@ -73,6 +115,8 @@ router.post("/subjects", requireAdmin, async (req, res): Promise<void> => {
     completedChapters: 0,
     progressPercent: 0,
     gateStatus: "unlocked",
+    subjectTestUnlocked: false,
+    subjectTestExamId: null,
     createdAt: subject.createdAt.toISOString(),
   });
 });
@@ -105,16 +149,13 @@ router.get("/subjects/:subjectId", requireApproved, async (req, res): Promise<vo
     const progressPercent = topics.length > 0 ? Math.round((completedTopics / topics.length) * 100) : 0;
     const allComplete = topics.length > 0 && completedTopics === topics.length;
 
-    const hasChapterTest = (await db.select().from(examsTable)
-      .where(and(eq(examsTable.chapterId, ch.id), eq(examsTable.type, "chapter_test")))).length > 0;
+    const [chapterExam] = await db.select().from(examsTable)
+      .where(and(eq(examsTable.chapterId, ch.id), eq(examsTable.type, "chapter_test")));
     let chapterTestAttempted = false;
-    if (hasChapterTest) {
-      const [exam] = await db.select().from(examsTable).where(and(eq(examsTable.chapterId, ch.id), eq(examsTable.type, "chapter_test")));
-      if (exam) {
-        const [attempt] = await db.select().from(examResultsTable)
-          .where(and(eq(examResultsTable.examId, exam.id), eq(examResultsTable.userId, req.user!.id)));
-        chapterTestAttempted = !!attempt;
-      }
+    if (chapterExam) {
+      const [result] = await db.select().from(examResultsTable)
+        .where(and(eq(examResultsTable.examId, chapterExam.id), eq(examResultsTable.userId, req.user!.id)));
+      chapterTestAttempted = !!result;
     }
 
     return {
@@ -134,6 +175,8 @@ router.get("/subjects/:subjectId", requireApproved, async (req, res): Promise<vo
 
   const { totalChapters, completedChapters } = await getSubjectWithProgress(subject.id, req.user!.id);
   const progressPercent = totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
+  const subjectTestUnlocked = await isSubjectTestUnlocked(subject.id, req.user!.id);
+  const subjectTestExamId = await getSubjectTestExamId(subject.id);
 
   res.json({
     id: subject.id,
@@ -143,6 +186,8 @@ router.get("/subjects/:subjectId", requireApproved, async (req, res): Promise<vo
     iconName: subject.iconName ?? null,
     gateStatus: completedChapters === totalChapters && totalChapters > 0 ? "completed" : "unlocked",
     progressPercent,
+    subjectTestUnlocked,
+    subjectTestExamId,
     chapters: chaptersWithProgress,
   });
 });
@@ -172,7 +217,8 @@ router.patch("/subjects/:subjectId", requireAdmin, async (req, res): Promise<voi
   res.json({
     id: subject.id, name: subject.name, description: subject.description ?? null,
     order: subject.order, iconName: subject.iconName ?? null,
-    totalChapters: 0, completedChapters: 0, progressPercent: 0, gateStatus: "unlocked",
+    totalChapters: 0, completedChapters: 0, progressPercent: 0,
+    gateStatus: "unlocked", subjectTestUnlocked: false, subjectTestExamId: null,
     createdAt: subject.createdAt.toISOString(),
   });
 });

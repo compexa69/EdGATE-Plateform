@@ -193,6 +193,8 @@ export const ListSubjectsResponseItem = zod.object({
   "completedChapters": zod.number(),
   "progressPercent": zod.number(),
   "gateStatus": zod.enum(['locked', 'unlocked', 'completed']),
+  "subjectTestUnlocked": zod.boolean(),
+  "subjectTestExamId": zod.string().nullable(),
   "createdAt": zod.coerce.date().optional()
 })
 export const ListSubjectsResponse = zod.array(ListSubjectsResponseItem)
@@ -224,6 +226,8 @@ export const GetSubjectResponse = zod.object({
   "iconName": zod.string().nullish(),
   "gateStatus": zod.enum(['locked', 'unlocked', 'completed']),
   "progressPercent": zod.number(),
+  "subjectTestUnlocked": zod.boolean(),
+  "subjectTestExamId": zod.string().nullable(),
   "chapters": zod.array(zod.object({
   "id": zod.string(),
   "subjectId": zod.string(),
@@ -264,6 +268,8 @@ export const UpdateSubjectResponse = zod.object({
   "completedChapters": zod.number(),
   "progressPercent": zod.number(),
   "gateStatus": zod.enum(['locked', 'unlocked', 'completed']),
+  "subjectTestUnlocked": zod.boolean(),
+  "subjectTestExamId": zod.string().nullable(),
   "createdAt": zod.coerce.date().optional()
 })
 

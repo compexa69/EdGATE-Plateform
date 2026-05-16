@@ -50,6 +50,29 @@ async function isNotesUploadUnlocked(chapterId: string, userId: string): Promise
   return false;
 }
 
+/**
+ * Subject Test is unlocked when every chapter in the subject has at least one
+ * chapter_test exam result where passed = true.
+ */
+async function isSubjectTestUnlocked(subjectId: string, userId: string): Promise<boolean> {
+  const chapters = await db.select().from(chaptersTable)
+    .where(eq(chaptersTable.subjectId, subjectId));
+  if (chapters.length === 0) return false;
+  for (const ch of chapters) {
+    const [chapterExam] = await db.select().from(examsTable)
+      .where(and(eq(examsTable.chapterId, ch.id), eq(examsTable.type, "chapter_test")));
+    if (!chapterExam) return false;
+    const [passedResult] = await db.select().from(examResultsTable)
+      .where(and(
+        eq(examResultsTable.examId, chapterExam.id),
+        eq(examResultsTable.userId, userId),
+        eq(examResultsTable.passed, true),
+      ));
+    if (!passedResult) return false;
+  }
+  return true;
+}
+
 /** Compute isUnlocked for a given exam row for this user. */
 async function computeExamUnlocked(
   exam: typeof examsTable.$inferSelect,
@@ -58,9 +81,9 @@ async function computeExamUnlocked(
   if (exam.type === "chapter_test" && exam.chapterId) {
     return isChapterTestUnlocked(exam.chapterId, userId);
   }
-  // All other exam types are locked by their topic-level SRS gates (enforced by the
-  // topic-detail UI and gate/check).  The list endpoint reports them as unlocked so
-  // the frontend can display them; the start endpoint does the hard enforcement.
+  if (exam.type === "subject_test" && exam.subjectId) {
+    return isSubjectTestUnlocked(exam.subjectId, userId);
+  }
   return true;
 }
 
@@ -181,6 +204,18 @@ router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<v
       res.status(403).json({
         error: "Chapter Test is locked",
         reason: "Complete all topic tests in this chapter before attempting the Chapter Test.",
+      });
+      return;
+    }
+  }
+
+  // ── Subject Test gate enforcement ───────────────────────────────────────────
+  if (exam.type === "subject_test" && exam.subjectId) {
+    const unlocked = await isSubjectTestUnlocked(exam.subjectId, req.user!.id);
+    if (!unlocked) {
+      res.status(403).json({
+        error: "Subject Test is locked",
+        reason: "Pass the Chapter Test for every chapter in this subject before attempting the Subject Test.",
       });
       return;
     }
@@ -485,6 +520,26 @@ router.post("/gate/check", requireApproved, async (req, res): Promise<void> => {
   }
 
   const userId = req.user!.id;
+
+  // Subject-level gate
+  if (targetType === "subject_test" || exam.type === "subject_test") {
+    if (!exam.subjectId) {
+      res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
+      return;
+    }
+    const unlocked = await isSubjectTestUnlocked(exam.subjectId, userId);
+    if (!unlocked) {
+      res.json({
+        allowed: false,
+        nextStep: "chapter_test",
+        reason: "Pass all Chapter Tests in this subject first.",
+        gateStatus: "locked",
+      });
+      return;
+    }
+    res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
+    return;
+  }
 
   // Chapter-level gate
   if (targetType === "chapter_test" || exam.type === "chapter_test") {

@@ -114,6 +114,9 @@ export interface Subject {
   completedChapters: number;
   progressPercent: number;
   gateStatus: SubjectGateStatus;
+  subjectTestUnlocked: boolean;
+  /** @nullable */
+  subjectTestExamId: string | null;
   createdAt?: string;
 }
 
@@ -174,6 +177,9 @@ export interface SubjectDetail {
   iconName?: string | null;
   gateStatus: SubjectDetailGateStatus;
   progressPercent: number;
+  subjectTestUnlocked: boolean;
+  /** @nullable */
+  subjectTestExamId: string | null;
   chapters: Chapter[];
 }
 

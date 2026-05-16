@@ -1,14 +1,14 @@
 import { useGetSubject, useListChapters } from "@workspace/api-client-react";
-import { Link, useParams } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Link, useParams, useLocation } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Lock, BookOpen, CheckCircle, ChevronRight } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Lock, BookOpen, CheckCircle, ChevronRight, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function SubjectDetail() {
   const params = useParams();
   const subjectId = params.subjectId!;
+  const [, setLocation] = useLocation();
 
   const { data: subject, isLoading: subjectLoading } = useGetSubject(subjectId, {
     query: { enabled: !!subjectId }
@@ -46,7 +46,7 @@ export default function SubjectDetail() {
       {/* Chapters List */}
       <div className="space-y-6">
         <h2 className="text-xl font-semibold tracking-tight border-b border-border pb-2">Chapters Outline</h2>
-        
+
         <div className="space-y-4">
           {chapters?.map((chapter, index) => {
             const isLocked = chapter.gateStatus === "locked";
@@ -74,7 +74,7 @@ export default function SubjectDetail() {
                     {chapter.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2">{chapter.description}</p>
                     )}
-                    
+
                     <div className="flex items-center gap-4 text-sm mt-2">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <BookOpen className="w-4 h-4" />
@@ -85,6 +85,9 @@ export default function SubjectDetail() {
                           <div className="h-full bg-primary" style={{ width: `${chapter.progressPercent}%` }} />
                         </Progress>
                       </div>
+                      {chapter.chapterTestUnlocked && (
+                        <span className="text-xs text-warning font-medium">Chapter Test Unlocked</span>
+                      )}
                     </div>
                   </div>
 
@@ -102,6 +105,52 @@ export default function SubjectDetail() {
           })}
         </div>
       </div>
+
+      {/* Subject Test Section */}
+      <Card className={`border-card-border bg-card mt-8 ${
+        !subject.subjectTestUnlocked
+          ? "opacity-60 grayscale"
+          : "border-success/50 shadow-[0_0_20px_-5px_rgba(34,197,94,0.2)]"
+      }`}>
+        <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+              subject.subjectTestUnlocked ? "bg-success/20" : "bg-muted"
+            }`}>
+              {subject.subjectTestUnlocked
+                ? <Trophy className="w-6 h-6 text-success" />
+                : <Lock className="w-6 h-6 text-muted-foreground" />
+              }
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-foreground">Subject Test</h3>
+              <p className="text-sm text-muted-foreground">
+                {subject.subjectTestUnlocked
+                  ? subject.subjectTestExamId
+                    ? "All chapters complete. Final subject-level assessment ready."
+                    : "Unlocked — no exam assigned yet. Ask your admin to create one."
+                  : "Pass the Chapter Test for every chapter in this subject to unlock."}
+              </p>
+            </div>
+          </div>
+          <div>
+            <Button
+              className="border-success text-success hover:bg-success/10"
+              variant="outline"
+              disabled={!subject.subjectTestUnlocked || !subject.subjectTestExamId}
+              onClick={() => {
+                if (subject.subjectTestExamId) setLocation(`/exam/${subject.subjectTestExamId}`);
+              }}
+            >
+              {subject.subjectTestUnlocked
+                ? subject.subjectTestExamId
+                  ? "Start Subject Test"
+                  : "No Exam Assigned"
+                : "Pass all Chapter Tests to unlock"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

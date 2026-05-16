@@ -19,5 +19,8 @@ export interface Subject {
   completedChapters: number;
   progressPercent: number;
   gateStatus: SubjectGateStatus;
+  subjectTestUnlocked: boolean;
+  /** @nullable */
+  subjectTestExamId: string | null;
   createdAt?: Date;
 }

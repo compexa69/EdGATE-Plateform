@@ -1477,6 +1477,10 @@ components:
         gateStatus:
           type: string
           enum: [locked, unlocked, completed]
+        subjectTestUnlocked:
+          type: boolean
+        subjectTestExamId:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -1488,6 +1492,8 @@ components:
         - completedChapters
         - progressPercent
         - gateStatus
+        - subjectTestUnlocked
+        - subjectTestExamId
 
     SubjectInput:
       type: object
@@ -1533,6 +1539,10 @@ components:
           enum: [locked, unlocked, completed]
         progressPercent:
           type: number
+        subjectTestUnlocked:
+          type: boolean
+        subjectTestExamId:
+          type: ["string", "null"]
         chapters:
           type: array
           items:
@@ -1543,6 +1553,8 @@ components:
         - order
         - gateStatus
         - progressPercent
+        - subjectTestUnlocked
+        - subjectTestExamId
         - chapters
 
     # Chapters

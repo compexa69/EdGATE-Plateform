@@ -18,5 +18,8 @@ export interface SubjectDetail {
   iconName?: string | null;
   gateStatus: SubjectDetailGateStatus;
   progressPercent: number;
+  subjectTestUnlocked: boolean;
+  /** @nullable */
+  subjectTestExamId: string | null;
   chapters: Chapter[];
 }
