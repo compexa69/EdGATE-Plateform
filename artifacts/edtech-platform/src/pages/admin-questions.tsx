@@ -146,6 +146,7 @@ export default function AdminQuestions() {
   const [videoUrlInput, setVideoUrlInput] = useState("");
   const [textSolutionInput, setTextSolutionInput] = useState("");
   const [videoFilter, setVideoFilter] = useState<"all" | "with" | "without">("all");
+  const [solutionFilter, setSolutionFilter] = useState<"all" | "with" | "without">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [newQ, setNewQ] = useState({
     text: "",
@@ -300,11 +301,15 @@ export default function AdminQuestions() {
 
   const filteredQuestions = (questions as Question[] | undefined)?.filter(q => {
     const matchesSearch = !searchQuery || q.text.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter =
+    const matchesVideo =
       videoFilter === "all" ? true :
       videoFilter === "with" ? !!q.videoUrl :
       !q.videoUrl;
-    return matchesSearch && matchesFilter;
+    const matchesSolution =
+      solutionFilter === "all" ? true :
+      solutionFilter === "with" ? !!q.textSolution :
+      !q.textSolution;
+    return matchesSearch && matchesVideo && matchesSolution;
   }) ?? [];
 
   const withVideoCount = (questions as Question[] | undefined)?.filter(q => !!q.videoUrl).length ?? 0;
@@ -733,35 +738,79 @@ export default function AdminQuestions() {
       </div>
 
       {/* Search + filter bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            className="pl-9 pr-8"
-            placeholder="Search questions…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setSearchQuery("")}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              className="pl-9 pr-8"
+              placeholder="Search questions…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setSearchQuery("")}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+            {/* Video filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground font-medium shrink-0 flex items-center gap-1">
+                <Youtube className="w-3.5 h-3.5" /> Video
+              </span>
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                {(["all", "with", "without"] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setVideoFilter(f)}
+                    className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${videoFilter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
+                  >
+                    {f === "all" ? "All" : f === "with" ? "Has" : "None"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Solution filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground font-medium shrink-0 flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5" /> Solution
+              </span>
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                {(["all", "with", "without"] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setSolutionFilter(f)}
+                    className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${solutionFilter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
+                  >
+                    {f === "all" ? "All" : f === "with" ? "Has" : "None"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Active filter count badge */}
+            {(videoFilter !== "all" || solutionFilter !== "all") && (
+              <button
+                onClick={() => { setVideoFilter("all"); setSolutionFilter("all"); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted/50 transition-colors shrink-0"
+                title="Clear all filters"
+              >
+                <X className="w-3 h-3" /> Clear
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
-          {(["all", "with", "without"] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setVideoFilter(f)}
-              className={`px-3 py-2 text-xs font-medium transition-colors ${videoFilter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
-            >
-              {f === "all" ? "All" : f === "with" ? "Has Video" : "No Video"}
-            </button>
-          ))}
-        </div>
+        {/* Active filter summary */}
+        {(videoFilter !== "all" || solutionFilter !== "all" || searchQuery) && (
+          <p className="text-xs text-muted-foreground">
+            Showing <span className="font-medium text-foreground">{filteredQuestions.length}</span> of {questions?.length ?? 0} questions
+            {solutionFilter === "without" && <span className="ml-1 text-warning">— <span className="font-medium">{filteredQuestions.length}</span> need a written solution</span>}
+          </p>
+        )}
       </div>
 
       <Card className="border-card-border bg-card overflow-hidden">
@@ -829,10 +878,10 @@ export default function AdminQuestions() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <FileSpreadsheet className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-                    {searchQuery || videoFilter !== "all" ? (
+                    {searchQuery || videoFilter !== "all" || solutionFilter !== "all" ? (
                       <>
                         <p className="text-muted-foreground">No questions match your filters.</p>
-                        <p className="text-xs text-muted-foreground mt-1">Try clearing the search or changing the video filter.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Try clearing the search or adjusting the video / solution filters.</p>
                       </>
                     ) : (
                       <>
