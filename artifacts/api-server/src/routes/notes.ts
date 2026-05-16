@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, notesTable, chaptersTable } from "@workspace/db";
+import { db, notesTable, chaptersTable, topicsTable, topicProgressTable, examsTable, examResultsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
@@ -8,6 +8,29 @@ import {
 } from "@workspace/api-zod";
 import { requireApproved } from "../lib/auth";
 import { getUploadSignedUrl, getDownloadSignedUrl, deleteObject } from "../lib/b2";
+
+/** PDF upload is unlocked when the user has submitted at least one chapter_test attempt for the chapter. */
+async function checkNotesUploadUnlocked(chapterId: string, userId: string): Promise<boolean> {
+  const chapterExams = await db.select().from(examsTable)
+    .where(and(eq(examsTable.chapterId, chapterId), eq(examsTable.type, "chapter_test")));
+  if (chapterExams.length === 0) {
+    // No chapter test exists yet — check fallback: all topics in chapter must have topicTestPassed
+    const topics = await db.select().from(topicsTable).where(eq(topicsTable.chapterId, chapterId));
+    if (topics.length === 0) return false;
+    for (const t of topics) {
+      const [prog] = await db.select().from(topicProgressTable)
+        .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, userId)));
+      if (!prog?.topicTestPassed) return false;
+    }
+    return true;
+  }
+  for (const exam of chapterExams) {
+    const [result] = await db.select().from(examResultsTable)
+      .where(and(eq(examResultsTable.examId, exam.id), eq(examResultsTable.userId, userId)));
+    if (result) return true;
+  }
+  return false;
+}
 
 const router: IRouter = Router();
 
@@ -67,6 +90,15 @@ router.post("/b2/upload-url", requireApproved, async (req, res): Promise<void> =
     chapterId: string; fileName: string; fileSizeBytes: number;
   };
 
+  const unlocked = await checkNotesUploadUnlocked(chapterId, req.user!.id);
+  if (!unlocked) {
+    res.status(403).json({
+      error: "Notes upload is locked",
+      reason: "Attempt the Chapter Test for this chapter to unlock PDF upload.",
+    });
+    return;
+  }
+
   const userNotes = await db.select().from(notesTable).where(eq(notesTable.userId, req.user!.id));
   const userUsage = userNotes.reduce((sum, n) => sum + n.fileSizeBytes, 0);
 
@@ -114,6 +146,15 @@ router.post("/b2/confirm-upload", requireApproved, async (req, res): Promise<voi
   const { chapterId, fileName, fileSizeBytes, b2Key } = req.body as {
     chapterId: string; fileName: string; fileSizeBytes: number; b2Key: string;
   };
+
+  const unlocked = await checkNotesUploadUnlocked(chapterId, req.user!.id);
+  if (!unlocked) {
+    res.status(403).json({
+      error: "Notes upload is locked",
+      reason: "Attempt the Chapter Test for this chapter to unlock PDF upload.",
+    });
+    return;
+  }
 
   const [note] = await db.insert(notesTable).values({
     id: nanoid(),

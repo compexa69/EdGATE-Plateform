@@ -1,5 +1,9 @@
 import { Router, type IRouter } from "express";
-import { db, examsTable, examAttemptsTable, examQuestionsTable, questionsTable, attemptAnswersTable, examResultsTable, topicProgressTable } from "@workspace/db";
+import {
+  db, examsTable, examAttemptsTable, examQuestionsTable, questionsTable,
+  attemptAnswersTable, examResultsTable, topicProgressTable,
+  chaptersTable, topicsTable,
+} from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
@@ -19,6 +23,49 @@ import { requireApproved, requireAdmin } from "../lib/auth";
 
 const router: IRouter = Router();
 
+// ── Gate helpers ─────────────────────────────────────────────────────────────
+
+/** Returns true if every topic in the chapter has topicTestPassed. */
+async function isChapterTestUnlocked(chapterId: string, userId: string): Promise<boolean> {
+  const topics = await db.select().from(topicsTable).where(eq(topicsTable.chapterId, chapterId));
+  if (topics.length === 0) return false;
+  for (const t of topics) {
+    const [prog] = await db.select().from(topicProgressTable)
+      .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, userId)));
+    if (!prog?.topicTestPassed) return false;
+  }
+  return true;
+}
+
+/** Returns true if the user has at least one submitted result for any chapter_test in this chapter. */
+async function isNotesUploadUnlocked(chapterId: string, userId: string): Promise<boolean> {
+  const chapterExams = await db.select().from(examsTable)
+    .where(and(eq(examsTable.chapterId, chapterId), eq(examsTable.type, "chapter_test")));
+  if (chapterExams.length === 0) return false;
+  for (const exam of chapterExams) {
+    const [result] = await db.select().from(examResultsTable)
+      .where(and(eq(examResultsTable.examId, exam.id), eq(examResultsTable.userId, userId)));
+    if (result) return true;
+  }
+  return false;
+}
+
+/** Compute isUnlocked for a given exam row for this user. */
+async function computeExamUnlocked(
+  exam: typeof examsTable.$inferSelect,
+  userId: string,
+): Promise<boolean> {
+  if (exam.type === "chapter_test" && exam.chapterId) {
+    return isChapterTestUnlocked(exam.chapterId, userId);
+  }
+  // All other exam types are locked by their topic-level SRS gates (enforced by the
+  // topic-detail UI and gate/check).  The list endpoint reports them as unlocked so
+  // the frontend can display them; the start endpoint does the hard enforcement.
+  return true;
+}
+
+// ── Question formatter ────────────────────────────────────────────────────────
+
 function formatQuestion(q: typeof questionsTable.$inferSelect, showAnswer = false) {
   return {
     id: q.id,
@@ -34,12 +81,11 @@ function formatQuestion(q: typeof questionsTable.$inferSelect, showAnswer = fals
   };
 }
 
+// ── Routes ────────────────────────────────────────────────────────────────────
+
 router.get("/exams", requireApproved, async (req, res): Promise<void> => {
   const params = ListExamsQueryParams.safeParse(req.query);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   let query = db.select().from(examsTable).$dynamic();
   const conditions = [];
@@ -55,12 +101,13 @@ router.get("/exams", requireApproved, async (req, res): Promise<void> => {
     const totalMarks = qCount.length * 4;
     const [attempt] = await db.select().from(examResultsTable)
       .where(and(eq(examResultsTable.examId, e.id), eq(examResultsTable.userId, req.user!.id)));
+    const isUnlocked = await computeExamUnlocked(e, req.user!.id);
     return {
       id: e.id, title: e.title, type: e.type,
       subjectId: e.subjectId ?? null, chapterId: e.chapterId ?? null, topicId: e.topicId ?? null,
       durationMinutes: e.durationMinutes, totalQuestions: qCount.length, totalMarks,
       passingScore: e.passingScore ?? null, negativeMarking: e.negativeMarking,
-      isUnlocked: true, hasAttempted: !!attempt,
+      isUnlocked, hasAttempted: !!attempt,
       lastScore: attempt?.score ?? null, createdAt: e.createdAt.toISOString(),
     };
   }));
@@ -69,16 +116,10 @@ router.get("/exams", requireApproved, async (req, res): Promise<void> => {
 
 router.post("/exams", requireAdmin, async (req, res): Promise<void> => {
   const parsed = CreateExamBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { questionIds, ...examData } = parsed.data;
-  const [exam] = await db.insert(examsTable).values({
-    id: nanoid(),
-    ...examData,
-  }).returning();
+  const [exam] = await db.insert(examsTable).values({ id: nanoid(), ...examData }).returning();
 
   if (questionIds?.length) {
     await db.insert(examQuestionsTable).values(
@@ -98,16 +139,10 @@ router.post("/exams", requireAdmin, async (req, res): Promise<void> => {
 
 router.get("/exams/:examId", requireApproved, async (req, res): Promise<void> => {
   const params = GetExamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, params.data.examId));
-  if (!exam) {
-    res.status(404).json({ error: "Exam not found" });
-    return;
-  }
+  if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
 
   const examQs = await db.select().from(examQuestionsTable)
     .where(eq(examQuestionsTable.examId, exam.id))
@@ -118,6 +153,8 @@ router.get("/exams/:examId", requireApproved, async (req, res): Promise<void> =>
       .where(inArray(questionsTable.id, examQs.map((q) => q.questionId)))
     : [];
 
+  const isUnlocked = await computeExamUnlocked(exam, req.user!.id);
+
   res.json({
     id: exam.id, title: exam.title, type: exam.type,
     durationMinutes: exam.durationMinutes,
@@ -125,22 +162,28 @@ router.get("/exams/:examId", requireApproved, async (req, res): Promise<void> =>
     totalMarks: questions.reduce((sum, q) => sum + q.marks, 0),
     passingScore: exam.passingScore ?? null,
     negativeMarking: exam.negativeMarking,
-    isUnlocked: true,
+    isUnlocked,
     questions: questions.map((q) => formatQuestion(q, false)),
   });
 });
 
 router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<void> => {
   const params = StartExamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, params.data.examId));
-  if (!exam) {
-    res.status(404).json({ error: "Exam not found" });
-    return;
+  if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
+
+  // ── Chapter Test gate enforcement ──────────────────────────────────────────
+  if (exam.type === "chapter_test" && exam.chapterId) {
+    const unlocked = await isChapterTestUnlocked(exam.chapterId, req.user!.id);
+    if (!unlocked) {
+      res.status(403).json({
+        error: "Chapter Test is locked",
+        reason: "Complete all topic tests in this chapter before attempting the Chapter Test.",
+      });
+      return;
+    }
   }
 
   const [attempt] = await db.insert(examAttemptsTable).values({
@@ -172,15 +215,9 @@ router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<v
 
 router.post("/attempts/:attemptId/answer", requireApproved, async (req, res): Promise<void> => {
   const params = SaveAnswerParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = SaveAnswerBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [existing] = await db.select().from(attemptAnswersTable)
     .where(and(
@@ -210,21 +247,12 @@ router.post("/attempts/:attemptId/answer", requireApproved, async (req, res): Pr
 
 router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Promise<void> => {
   const params = SubmitExamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = SubmitExamBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
-  if (!attempt) {
-    res.status(404).json({ error: "Attempt not found" });
-    return;
-  }
+  if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
   const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, attempt.examId));
   const examQs = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, exam.id));
@@ -261,12 +289,9 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
     }
 
     return {
-      questionId: q.id,
-      questionText: q.text,
-      selectedOption: selected ?? null,
-      correctOption: correctOpt,
-      isCorrect,
-      marksAwarded,
+      questionId: q.id, questionText: q.text,
+      selectedOption: selected ?? null, correctOption: correctOpt,
+      isCorrect, marksAwarded,
       timeSpentSeconds: answer?.timeSpentSeconds ?? 0,
       textSolution: q.textSolution ?? null,
       videoUrl: q.videoUrl ?? null,
@@ -332,26 +357,17 @@ async function updateTopicProgress(userId: string, topicId: string, field: strin
       .where(eq(topicProgressTable.id, existing.id));
   } else {
     await db.insert(topicProgressTable).values({
-      id: nanoid(),
-      userId,
-      topicId,
-      [field]: value,
+      id: nanoid(), userId, topicId, [field]: value,
     });
   }
 }
 
 router.post("/attempts/:attemptId/pause", requireApproved, async (req, res): Promise<void> => {
   const params = PauseExamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
-  if (!attempt) {
-    res.status(404).json({ error: "Attempt not found" });
-    return;
-  }
+  if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
   await db.update(examAttemptsTable)
     .set({ status: "paused", pauseCount: attempt.pauseCount + 1 })
@@ -362,16 +378,10 @@ router.post("/attempts/:attemptId/pause", requireApproved, async (req, res): Pro
 
 router.post("/attempts/:attemptId/resume", requireApproved, async (req, res): Promise<void> => {
   const params = ResumeExamParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
-  if (!attempt) {
-    res.status(404).json({ error: "Attempt not found" });
-    return;
-  }
+  if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
   await db.update(examAttemptsTable)
     .set({ status: "in_progress" })
@@ -404,16 +414,10 @@ router.post("/attempts/:attemptId/resume", requireApproved, async (req, res): Pr
 
 router.get("/results/:resultId", requireApproved, async (req, res): Promise<void> => {
   const params = GetResultParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [result] = await db.select().from(examResultsTable).where(eq(examResultsTable.id, params.data.resultId));
-  if (!result) {
-    res.status(404).json({ error: "Result not found" });
-    return;
-  }
+  if (!result) { res.status(404).json({ error: "Result not found" }); return; }
 
   const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, result.examId));
   const examQs = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, exam.id));
@@ -468,14 +472,85 @@ router.get("/results", requireApproved, async (req, res): Promise<void> => {
   res.json(formatted);
 });
 
+// ── Gate check ────────────────────────────────────────────────────────────────
+// Checks whether the user is allowed to start a given exam based on SRS gating.
+
 router.post("/gate/check", requireApproved, async (req, res): Promise<void> => {
   const { targetId, targetType } = req.body as { targetId: string; targetType: string };
 
+  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, targetId));
+  if (!exam) {
+    res.status(404).json({ error: "Exam not found" });
+    return;
+  }
+
+  const userId = req.user!.id;
+
+  // Chapter-level gate
+  if (targetType === "chapter_test" || exam.type === "chapter_test") {
+    if (!exam.chapterId) {
+      res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
+      return;
+    }
+    const unlocked = await isChapterTestUnlocked(exam.chapterId, userId);
+    if (!unlocked) {
+      res.json({
+        allowed: false,
+        nextStep: "topic_test",
+        reason: "Complete all topic tests in this chapter first.",
+        gateStatus: "locked",
+      });
+      return;
+    }
+    res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
+    return;
+  }
+
+  // Topic-level gates (lecture_quiz, dpp, pyq, topic_test)
+  if (!exam.topicId) {
+    res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
+    return;
+  }
+
+  const [prog] = await db.select().from(topicProgressTable)
+    .where(and(eq(topicProgressTable.topicId, exam.topicId), eq(topicProgressTable.userId, userId)));
+
+  let allowed = true;
+  let nextStep: string | null = null;
+  let reason: string | null = null;
+
+  if (targetType === "lecture_quiz" || exam.type === "lecture_quiz") {
+    // Lecture quiz requires at least one lecture click
+    if (!prog || prog.lectureClickCount === 0) {
+      allowed = false;
+      nextStep = "lecture";
+      reason = "Watch the video lecture before attempting the quiz.";
+    }
+  } else if (targetType === "dpp" || exam.type === "dpp") {
+    if (!prog?.lectureQuizPassed) {
+      allowed = false;
+      nextStep = "lecture_quiz";
+      reason = "Pass the Lecture Quiz before attempting DPP.";
+    }
+  } else if (targetType === "pyq" || exam.type === "pyq") {
+    if (!prog?.dppCompleted) {
+      allowed = false;
+      nextStep = "dpp";
+      reason = "Complete the DPP before attempting PYQs.";
+    }
+  } else if (targetType === "topic_test" || exam.type === "topic_test") {
+    if (!prog?.pyqCompleted) {
+      allowed = false;
+      nextStep = "pyq";
+      reason = "Complete the PYQs before attempting the Topic Test.";
+    }
+  }
+
   res.json({
-    allowed: true,
-    nextStep: null,
-    reason: null,
-    gateStatus: "unlocked",
+    allowed,
+    nextStep,
+    reason,
+    gateStatus: allowed ? "unlocked" : "locked",
   });
 });
 
