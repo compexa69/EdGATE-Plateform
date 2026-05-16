@@ -309,6 +309,8 @@ export default function AdminQuestions() {
 
   const withVideoCount = (questions as Question[] | undefined)?.filter(q => !!q.videoUrl).length ?? 0;
   const withoutVideoCount = (questions?.length ?? 0) - withVideoCount;
+  const withSolutionCount = (questions as Question[] | undefined)?.filter(q => !!q.textSolution).length ?? 0;
+  const withoutSolutionCount = (questions?.length ?? 0) - withSolutionCount;
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 pb-24 md:pb-8">
@@ -697,8 +699,8 @@ export default function AdminQuestions() {
         </div>
       </div>
 
-      {/* Video coverage summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Coverage summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="border-card-border bg-card">
           <CardContent className="pt-4 pb-4">
             <div className="text-2xl font-bold">{questions?.length ?? 0}</div>
@@ -709,12 +711,23 @@ export default function AdminQuestions() {
           <CardContent className="pt-4 pb-4">
             <div className="text-2xl font-bold text-green-400">{withVideoCount}</div>
             <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><Youtube className="w-3 h-3" /> Have video</div>
+            {withoutVideoCount > 0 && <div className="text-xs text-muted-foreground/60 mt-0.5">{withoutVideoCount} missing</div>}
           </CardContent>
         </Card>
-        <Card className="border-card-border bg-card border-muted">
+        <Card className="border-card-border bg-card border-blue-500/20">
           <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-muted-foreground">{withoutVideoCount}</div>
-            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><VideoOff className="w-3 h-3" /> No video</div>
+            <div className="text-2xl font-bold text-blue-400">{withSolutionCount}</div>
+            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><FileText className="w-3 h-3" /> Have solution</div>
+            {withoutSolutionCount > 0 && <div className="text-xs text-muted-foreground/60 mt-0.5">{withoutSolutionCount} missing</div>}
+          </CardContent>
+        </Card>
+        <Card className="border-card-border bg-card">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-2xl font-bold text-amber-400">
+              {questions?.length ? Math.round(((withVideoCount + withSolutionCount) / ((questions.length * 2) || 1)) * 100) : 0}%
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">Coverage score</div>
+            <div className="text-xs text-muted-foreground/60 mt-0.5">video + solution</div>
           </CardContent>
         </Card>
       </div>
@@ -759,6 +772,7 @@ export default function AdminQuestions() {
                 <th className="px-6 py-4 font-medium w-5/12">Question</th>
                 <th className="px-6 py-4 font-medium">Difficulty</th>
                 <th className="px-6 py-4 font-medium">Marks</th>
+                <th className="px-6 py-4 font-medium">Solution</th>
                 <th className="px-6 py-4 font-medium">Video</th>
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
@@ -776,6 +790,20 @@ export default function AdminQuestions() {
                     </Badge>
                   </td>
                   <td className="px-6 py-4">{q.marks}</td>
+                  <td className="px-6 py-4">
+                    <Button
+                      size="sm"
+                      variant={q.textSolution ? "outline" : "ghost"}
+                      onClick={() => openVideoModal(q)}
+                      className={`h-8 gap-1.5 text-xs ${q.textSolution ? "border-blue-500/40 text-blue-400 hover:bg-blue-500/10" : "text-muted-foreground"}`}
+                    >
+                      {q.textSolution ? (
+                        <><FileText className="w-3.5 h-3.5" /> Written</>
+                      ) : (
+                        <><FileText className="w-3.5 h-3.5" /> Add</>
+                      )}
+                    </Button>
+                  </td>
                   <td className="px-6 py-4">
                     <Button
                       size="sm"
@@ -799,7 +827,7 @@ export default function AdminQuestions() {
               ))}
               {filteredQuestions.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <FileSpreadsheet className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
                     {searchQuery || videoFilter !== "all" ? (
                       <>
