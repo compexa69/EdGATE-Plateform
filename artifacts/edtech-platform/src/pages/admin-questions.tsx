@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash, Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, Loader2, AlertTriangle, Youtube, VideoOff, Search, X } from "lucide-react";
+import { Plus, Trash, Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, Loader2, AlertTriangle, Youtube, VideoOff, Search, X, FileText, Save } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,6 +122,7 @@ type Question = {
   difficulty: string;
   marks: number;
   topicId: string | null;
+  textSolution: string | null;
   videoUrl: string | null;
   qrCodeSvg: string | null;
 };
@@ -140,9 +141,10 @@ export default function AdminQuestions() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
 
-  // Video URL modal state
+  // Video / solution modal state
   const [videoModal, setVideoModal] = useState<{ open: boolean; question: Question | null }>({ open: false, question: null });
   const [videoUrlInput, setVideoUrlInput] = useState("");
+  const [textSolutionInput, setTextSolutionInput] = useState("");
   const [videoFilter, setVideoFilter] = useState<"all" | "with" | "without">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [newQ, setNewQ] = useState({
@@ -244,16 +246,30 @@ export default function AdminQuestions() {
   const openVideoModal = (q: Question) => {
     setVideoModal({ open: true, question: q });
     setVideoUrlInput(q.videoUrl ?? "");
+    setTextSolutionInput(q.textSolution ?? "");
   };
 
   const handleVideoSave = () => {
     if (!videoModal.question) return;
     const url = videoUrlInput.trim();
+    const sol = textSolutionInput.trim();
     updateQuestion.mutate(
-      { questionId: videoModal.question.id, data: { videoUrl: url || undefined } },
+      {
+        questionId: videoModal.question.id,
+        data: {
+          ...(url ? { videoUrl: url } : {}),
+          ...(sol !== (videoModal.question.textSolution ?? "") ? { textSolution: sol || undefined } : {}),
+        },
+      },
       {
         onSuccess: () => {
-          toast({ title: url ? "Video URL saved" : "Video URL cleared", description: url ? "QR code generated automatically." : undefined });
+          const parts: string[] = [];
+          if (url) parts.push("video URL saved");
+          if (sol) parts.push("solution saved");
+          toast({
+            title: parts.length ? parts.map(p => p[0].toUpperCase() + p.slice(1)).join(" & ") : "Changes saved",
+            description: url ? "QR code generated automatically." : undefined,
+          });
           setVideoModal({ open: false, question: null });
           refetch();
         },
@@ -265,7 +281,7 @@ export default function AdminQuestions() {
   const handleVideoClear = () => {
     if (!videoModal.question) return;
     updateQuestion.mutate(
-      { questionId: videoModal.question.id, data: {} },
+      { questionId: videoModal.question.id, data: { videoUrl: undefined } },
       {
         onSuccess: () => {
           toast({ title: "Video URL removed" });
@@ -296,21 +312,49 @@ export default function AdminQuestions() {
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 pb-24 md:pb-8">
-      {/* Video URL Modal */}
+      {/* Solution & Video Modal */}
       <Dialog open={videoModal.open} onOpenChange={(open) => { if (!open) setVideoModal({ open: false, question: null }); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Youtube className="w-5 h-5 text-red-500" /> Attach YouTube Video
+              <FileText className="w-5 h-5 text-primary" /> Edit Solution
             </DialogTitle>
           </DialogHeader>
           {videoModal.question && (
-            <div className="space-y-4 pt-2">
+            <div className="space-y-5 pt-2">
+              {/* Question preview */}
               <p className="text-sm text-muted-foreground line-clamp-3 bg-muted/40 rounded-lg px-3 py-2 border border-border">
                 {videoModal.question.text}
               </p>
+
+              {/* Text Solution section */}
               <div className="space-y-2">
-                <Label htmlFor="videoUrlInput">YouTube Video URL</Label>
+                <Label htmlFor="textSolutionInput" className="flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-primary" /> Step-by-step Solution
+                </Label>
+                <textarea
+                  id="textSolutionInput"
+                  rows={7}
+                  className="w-full p-3 rounded-md bg-background border border-input text-foreground text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground font-mono leading-relaxed"
+                  placeholder={"Step 1: Write the given data…\nStep 2: Apply the formula…\nStep 3: Solve and simplify…\n∴ Answer = Option B"}
+                  value={textSolutionInput}
+                  onChange={e => setTextSolutionInput(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Plain text. Use line breaks to separate steps. Shown to students after they attempt the question.</p>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Video Solution</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              {/* YouTube URL section */}
+              <div className="space-y-2">
+                <Label htmlFor="videoUrlInput" className="flex items-center gap-1.5">
+                  <Youtube className="w-3.5 h-3.5 text-red-500" /> YouTube Video URL
+                </Label>
                 <Input
                   id="videoUrlInput"
                   placeholder="https://www.youtube.com/watch?v=..."
@@ -321,42 +365,51 @@ export default function AdminQuestions() {
                 {videoUrlInput && !isYouTubeUrl(videoUrlInput) && (
                   <p className="text-xs text-destructive">Must be a valid YouTube URL (youtube.com/watch?v= or youtu.be/)</p>
                 )}
+                {videoUrlInput && isYouTubeUrl(videoUrlInput) && (
+                  <p className="flex items-center gap-1.5 text-xs text-success">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Valid — QR code will be generated on save.
+                  </p>
+                )}
               </div>
-              {videoModal.question.qrCodeSvg && !videoUrlInput && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Current QR Code</Label>
-                  <div className="flex justify-center bg-white rounded-lg p-3 w-32 mx-auto">
+
+              {/* Existing QR code preview */}
+              {videoModal.question.qrCodeSvg && (
+                <div className="flex items-center gap-4 bg-muted/30 rounded-lg p-3 border border-border">
+                  <div className="bg-white rounded p-1.5 shrink-0">
                     <div
-                      className="w-24 h-24"
+                      className="w-16 h-16"
                       dangerouslySetInnerHTML={{ __html: videoModal.question.qrCodeSvg }}
                     />
                   </div>
-                  <p className="text-xs text-center text-muted-foreground">{videoModal.question.videoUrl}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground mb-0.5">Current QR Code</p>
+                    <p className="text-xs text-muted-foreground truncate">{videoModal.question.videoUrl}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Students scan this in the Video Solutions tab.</p>
+                  </div>
                 </div>
               )}
-              {videoUrlInput && isYouTubeUrl(videoUrlInput) && (
-                <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  Valid YouTube URL — QR code will be generated on save.
-                </div>
-              )}
-              <div className="flex gap-2 pt-2">
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-1">
                 <Button
                   className="flex-1"
                   onClick={handleVideoSave}
                   disabled={updateQuestion.isPending || (!!videoUrlInput && !isYouTubeUrl(videoUrlInput))}
                 >
-                  {updateQuestion.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Youtube className="w-4 h-4 mr-2" />}
-                  Save Video URL
+                  {updateQuestion.isPending
+                    ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    : <Save className="w-4 h-4 mr-2" />}
+                  Save Changes
                 </Button>
                 {videoModal.question.videoUrl && (
                   <Button
                     variant="outline"
-                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
                     onClick={handleVideoClear}
                     disabled={updateQuestion.isPending}
+                    title="Remove video URL and QR code"
                   >
-                    <VideoOff className="w-4 h-4 mr-1" /> Remove
+                    <VideoOff className="w-4 h-4 mr-1" /> Remove Video
                   </Button>
                 )}
               </div>
