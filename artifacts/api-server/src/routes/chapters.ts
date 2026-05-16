@@ -9,6 +9,7 @@ import {
   GetChapterParams,
   UpdateChapterParams,
   UpdateChapterBody,
+  DeleteChapterParams,
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
 
@@ -45,6 +46,7 @@ async function buildChapterResponse(ch: typeof chaptersTable.$inferSelect, userI
     progressPercent,
     gateStatus: allComplete ? "completed" : "unlocked",
     chapterTestUnlocked: allComplete,
+    chapterTestExamId: chapterExam?.id ?? null,
     notesUploadUnlocked: chapterTestAttempted,
   };
 }
@@ -154,8 +156,19 @@ router.patch("/chapters/:chapterId", requireAdmin, async (req, res): Promise<voi
     id: chapter.id, subjectId: chapter.subjectId, name: chapter.name,
     description: chapter.description ?? null, order: chapter.order,
     totalTopics: 0, completedTopics: 0, progressPercent: 0,
-    gateStatus: "unlocked", chapterTestUnlocked: false, notesUploadUnlocked: false,
+    gateStatus: "unlocked", chapterTestUnlocked: false, chapterTestExamId: null, notesUploadUnlocked: false,
   });
+});
+
+router.delete("/chapters/:chapterId", requireAdmin, async (req, res): Promise<void> => {
+  const params = DeleteChapterParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  await db.delete(chaptersTable).where(eq(chaptersTable.id, params.data.chapterId));
+  res.sendStatus(204);
 });
 
 export default router;

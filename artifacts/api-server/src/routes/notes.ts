@@ -11,7 +11,7 @@ import { getUploadSignedUrl, getDownloadSignedUrl, deleteObject } from "../lib/b
 
 const router: IRouter = Router();
 
-const USER_STORAGE_LIMIT = 100 * 1024 * 1024;
+const USER_STORAGE_LIMIT = 500 * 1024 * 1024;
 const GLOBAL_STORAGE_LIMIT = 10 * 1024 * 1024 * 1024;
 
 router.get("/notes", requireApproved, async (req, res): Promise<void> => {

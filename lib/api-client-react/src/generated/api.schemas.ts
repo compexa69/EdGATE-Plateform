@@ -238,6 +238,8 @@ export interface ChapterDetail {
   progressPercent: number;
   chapterTestUnlocked: boolean;
   notesUploadUnlocked: boolean;
+  /** @nullable */
+  chapterTestExamId?: string | null;
   topics: Topic[];
 }
 

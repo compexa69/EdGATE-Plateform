@@ -10,6 +10,7 @@ import {
   UpdateTopicParams,
   UpdateTopicBody,
   RecordLectureClickParams,
+  DeleteTopicParams,
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
 
@@ -140,6 +141,17 @@ router.patch("/topics/:topicId", requireAdmin, async (req, res): Promise<void> =
     lectureQuizPassed: false, dppCompleted: false, pyqCompleted: false,
     topicTestPassed: false, isComplete: false, gateStatus: "unlocked", lectureClickCount: 0,
   });
+});
+
+router.delete("/topics/:topicId", requireAdmin, async (req, res): Promise<void> => {
+  const params = DeleteTopicParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  await db.delete(topicsTable).where(eq(topicsTable.id, params.data.topicId));
+  res.sendStatus(204);
 });
 
 router.post("/topics/:topicId/lecture-click", requireApproved, async (req, res): Promise<void> => {

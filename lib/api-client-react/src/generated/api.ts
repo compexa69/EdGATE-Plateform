@@ -1562,6 +1562,76 @@ export const useUpdateChapter = <TError = ErrorType<unknown>,
       return useMutation(getUpdateChapterMutationOptions(options));
     }
 
+export const getDeleteChapterUrl = (chapterId: string,) => {
+
+
+
+
+  return `/api/chapters/${chapterId}`
+}
+
+/**
+ * @summary Delete chapter (admin only)
+ */
+export const deleteChapter = async (chapterId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteChapterUrl(chapterId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteChapterMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteChapter>>, TError,{chapterId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteChapter>>, TError,{chapterId: string}, TContext> => {
+
+const mutationKey = ['deleteChapter'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteChapter>>, {chapterId: string}> = (props) => {
+          const {chapterId} = props ?? {};
+
+          return  deleteChapter(chapterId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteChapterMutationResult = NonNullable<Awaited<ReturnType<typeof deleteChapter>>>
+
+    export type DeleteChapterMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete chapter (admin only)
+ */
+export const useDeleteChapter = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteChapter>>, TError,{chapterId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteChapter>>,
+        TError,
+        {chapterId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteChapterMutationOptions(options));
+    }
+
 export const getListTopicsUrl = (chapterId: string,) => {
 
 
@@ -1858,6 +1928,76 @@ export const useUpdateTopic = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateTopicMutationOptions(options));
+    }
+
+export const getDeleteTopicUrl = (topicId: string,) => {
+
+
+
+
+  return `/api/topics/${topicId}`
+}
+
+/**
+ * @summary Delete topic (admin only)
+ */
+export const deleteTopic = async (topicId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTopicUrl(topicId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteTopicMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTopic>>, TError,{topicId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTopic>>, TError,{topicId: string}, TContext> => {
+
+const mutationKey = ['deleteTopic'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTopic>>, {topicId: string}> = (props) => {
+          const {topicId} = props ?? {};
+
+          return  deleteTopic(topicId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTopicMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTopic>>>
+
+    export type DeleteTopicMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete topic (admin only)
+ */
+export const useDeleteTopic = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTopic>>, TError,{topicId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTopic>>,
+        TError,
+        {topicId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteTopicMutationOptions(options));
     }
 
 export const getRecordLectureClickUrl = (topicId: string,) => {

@@ -1,5 +1,5 @@
 import { useGetChapter, useListTopics } from "@workspace/api-client-react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Lock, CheckCircle, ChevronRight, PlayCircle, FileText, HelpCircle, FileCheck, Target } from "lucide-react";
@@ -9,13 +9,14 @@ import { Badge } from "@/components/ui/badge";
 export default function ChapterDetail() {
   const params = useParams();
   const chapterId = params.chapterId!;
+  const [, setLocation] = useLocation();
 
   const { data: chapter, isLoading: chapterLoading } = useGetChapter(chapterId, {
-    query: { enabled: !!chapterId }
+    query: { enabled: !!chapterId, queryKey: ["chapter", chapterId] } as any
   });
 
-  const { data: topics, isLoading: topicsLoading } = useListTopics({ chapterId }, {
-    query: { enabled: !!chapterId }
+  const { data: topics, isLoading: topicsLoading } = useListTopics(chapterId, {
+    query: { enabled: !!chapterId, queryKey: ["topics", chapterId] } as any
   });
 
   if (chapterLoading || topicsLoading) {
@@ -114,12 +115,29 @@ export default function ChapterDetail() {
             </div>
             <div>
               <h3 className="text-xl font-bold text-foreground">Chapter Test</h3>
-              <p className="text-sm text-muted-foreground">Comprehensive test covering all topics.</p>
+              <p className="text-sm text-muted-foreground">
+                {chapter.chapterTestUnlocked
+                  ? chapter.chapterTestExamId
+                    ? "Comprehensive test covering all topics. Ready to attempt."
+                    : "Test unlocked — no exam assigned yet. Ask your admin to create one."
+                  : "Complete all topics to unlock the chapter test."}
+              </p>
             </div>
           </div>
           <div>
-             <Button variant="outline" className="border-warning text-warning hover:bg-warning/10" disabled={!chapter.chapterTestUnlocked}>
-              {chapter.chapterTestUnlocked ? "Start Chapter Test" : "Complete all topics to unlock"}
+            <Button
+              variant="outline"
+              className="border-warning text-warning hover:bg-warning/10"
+              disabled={!chapter.chapterTestUnlocked || !chapter.chapterTestExamId}
+              onClick={() => {
+                if (chapter.chapterTestExamId) setLocation(`/exam/${chapter.chapterTestExamId}`);
+              }}
+            >
+              {chapter.chapterTestUnlocked
+                ? chapter.chapterTestExamId
+                  ? "Start Chapter Test"
+                  : "No Exam Assigned"
+                : "Complete all topics to unlock"}
             </Button>
           </div>
         </CardContent>

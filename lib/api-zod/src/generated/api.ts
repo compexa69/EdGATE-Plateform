@@ -330,6 +330,7 @@ export const GetChapterResponse = zod.object({
   "progressPercent": zod.number(),
   "chapterTestUnlocked": zod.boolean(),
   "notesUploadUnlocked": zod.boolean(),
+  "chapterTestExamId": zod.string().nullish(),
   "topics": zod.array(zod.object({
   "id": zod.string(),
   "chapterId": zod.string(),
@@ -374,6 +375,14 @@ export const UpdateChapterResponse = zod.object({
   "gateStatus": zod.enum(['locked', 'unlocked', 'completed']),
   "chapterTestUnlocked": zod.boolean(),
   "notesUploadUnlocked": zod.boolean()
+})
+
+
+/**
+ * @summary Delete chapter (admin only)
+ */
+export const DeleteChapterParams = zod.object({
+  "chapterId": zod.coerce.string()
 })
 
 
@@ -491,6 +500,14 @@ export const UpdateTopicResponse = zod.object({
   "isComplete": zod.boolean(),
   "gateStatus": zod.enum(['locked', 'unlocked', 'completed']),
   "lectureClickCount": zod.number()
+})
+
+
+/**
+ * @summary Delete topic (admin only)
+ */
+export const DeleteTopicParams = zod.object({
+  "topicId": zod.coerce.string()
 })
 
 
