@@ -20,6 +20,7 @@ import AdminDashboard from "@/pages/admin-dashboard";
 import AdminUsers from "@/pages/admin-users";
 import AdminSubjects from "@/pages/admin-subjects";
 import AdminQuestions from "@/pages/admin-questions";
+import Leaderboard from "@/pages/leaderboard";
 import { Layout } from "@/components/layout";
 
 const queryClient = new QueryClient();
@@ -88,6 +89,9 @@ function AppRouter() {
       </Route>
       <Route path="/profile">
         {() => <ProtectedRoute component={Profile} />}
+      </Route>
+      <Route path="/leaderboard">
+        {() => <ProtectedRoute component={Leaderboard} />}
       </Route>
 
       <Route path="/admin">

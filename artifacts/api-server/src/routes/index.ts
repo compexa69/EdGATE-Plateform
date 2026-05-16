@@ -12,6 +12,7 @@ import pomodoroRouter from "./pomodoro";
 import tasksRouter from "./tasks";
 import dashboardRouter from "./dashboard";
 import adminRouter from "./admin";
+import leaderboardRouter from "./leaderboard";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(pomodoroRouter);
 router.use(tasksRouter);
 router.use(dashboardRouter);
 router.use(adminRouter);
+router.use(leaderboardRouter);
 
 export default router;
