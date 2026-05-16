@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { Home, BookOpen, User, LogOut, Settings, Trophy } from "lucide-react";
+import { Home, BookOpen, User, LogOut, Settings, Trophy, CalendarDays } from "lucide-react";
 import { PomodoroWidget } from "@/components/pomodoro";
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -13,10 +13,11 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   const navItems = [
-    { label: "Dashboard", href: "/dashboard", icon: <Home className="w-5 h-5" /> },
-    { label: "Subjects", href: "/subjects", icon: <BookOpen className="w-5 h-5" /> },
-    { label: "Leaderboard", href: "/leaderboard", icon: <Trophy className="w-5 h-5" /> },
-    { label: "Profile", href: "/profile", icon: <User className="w-5 h-5" /> },
+    { label: "Dashboard",   href: "/dashboard",   icon: <Home         className="w-5 h-5" /> },
+    { label: "Subjects",    href: "/subjects",     icon: <BookOpen     className="w-5 h-5" /> },
+    { label: "Planner",     href: "/planner",      icon: <CalendarDays className="w-5 h-5" /> },
+    { label: "Leaderboard", href: "/leaderboard",  icon: <Trophy       className="w-5 h-5" /> },
+    { label: "Profile",     href: "/profile",      icon: <User         className="w-5 h-5" /> },
   ];
 
   if (user?.role === "admin" || user?.role === "super_admin") {
