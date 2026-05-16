@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-20", "web", "bash"]
 
 [deployment]
 router = "application"
@@ -45,8 +45,8 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=18184 BASE_PATH=/ pnpm --filter @workspace/edtech-platform run dev"
-waitForPort = 18184
+args = "BASE_PATH=/ pnpm --filter @workspace/edtech-platform run dev"
+waitForPort = 5000
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
@@ -57,12 +57,12 @@ path = "scripts/post-merge.sh"
 timeoutMs = 20000
 
 [[ports]]
-localPort = 8080
-externalPort = 8080
+localPort = 5000
+externalPort = 80
 
 [[ports]]
-localPort = 8081
-externalPort = 80
+localPort = 8080
+externalPort = 8080
 
 [[ports]]
 localPort = 18184
@@ -71,4 +71,6 @@ externalPort = 3000
 [userenv]
 
 [userenv.shared]
-PORT = "8080"
+
+[nix]
+channel = "stable-25_05"
