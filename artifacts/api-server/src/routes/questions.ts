@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
+import QRCode from "qrcode";
 import {
   ListQuestionsQueryParams,
   CreateQuestionBody,
@@ -13,6 +14,15 @@ import {
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
 import { logger } from "../lib/logger";
+
+async function generateQrSvg(url: string): Promise<string> {
+  return QRCode.toString(url, {
+    type: "svg",
+    margin: 1,
+    color: { dark: "#000000", light: "#ffffff" },
+    errorCorrectionLevel: "M",
+  });
+}
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -187,6 +197,18 @@ router.patch("/questions/:questionId", requireAdmin, async (req, res): Promise<v
 
   const updates: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.correctOption != null) updates.correctOption = String(parsed.data.correctOption);
+
+  // Auto-generate QR code SVG when videoUrl is set or cleared
+  if (parsed.data.videoUrl) {
+    try {
+      updates.qrCodeSvg = await generateQrSvg(parsed.data.videoUrl);
+    } catch (err) {
+      logger.warn({ err }, "Failed to generate QR code SVG");
+    }
+  } else if ("videoUrl" in parsed.data) {
+    // videoUrl explicitly set to null/empty — clear QR too
+    updates.qrCodeSvg = null;
+  }
 
   const [q] = await db.update(questionsTable)
     .set(updates)

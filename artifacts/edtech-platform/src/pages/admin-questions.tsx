@@ -1,9 +1,9 @@
-import { useListQuestions, useCreateQuestion, useDeleteQuestion } from "@workspace/api-client-react";
+import { useListQuestions, useCreateQuestion, useDeleteQuestion, useUpdateQuestion } from "@workspace/api-client-react";
 import { useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash, Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Trash, Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, Loader2, AlertTriangle, Youtube, VideoOff, Search, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,14 +116,35 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+type Question = {
+  id: string;
+  text: string;
+  difficulty: string;
+  marks: number;
+  topicId: string | null;
+  videoUrl: string | null;
+  qrCodeSvg: string | null;
+};
+
+function isYouTubeUrl(url: string): boolean {
+  return /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]{11}/.test(url.trim());
+}
+
 export default function AdminQuestions() {
   const { data: questions, isLoading, refetch } = useListQuestions();
   const createQuestion = useCreateQuestion();
   const deleteQuestion = useDeleteQuestion();
+  const updateQuestion = useUpdateQuestion();
   const { toast } = useToast();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+
+  // Video URL modal state
+  const [videoModal, setVideoModal] = useState<{ open: boolean; question: Question | null }>({ open: false, question: null });
+  const [videoUrlInput, setVideoUrlInput] = useState("");
+  const [videoFilter, setVideoFilter] = useState<"all" | "with" | "without">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [newQ, setNewQ] = useState({
     text: "",
     option1: "", option2: "", option3: "", option4: "",
@@ -215,9 +236,45 @@ export default function AdminQuestions() {
   };
 
   const handleDelete = (id: string) => {
-    deleteQuestion.mutate({ id }, {
+    deleteQuestion.mutate({ questionId: id }, {
       onSuccess: () => { toast({ title: "Question deleted" }); refetch(); }
     });
+  };
+
+  const openVideoModal = (q: Question) => {
+    setVideoModal({ open: true, question: q });
+    setVideoUrlInput(q.videoUrl ?? "");
+  };
+
+  const handleVideoSave = () => {
+    if (!videoModal.question) return;
+    const url = videoUrlInput.trim();
+    updateQuestion.mutate(
+      { questionId: videoModal.question.id, data: { videoUrl: url || undefined } },
+      {
+        onSuccess: () => {
+          toast({ title: url ? "Video URL saved" : "Video URL cleared", description: url ? "QR code generated automatically." : undefined });
+          setVideoModal({ open: false, question: null });
+          refetch();
+        },
+        onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleVideoClear = () => {
+    if (!videoModal.question) return;
+    updateQuestion.mutate(
+      { questionId: videoModal.question.id, data: {} },
+      {
+        onSuccess: () => {
+          toast({ title: "Video URL removed" });
+          setVideoModal({ open: false, question: null });
+          refetch();
+        },
+        onError: () => toast({ title: "Failed to remove", variant: "destructive" }),
+      }
+    );
   };
 
   const difficultyBadgeClass = (d: string) =>
@@ -225,8 +282,89 @@ export default function AdminQuestions() {
     d === "hard" ? "bg-destructive/10 text-destructive border-destructive/20" :
     "bg-warning/10 text-warning border-warning/20";
 
+  const filteredQuestions = (questions as Question[] | undefined)?.filter(q => {
+    const matchesSearch = !searchQuery || q.text.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter =
+      videoFilter === "all" ? true :
+      videoFilter === "with" ? !!q.videoUrl :
+      !q.videoUrl;
+    return matchesSearch && matchesFilter;
+  }) ?? [];
+
+  const withVideoCount = (questions as Question[] | undefined)?.filter(q => !!q.videoUrl).length ?? 0;
+  const withoutVideoCount = (questions?.length ?? 0) - withVideoCount;
+
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 pb-24 md:pb-8">
+      {/* Video URL Modal */}
+      <Dialog open={videoModal.open} onOpenChange={(open) => { if (!open) setVideoModal({ open: false, question: null }); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Youtube className="w-5 h-5 text-red-500" /> Attach YouTube Video
+            </DialogTitle>
+          </DialogHeader>
+          {videoModal.question && (
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-muted-foreground line-clamp-3 bg-muted/40 rounded-lg px-3 py-2 border border-border">
+                {videoModal.question.text}
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="videoUrlInput">YouTube Video URL</Label>
+                <Input
+                  id="videoUrlInput"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  value={videoUrlInput}
+                  onChange={e => setVideoUrlInput(e.target.value)}
+                  className={videoUrlInput && !isYouTubeUrl(videoUrlInput) ? "border-destructive" : ""}
+                />
+                {videoUrlInput && !isYouTubeUrl(videoUrlInput) && (
+                  <p className="text-xs text-destructive">Must be a valid YouTube URL (youtube.com/watch?v= or youtu.be/)</p>
+                )}
+              </div>
+              {videoModal.question.qrCodeSvg && !videoUrlInput && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Current QR Code</Label>
+                  <div className="flex justify-center bg-white rounded-lg p-3 w-32 mx-auto">
+                    <div
+                      className="w-24 h-24"
+                      dangerouslySetInnerHTML={{ __html: videoModal.question.qrCodeSvg }}
+                    />
+                  </div>
+                  <p className="text-xs text-center text-muted-foreground">{videoModal.question.videoUrl}</p>
+                </div>
+              )}
+              {videoUrlInput && isYouTubeUrl(videoUrlInput) && (
+                <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg px-3 py-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  Valid YouTube URL — QR code will be generated on save.
+                </div>
+              )}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  className="flex-1"
+                  onClick={handleVideoSave}
+                  disabled={updateQuestion.isPending || (!!videoUrlInput && !isYouTubeUrl(videoUrlInput))}
+                >
+                  {updateQuestion.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Youtube className="w-4 h-4 mr-2" />}
+                  Save Video URL
+                </Button>
+                {videoModal.question.videoUrl && (
+                  <Button
+                    variant="outline"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={handleVideoClear}
+                    disabled={updateQuestion.isPending}
+                  >
+                    <VideoOff className="w-4 h-4 mr-1" /> Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Question Bank</h1>
@@ -506,19 +644,74 @@ export default function AdminQuestions() {
         </div>
       </div>
 
+      {/* Video coverage summary cards */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="border-card-border bg-card">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-2xl font-bold">{questions?.length ?? 0}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Total questions</div>
+          </CardContent>
+        </Card>
+        <Card className="border-card-border bg-card border-green-500/20">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-2xl font-bold text-green-400">{withVideoCount}</div>
+            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><Youtube className="w-3 h-3" /> Have video</div>
+          </CardContent>
+        </Card>
+        <Card className="border-card-border bg-card border-muted">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-2xl font-bold text-muted-foreground">{withoutVideoCount}</div>
+            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><VideoOff className="w-3 h-3" /> No video</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search + filter bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            className="pl-9 pr-8"
+            placeholder="Search questions…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchQuery("")}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+          {(["all", "with", "without"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setVideoFilter(f)}
+              className={`px-3 py-2 text-xs font-medium transition-colors ${videoFilter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
+            >
+              {f === "all" ? "All" : f === "with" ? "Has Video" : "No Video"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Card className="border-card-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
               <tr>
-                <th className="px-6 py-4 font-medium w-1/2">Question</th>
+                <th className="px-6 py-4 font-medium w-5/12">Question</th>
                 <th className="px-6 py-4 font-medium">Difficulty</th>
                 <th className="px-6 py-4 font-medium">Marks</th>
+                <th className="px-6 py-4 font-medium">Video</th>
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {questions?.map((q) => (
+              {filteredQuestions.map((q) => (
                 <tr key={q.id} className="border-b border-border hover:bg-muted/20">
                   <td className="px-6 py-4">
                     <div className="font-medium text-foreground line-clamp-2">{q.text}</div>
@@ -530,6 +723,20 @@ export default function AdminQuestions() {
                     </Badge>
                   </td>
                   <td className="px-6 py-4">{q.marks}</td>
+                  <td className="px-6 py-4">
+                    <Button
+                      size="sm"
+                      variant={q.videoUrl ? "outline" : "ghost"}
+                      onClick={() => openVideoModal(q)}
+                      className={`h-8 gap-1.5 text-xs ${q.videoUrl ? "border-green-500/40 text-green-400 hover:bg-green-500/10" : "text-muted-foreground"}`}
+                    >
+                      {q.videoUrl ? (
+                        <><Youtube className="w-3.5 h-3.5" /> Linked</>
+                      ) : (
+                        <><VideoOff className="w-3.5 h-3.5" /> Add</>
+                      )}
+                    </Button>
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <Button size="sm" variant="destructive" onClick={() => handleDelete(q.id)} disabled={deleteQuestion.isPending} className="h-8 w-8 p-0">
                       <Trash className="w-4 h-4" />
@@ -537,12 +744,21 @@ export default function AdminQuestions() {
                   </td>
                 </tr>
               ))}
-              {questions?.length === 0 && (
+              {filteredQuestions.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <FileSpreadsheet className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-                    <p className="text-muted-foreground">No questions yet.</p>
-                    <p className="text-xs text-muted-foreground mt-1">Use "Import CSV" to bulk-add questions or "Add Question" for individual entries.</p>
+                    {searchQuery || videoFilter !== "all" ? (
+                      <>
+                        <p className="text-muted-foreground">No questions match your filters.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Try clearing the search or changing the video filter.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-muted-foreground">No questions yet.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Use "Import CSV" to bulk-add questions or "Add Question" for individual entries.</p>
+                      </>
+                    )}
                   </td>
                 </tr>
               )}
