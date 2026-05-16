@@ -3,20 +3,48 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: EdTech Study Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: profile
+    description: User profile management
+  - name: subjects
+    description: Subject hierarchy
+  - name: chapters
+    description: Chapter management
+  - name: topics
+    description: Topic management
+  - name: progress
+    description: User progress tracking
+  - name: exams
+    description: Exam and test operations
+  - name: questions
+    description: Question bank
+  - name: notes
+    description: PDF notes management
+  - name: pomodoro
+    description: Pomodoro timer sessions
+  - name: tasks
+    description: Study planner tasks
+  - name: dashboard
+    description: Dashboard summary data
+  - name: admin
+    description: Admin operations
+  - name: b2
+    description: Backblaze B2 storage operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +52,1228 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # Auth
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+        "403":
+          description: Email not verified
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout user
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Verify email with token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailInput"
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [auth]
+      summary: Resend verification email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendVerificationInput"
+      responses:
+        "200":
+          description: Email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change password (requires auth)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Send password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "200":
+          description: Reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Not authenticated
+
+  # Profile
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get user profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update user profile (name, mobile)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  # Subjects
+  /subjects:
+    get:
+      operationId: listSubjects
+      tags: [subjects]
+      summary: List all subjects with user progress
+      responses:
+        "200":
+          description: List of subjects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subject"
+    post:
+      operationId: createSubject
+      tags: [subjects]
+      summary: Create a subject (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubjectInput"
+      responses:
+        "201":
+          description: Created subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subject"
+
+  /subjects/{subjectId}:
+    get:
+      operationId: getSubject
+      tags: [subjects]
+      summary: Get subject with chapters
+      parameters:
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Subject detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubjectDetail"
+    patch:
+      operationId: updateSubject
+      tags: [subjects]
+      summary: Update subject (admin only)
+      parameters:
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubjectUpdate"
+      responses:
+        "200":
+          description: Updated subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subject"
+    delete:
+      operationId: deleteSubject
+      tags: [subjects]
+      summary: Delete subject (admin only)
+      parameters:
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # Chapters
+  /subjects/{subjectId}/chapters:
+    get:
+      operationId: listChapters
+      tags: [chapters]
+      summary: List chapters in a subject
+      parameters:
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of chapters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Chapter"
+    post:
+      operationId: createChapter
+      tags: [chapters]
+      summary: Create a chapter (admin only)
+      parameters:
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChapterInput"
+      responses:
+        "201":
+          description: Created chapter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chapter"
+
+  /chapters/{chapterId}:
+    get:
+      operationId: getChapter
+      tags: [chapters]
+      summary: Get chapter with topics
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chapter detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChapterDetail"
+    patch:
+      operationId: updateChapter
+      tags: [chapters]
+      summary: Update chapter (admin only)
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChapterUpdate"
+      responses:
+        "200":
+          description: Updated chapter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chapter"
+
+  # Topics
+  /chapters/{chapterId}/topics:
+    get:
+      operationId: listTopics
+      tags: [topics]
+      summary: List topics in a chapter with gate status
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of topics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Topic"
+    post:
+      operationId: createTopic
+      tags: [topics]
+      summary: Create a topic (admin only)
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopicInput"
+      responses:
+        "201":
+          description: Created topic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Topic"
+
+  /topics/{topicId}:
+    get:
+      operationId: getTopic
+      tags: [topics]
+      summary: Get topic detail with gate status
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Topic detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicDetail"
+    patch:
+      operationId: updateTopic
+      tags: [topics]
+      summary: Update topic (admin only)
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopicUpdate"
+      responses:
+        "200":
+          description: Updated topic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Topic"
+
+  /topics/{topicId}/lecture-click:
+    post:
+      operationId: recordLectureClick
+      tags: [topics]
+      summary: Record a lecture click event
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Click recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # Gate check
+  /gate/check:
+    post:
+      operationId: checkGate
+      tags: [progress]
+      summary: Check if content is accessible (gate validation)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GateCheckInput"
+      responses:
+        "200":
+          description: Gate status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GateCheckResult"
+
+  # Progress
+  /progress/summary:
+    get:
+      operationId: getProgressSummary
+      tags: [progress]
+      summary: Get user's overall progress summary
+      responses:
+        "200":
+          description: Progress summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressSummary"
+
+  /progress/subject/{subjectId}:
+    get:
+      operationId: getSubjectProgress
+      tags: [progress]
+      summary: Get progress for a subject
+      parameters:
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Subject progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubjectProgress"
+
+  # Exams
+  /exams:
+    get:
+      operationId: listExams
+      tags: [exams]
+      summary: List available exams with unlock status
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [topic, chapter, subject, dpp, pyq, grand]
+        - name: subjectId
+          in: query
+          schema:
+            type: string
+        - name: chapterId
+          in: query
+          schema:
+            type: string
+        - name: topicId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of exams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exam"
+    post:
+      operationId: createExam
+      tags: [exams]
+      summary: Create an exam (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExamInput"
+      responses:
+        "201":
+          description: Created exam
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exam"
+
+  /exams/{examId}:
+    get:
+      operationId: getExam
+      tags: [exams]
+      summary: Get exam detail
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exam detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamDetail"
+
+  /exams/{examId}/start:
+    post:
+      operationId: startExam
+      tags: [exams]
+      summary: Start an exam attempt
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exam started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamAttempt"
+        "403":
+          description: Gate prerequisite not met
+
+  /attempts/{attemptId}/answer:
+    post:
+      operationId: saveAnswer
+      tags: [exams]
+      summary: Save answer for a question
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnswerInput"
+      responses:
+        "200":
+          description: Answer saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /attempts/{attemptId}/submit:
+    post:
+      operationId: submitExam
+      tags: [exams]
+      summary: Submit exam attempt
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitExamInput"
+      responses:
+        "200":
+          description: Exam submitted with results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamResult"
+
+  /attempts/{attemptId}/pause:
+    post:
+      operationId: pauseExam
+      tags: [exams]
+      summary: Pause exam attempt
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /attempts/{attemptId}/resume:
+    post:
+      operationId: resumeExam
+      tags: [exams]
+      summary: Resume exam attempt
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamAttempt"
+
+  /results/{resultId}:
+    get:
+      operationId: getResult
+      tags: [exams]
+      summary: Get exam result and analysis
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exam result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamResult"
+
+  /results:
+    get:
+      operationId: listResults
+      tags: [exams]
+      summary: List user's past exam results
+      responses:
+        "200":
+          description: List of results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExamResultSummary"
+
+  # Questions
+  /questions:
+    get:
+      operationId: listQuestions
+      tags: [questions]
+      summary: List questions (admin) with filters
+      parameters:
+        - name: examId
+          in: query
+          schema:
+            type: string
+        - name: topicId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+    post:
+      operationId: createQuestion
+      tags: [questions]
+      summary: Create a question (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionInput"
+      responses:
+        "201":
+          description: Created question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+
+  /questions/{questionId}:
+    patch:
+      operationId: updateQuestion
+      tags: [questions]
+      summary: Update question (admin only)
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionUpdate"
+      responses:
+        "200":
+          description: Updated question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+    delete:
+      operationId: deleteQuestion
+      tags: [questions]
+      summary: Delete question (admin only)
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # Notes (PDF)
+  /notes:
+    get:
+      operationId: listNotes
+      tags: [notes]
+      summary: List user's uploaded notes
+      parameters:
+        - name: chapterId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Note"
+
+  /notes/{noteId}:
+    delete:
+      operationId: deleteNote
+      tags: [notes]
+      summary: Delete a note
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # B2 Storage
+  /b2/upload-url:
+    post:
+      operationId: getUploadUrl
+      tags: [b2]
+      summary: Get a signed upload URL for PDF note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlInput"
+      responses:
+        "200":
+          description: Upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "403":
+          description: Gate not passed
+        "429":
+          description: Quota exceeded
+
+  /b2/download-url:
+    post:
+      operationId: getDownloadUrl
+      tags: [b2]
+      summary: Get a signed download URL for a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DownloadUrlInput"
+      responses:
+        "200":
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DownloadUrlResponse"
+
+  /b2/profile-upload-url:
+    post:
+      operationId: getProfileUploadUrl
+      tags: [b2]
+      summary: Get a signed upload URL for profile photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUploadUrlInput"
+      responses:
+        "200":
+          description: Upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+
+  /b2/profile-download-url:
+    post:
+      operationId: getProfileDownloadUrl
+      tags: [b2]
+      summary: Get a signed download URL for profile photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileDownloadUrlInput"
+      responses:
+        "200":
+          description: Download URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DownloadUrlResponse"
+
+  /b2/confirm-upload:
+    post:
+      operationId: confirmUpload
+      tags: [b2]
+      summary: Confirm a PDF upload was successful and record it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmUploadInput"
+      responses:
+        "201":
+          description: Note recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+
+  /b2/quota:
+    get:
+      operationId: getStorageQuota
+      tags: [b2]
+      summary: Get user storage quota usage
+      responses:
+        "200":
+          description: Quota info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageQuota"
+
+  # Pomodoro
+  /pomodoro/sessions:
+    get:
+      operationId: listPomodoroSessions
+      tags: [pomodoro]
+      summary: List user's pomodoro sessions
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PomodoroSession"
+    post:
+      operationId: createPomodoroSession
+      tags: [pomodoro]
+      summary: Log a completed pomodoro session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PomodoroSessionInput"
+      responses:
+        "201":
+          description: Session logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PomodoroSession"
+
+  /pomodoro/stats:
+    get:
+      operationId: getPomodoroStats
+      tags: [pomodoro]
+      summary: Get pomodoro stats (streak, total focus time)
+      responses:
+        "200":
+          description: Pomodoro stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PomodoroStats"
+
+  # Study Tasks
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List today's study tasks
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudyTask"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a manual study task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudyTaskInput"
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyTask"
+
+  /tasks/{taskId}:
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update task status or order
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudyTaskUpdate"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyTask"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a study task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # Dashboard
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary (streak, focus, next action, stats)
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/weak-topics:
+    get:
+      operationId: getWeakTopics
+      tags: [dashboard]
+      summary: Get topics with low accuracy
+      responses:
+        "200":
+          description: Weak topics list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WeakTopic"
+
+  /dashboard/performance-trend:
+    get:
+      operationId: getPerformanceTrend
+      tags: [dashboard]
+      summary: Get performance trend over time
+      responses:
+        "200":
+          description: Performance trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformancePoint"
+
+  # Admin
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin]
+      summary: List all users (admin only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending_approval, approved, suspended, banned]
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{userId}/approve:
+    post:
+      operationId: approveUser
+      tags: [admin]
+      summary: Approve a pending user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /admin/users/{userId}/suspend:
+    post:
+      operationId: suspendUser
+      tags: [admin]
+      summary: Suspend a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User suspended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /admin/users/{userId}/role:
+    patch:
+      operationId: updateUserRole
+      tags: [admin]
+      summary: Change user role
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleUpdate"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get admin overview stats
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1284,1403 @@ components:
       required:
         - status
 
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    # Auth schemas
+    RegisterInput:
+      type: object
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+        mobile:
+          type: string
+          description: "Indian mobile number format: +91XXXXXXXXXX"
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+      required:
+        - fullName
+        - mobile
+        - email
+        - password
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    VerifyEmailInput:
+      type: object
+      properties:
+        token:
+          type: string
+      required:
+        - token
+
+    ResendVerificationInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+
+    ChangePasswordInput:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+      required:
+        - currentPassword
+        - newPassword
+
+    ForgotPasswordInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserProfile"
+        token:
+          type: string
+        message:
+          type: string
+      required:
+        - user
+        - token
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        mobile:
+          type: string
+        mobileMasked:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, student]
+        status:
+          type: string
+          enum: [pending_approval, approved, suspended, banned]
+        emailVerified:
+          type: boolean
+        isApproved:
+          type: boolean
+        photoUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - fullName
+        - email
+        - mobile
+        - mobileMasked
+        - role
+        - status
+        - emailVerified
+        - isApproved
+
+    ProfileUpdate:
+      type: object
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+        mobile:
+          type: string
+
+    # Subjects
+    Subject:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        order:
+          type: integer
+        iconName:
+          type: ["string", "null"]
+        totalChapters:
+          type: integer
+        completedChapters:
+          type: integer
+        progressPercent:
+          type: number
+        gateStatus:
+          type: string
+          enum: [locked, unlocked, completed]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - order
+        - totalChapters
+        - completedChapters
+        - progressPercent
+        - gateStatus
+
+    SubjectInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+        iconName:
+          type: string
+      required:
+        - name
+
+    SubjectUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+        iconName:
+          type: string
+
+    SubjectDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        order:
+          type: integer
+        iconName:
+          type: ["string", "null"]
+        gateStatus:
+          type: string
+          enum: [locked, unlocked, completed]
+        progressPercent:
+          type: number
+        chapters:
+          type: array
+          items:
+            $ref: "#/components/schemas/Chapter"
+      required:
+        - id
+        - name
+        - order
+        - gateStatus
+        - progressPercent
+        - chapters
+
+    # Chapters
+    Chapter:
+      type: object
+      properties:
+        id:
+          type: string
+        subjectId:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        order:
+          type: integer
+        totalTopics:
+          type: integer
+        completedTopics:
+          type: integer
+        progressPercent:
+          type: number
+        gateStatus:
+          type: string
+          enum: [locked, unlocked, completed]
+        chapterTestUnlocked:
+          type: boolean
+        notesUploadUnlocked:
+          type: boolean
+      required:
+        - id
+        - subjectId
+        - name
+        - order
+        - totalTopics
+        - completedTopics
+        - progressPercent
+        - gateStatus
+        - chapterTestUnlocked
+        - notesUploadUnlocked
+
+    ChapterInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+      required:
+        - name
+
+    ChapterUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+
+    ChapterDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        subjectId:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        order:
+          type: integer
+        gateStatus:
+          type: string
+          enum: [locked, unlocked, completed]
+        progressPercent:
+          type: number
+        chapterTestUnlocked:
+          type: boolean
+        notesUploadUnlocked:
+          type: boolean
+        topics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Topic"
+      required:
+        - id
+        - subjectId
+        - name
+        - order
+        - gateStatus
+        - progressPercent
+        - chapterTestUnlocked
+        - notesUploadUnlocked
+        - topics
+
+    # Topics
+    Topic:
+      type: object
+      properties:
+        id:
+          type: string
+        chapterId:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        order:
+          type: integer
+        telegramChatId:
+          type: ["string", "null"]
+        telegramMessageId:
+          type: ["string", "null"]
+        lectureQuizPassed:
+          type: boolean
+        dppCompleted:
+          type: boolean
+        pyqCompleted:
+          type: boolean
+        topicTestPassed:
+          type: boolean
+        isComplete:
+          type: boolean
+        gateStatus:
+          type: string
+          enum: [locked, unlocked, completed]
+        lectureClickCount:
+          type: integer
+      required:
+        - id
+        - chapterId
+        - name
+        - order
+        - lectureQuizPassed
+        - dppCompleted
+        - pyqCompleted
+        - topicTestPassed
+        - isComplete
+        - gateStatus
+        - lectureClickCount
+
+    TopicInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+        telegramChatId:
+          type: string
+        telegramMessageId:
+          type: string
+      required:
+        - name
+
+    TopicUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+        telegramChatId:
+          type: string
+        telegramMessageId:
+          type: string
+
+    TopicDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        chapterId:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        order:
+          type: integer
+        telegramChatId:
+          type: ["string", "null"]
+        telegramMessageId:
+          type: ["string", "null"]
+        lectureQuizPassed:
+          type: boolean
+        dppCompleted:
+          type: boolean
+        pyqCompleted:
+          type: boolean
+        topicTestPassed:
+          type: boolean
+        isComplete:
+          type: boolean
+        gateStatus:
+          type: string
+          enum: [locked, unlocked, completed]
+        lectureClickCount:
+          type: integer
+        availableExams:
+          type: array
+          items:
+            $ref: "#/components/schemas/Exam"
+      required:
+        - id
+        - chapterId
+        - name
+        - order
+        - lectureQuizPassed
+        - dppCompleted
+        - pyqCompleted
+        - topicTestPassed
+        - isComplete
+        - gateStatus
+        - lectureClickCount
+        - availableExams
+
+    # Gate
+    GateCheckInput:
+      type: object
+      properties:
+        targetId:
+          type: string
+        targetType:
+          type: string
+          enum: [lecture_quiz, dpp, pyq, topic_test, chapter_test, subject_test, pdf_upload]
+      required:
+        - targetId
+        - targetType
+
+    GateCheckResult:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        nextStep:
+          type: ["string", "null"]
+        reason:
+          type: ["string", "null"]
+        gateStatus:
+          type: string
+          enum: [locked, unlocked, completed]
+      required:
+        - allowed
+        - gateStatus
+
+    # Progress
+    ProgressSummary:
+      type: object
+      properties:
+        totalSubjects:
+          type: integer
+        completedSubjects:
+          type: integer
+        totalChapters:
+          type: integer
+        completedChapters:
+          type: integer
+        totalTopics:
+          type: integer
+        completedTopics:
+          type: integer
+        overallPercent:
+          type: number
+        focusStreakDays:
+          type: integer
+        totalFocusMinutesToday:
+          type: integer
+        nextAction:
+          type: ["string", "null"]
+        nextActionTarget:
+          type: ["string", "null"]
+      required:
+        - totalSubjects
+        - completedSubjects
+        - totalChapters
+        - completedChapters
+        - totalTopics
+        - completedTopics
+        - overallPercent
+        - focusStreakDays
+        - totalFocusMinutesToday
+
+    SubjectProgress:
+      type: object
+      properties:
+        subjectId:
+          type: string
+        subjectName:
+          type: string
+        progressPercent:
+          type: number
+        completedTopics:
+          type: integer
+        totalTopics:
+          type: integer
+        weakTopics:
+          type: array
+          items:
+            type: string
+      required:
+        - subjectId
+        - subjectName
+        - progressPercent
+        - completedTopics
+        - totalTopics
+        - weakTopics
+
+    # Exams
+    Exam:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum: [lecture_quiz, dpp, pyq, topic_test, chapter_test, subject_test, grand_test]
+        subjectId:
+          type: ["string", "null"]
+        chapterId:
+          type: ["string", "null"]
+        topicId:
+          type: ["string", "null"]
+        durationMinutes:
+          type: integer
+        totalQuestions:
+          type: integer
+        totalMarks:
+          type: integer
+        passingScore:
+          type: ["integer", "null"]
+        negativeMarking:
+          type: number
+        isUnlocked:
+          type: boolean
+        hasAttempted:
+          type: boolean
+        lastScore:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - type
+        - durationMinutes
+        - totalQuestions
+        - totalMarks
+        - negativeMarking
+        - isUnlocked
+        - hasAttempted
+
+    ExamInput:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [lecture_quiz, dpp, pyq, topic_test, chapter_test, subject_test, grand_test]
+        subjectId:
+          type: string
+        chapterId:
+          type: string
+        topicId:
+          type: string
+        durationMinutes:
+          type: integer
+        passingScore:
+          type: integer
+        negativeMarking:
+          type: number
+        questionIds:
+          type: array
+          items:
+            type: string
+      required:
+        - title
+        - type
+        - durationMinutes
+
+    ExamDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+        durationMinutes:
+          type: integer
+        totalQuestions:
+          type: integer
+        totalMarks:
+          type: integer
+        passingScore:
+          type: ["integer", "null"]
+        negativeMarking:
+          type: number
+        isUnlocked:
+          type: boolean
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+      required:
+        - id
+        - title
+        - type
+        - durationMinutes
+        - totalQuestions
+        - totalMarks
+        - negativeMarking
+        - isUnlocked
+        - questions
+
+    ExamAttempt:
+      type: object
+      properties:
+        id:
+          type: string
+        examId:
+          type: string
+        userId:
+          type: string
+        status:
+          type: string
+          enum: [in_progress, paused, submitted, auto_submitted]
+        startTime:
+          type: string
+          format: date-time
+        pauseCount:
+          type: integer
+        remainingSeconds:
+          type: integer
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttemptAnswer"
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+      required:
+        - id
+        - examId
+        - userId
+        - status
+        - startTime
+        - pauseCount
+        - remainingSeconds
+        - answers
+        - questions
+
+    AttemptAnswer:
+      type: object
+      properties:
+        questionId:
+          type: string
+        selectedOption:
+          type: ["integer", "null"]
+        isMarkedForReview:
+          type: boolean
+        timeSpentSeconds:
+          type: integer
+      required:
+        - questionId
+        - isMarkedForReview
+        - timeSpentSeconds
+
+    AnswerInput:
+      type: object
+      properties:
+        questionId:
+          type: string
+        selectedOption:
+          type: ["integer", "null"]
+        isMarkedForReview:
+          type: boolean
+        timeSpentSeconds:
+          type: integer
+      required:
+        - questionId
+        - isMarkedForReview
+        - timeSpentSeconds
+
+    SubmitExamInput:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnswerInput"
+      required:
+        - answers
+
+    ExamResult:
+      type: object
+      properties:
+        id:
+          type: string
+        examId:
+          type: string
+        examTitle:
+          type: string
+        examType:
+          type: string
+        score:
+          type: number
+        maxScore:
+          type: number
+        accuracy:
+          type: number
+        totalQuestions:
+          type: integer
+        correctAnswers:
+          type: integer
+        incorrectAnswers:
+          type: integer
+        skippedAnswers:
+          type: integer
+        timeTakenSeconds:
+          type: integer
+        percentile:
+          type: ["number", "null"]
+        passed:
+          type: boolean
+        questionWise:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionResult"
+        topicWise:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopicWiseResult"
+        submittedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - examId
+        - examTitle
+        - examType
+        - score
+        - maxScore
+        - accuracy
+        - totalQuestions
+        - correctAnswers
+        - incorrectAnswers
+        - skippedAnswers
+        - timeTakenSeconds
+        - passed
+        - questionWise
+        - topicWise
+        - submittedAt
+
+    ExamResultSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        examId:
+          type: string
+        examTitle:
+          type: string
+        examType:
+          type: string
+        score:
+          type: number
+        maxScore:
+          type: number
+        accuracy:
+          type: number
+        passed:
+          type: boolean
+        submittedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - examId
+        - examTitle
+        - examType
+        - score
+        - maxScore
+        - accuracy
+        - passed
+        - submittedAt
+
+    QuestionResult:
+      type: object
+      properties:
+        questionId:
+          type: string
+        questionText:
+          type: string
+        selectedOption:
+          type: ["integer", "null"]
+        correctOption:
+          type: integer
+        isCorrect:
+          type: boolean
+        marksAwarded:
+          type: number
+        timeSpentSeconds:
+          type: integer
+        textSolution:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        qrCodeSvg:
+          type: ["string", "null"]
+      required:
+        - questionId
+        - questionText
+        - correctOption
+        - isCorrect
+        - marksAwarded
+        - timeSpentSeconds
+
+    TopicWiseResult:
+      type: object
+      properties:
+        topicId:
+          type: string
+        topicName:
+          type: string
+        totalQuestions:
+          type: integer
+        correctAnswers:
+          type: integer
+        accuracy:
+          type: number
+      required:
+        - topicId
+        - topicName
+        - totalQuestions
+        - correctAnswers
+        - accuracy
+
+    # Questions
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctOption:
+          type: ["integer", "null"]
+        marks:
+          type: number
+        topicId:
+          type: ["string", "null"]
+        textSolution:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        qrCodeSvg:
+          type: ["string", "null"]
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+      required:
+        - id
+        - text
+        - options
+        - marks
+        - difficulty
+
+    QuestionInput:
+      type: object
+      properties:
+        text:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctOption:
+          type: integer
+        marks:
+          type: number
+        topicId:
+          type: string
+        textSolution:
+          type: string
+        videoUrl:
+          type: string
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+      required:
+        - text
+        - options
+        - correctOption
+        - marks
+        - difficulty
+
+    QuestionUpdate:
+      type: object
+      properties:
+        text:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctOption:
+          type: integer
+        marks:
+          type: number
+        topicId:
+          type: string
+        textSolution:
+          type: string
+        videoUrl:
+          type: string
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+
+    # Notes
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        chapterId:
+          type: string
+        chapterName:
+          type: string
+        fileName:
+          type: string
+        fileSizeBytes:
+          type: integer
+        b2Key:
+          type: string
+        uploadedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - chapterId
+        - chapterName
+        - fileName
+        - fileSizeBytes
+        - b2Key
+        - uploadedAt
+
+    # B2
+    UploadUrlInput:
+      type: object
+      properties:
+        chapterId:
+          type: string
+        fileName:
+          type: string
+        fileSizeBytes:
+          type: integer
+      required:
+        - chapterId
+        - fileName
+        - fileSizeBytes
+
+    ProfileUploadUrlInput:
+      type: object
+      properties:
+        fileName:
+          type: string
+        fileSizeBytes:
+          type: integer
+      required:
+        - fileName
+        - fileSizeBytes
+
+    DownloadUrlInput:
+      type: object
+      properties:
+        noteId:
+          type: string
+      required:
+        - noteId
+
+    ProfileDownloadUrlInput:
+      type: object
+      properties:
+        userId:
+          type: string
+      required:
+        - userId
+
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+        b2Key:
+          type: string
+        expiresIn:
+          type: integer
+      required:
+        - uploadUrl
+        - b2Key
+        - expiresIn
+
+    DownloadUrlResponse:
+      type: object
+      properties:
+        downloadUrl:
+          type: string
+        expiresIn:
+          type: integer
+      required:
+        - downloadUrl
+        - expiresIn
+
+    ConfirmUploadInput:
+      type: object
+      properties:
+        chapterId:
+          type: string
+        fileName:
+          type: string
+        fileSizeBytes:
+          type: integer
+        b2Key:
+          type: string
+      required:
+        - chapterId
+        - fileName
+        - fileSizeBytes
+        - b2Key
+
+    StorageQuota:
+      type: object
+      properties:
+        userUsageBytes:
+          type: integer
+        userLimitBytes:
+          type: integer
+        userUsagePercent:
+          type: number
+        globalUsageBytes:
+          type: integer
+        globalLimitBytes:
+          type: integer
+      required:
+        - userUsageBytes
+        - userLimitBytes
+        - userUsagePercent
+        - globalUsageBytes
+        - globalLimitBytes
+
+    # Pomodoro
+    PomodoroSession:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        durationSeconds:
+          type: integer
+        topicContext:
+          type: ["string", "null"]
+        topicId:
+          type: ["string", "null"]
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - durationSeconds
+        - startTime
+        - endTime
+
+    PomodoroSessionInput:
+      type: object
+      properties:
+        durationSeconds:
+          type: integer
+        topicContext:
+          type: string
+        topicId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+      required:
+        - durationSeconds
+        - startTime
+        - endTime
+
+    PomodoroStats:
+      type: object
+      properties:
+        todayMinutes:
+          type: integer
+        weekMinutes:
+          type: integer
+        currentStreakDays:
+          type: integer
+        longestStreakDays:
+          type: integer
+        totalSessions:
+          type: integer
+        goalMinutesPerDay:
+          type: integer
+      required:
+        - todayMinutes
+        - weekMinutes
+        - currentStreakDays
+        - longestStreakDays
+        - totalSessions
+        - goalMinutesPerDay
+
+    # Study Tasks
+    StudyTask:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, in_progress, completed, skipped]
+        source:
+          type: string
+          enum: [auto, manual]
+        topicId:
+          type: ["string", "null"]
+        topicName:
+          type: ["string", "null"]
+        isLocked:
+          type: boolean
+        sortOrder:
+          type: integer
+        scheduledDate:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - title
+        - status
+        - source
+        - isLocked
+        - sortOrder
+        - scheduledDate
+
+    StudyTaskInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        topicId:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+      required:
+        - title
+
+    StudyTaskUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in_progress, completed, skipped]
+        sortOrder:
+          type: integer
+        title:
+          type: string
+
+    # Dashboard
+    DashboardSummary:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserProfile"
+        focusStreakDays:
+          type: integer
+        todayFocusMinutes:
+          type: integer
+        focusGoalMinutes:
+          type: integer
+        overallProgressPercent:
+          type: number
+        completedSubjects:
+          type: integer
+        totalSubjects:
+          type: integer
+        nextAction:
+          type: ["string", "null"]
+        nextActionTarget:
+          type: ["string", "null"]
+        pendingTasks:
+          type: integer
+        recentResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExamResultSummary"
+      required:
+        - user
+        - focusStreakDays
+        - todayFocusMinutes
+        - focusGoalMinutes
+        - overallProgressPercent
+        - completedSubjects
+        - totalSubjects
+        - pendingTasks
+        - recentResults
+
+    WeakTopic:
+      type: object
+      properties:
+        topicId:
+          type: string
+        topicName:
+          type: string
+        chapterName:
+          type: string
+        subjectName:
+          type: string
+        averageAccuracy:
+          type: number
+        totalAttempts:
+          type: integer
+      required:
+        - topicId
+        - topicName
+        - chapterName
+        - subjectName
+        - averageAccuracy
+        - totalAttempts
+
+    PerformancePoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        averageScore:
+          type: number
+        examCount:
+          type: integer
+      required:
+        - date
+        - averageScore
+        - examCount
+
+    # Admin
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        mobile:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, student]
+        status:
+          type: string
+          enum: [pending_approval, approved, suspended, banned]
+        emailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastLoginAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - fullName
+        - email
+        - mobile
+        - role
+        - status
+        - emailVerified
+        - createdAt
+
+    RoleUpdate:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [admin, student]
+      required:
+        - role
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        pendingApproval:
+          type: integer
+        activeUsers:
+          type: integer
+        totalSubjects:
+          type: integer
+        totalChapters:
+          type: integer
+        totalTopics:
+          type: integer
+        totalQuestions:
+          type: integer
+        totalExamsAttempted:
+          type: integer
+        storageUsedBytes:
+          type: integer
+        storageLimitBytes:
+          type: integer
+      required:
+        - totalUsers
+        - pendingApproval
+        - activeUsers
+        - totalSubjects
+        - totalChapters
+        - totalTopics
+        - totalQuestions
+        - totalExamsAttempted
+        - storageUsedBytes
+        - storageLimitBytes

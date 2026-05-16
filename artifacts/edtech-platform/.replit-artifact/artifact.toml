@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "EdTech Study Platform"
+version = "1.0.0"
+id = "artifacts/edtech-platform"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18184
+
+[services.development]
+run = "pnpm --filter @workspace/edtech-platform run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/edtech-platform", "run", "build" ]
+publicDir = "artifacts/edtech-platform/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18184"
+BASE_PATH = "/"
