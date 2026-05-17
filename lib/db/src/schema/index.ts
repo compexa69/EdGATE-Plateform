@@ -9,3 +9,4 @@ export * from "./attempts";
 export * from "./notes";
 export * from "./pomodoro";
 export * from "./tasks";
+export * from "./external_tests";

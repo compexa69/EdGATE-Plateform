@@ -37,8 +37,11 @@ import type {
   ExamAttempt,
   ExamDetail,
   ExamInput,
+  ExamQuestionAddInput,
   ExamResult,
   ExamResultSummary,
+  ExternalTest,
+  ExternalTestInput,
   ForgotPasswordInput,
   GateCheckInput,
   GateCheckResult,
@@ -2526,6 +2529,297 @@ export function useGetExam<TData = Awaited<ReturnType<typeof getExam>>, TError =
 
 
 
+
+export const getDeleteExamUrl = (examId: string,) => {
+
+
+
+
+  return `/api/exams/${examId}`
+}
+
+/**
+ * @summary Delete exam (admin only)
+ */
+export const deleteExam = async (examId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteExamUrl(examId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteExamMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExam>>, TError,{examId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteExam>>, TError,{examId: string}, TContext> => {
+
+const mutationKey = ['deleteExam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteExam>>, {examId: string}> = (props) => {
+          const {examId} = props ?? {};
+
+          return  deleteExam(examId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteExamMutationResult = NonNullable<Awaited<ReturnType<typeof deleteExam>>>
+
+    export type DeleteExamMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete exam (admin only)
+ */
+export const useDeleteExam = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExam>>, TError,{examId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteExam>>,
+        TError,
+        {examId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteExamMutationOptions(options));
+    }
+
+export const getListExamQuestionsUrl = (examId: string,) => {
+
+
+
+
+  return `/api/exams/${examId}/questions`
+}
+
+/**
+ * @summary List questions assigned to an exam (admin)
+ */
+export const listExamQuestions = async (examId: string, options?: RequestInit): Promise<Question[]> => {
+
+  return customFetch<Question[]>(getListExamQuestionsUrl(examId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExamQuestionsQueryKey = (examId: string,) => {
+    return [
+    `/api/exams/${examId}/questions`
+    ] as const;
+    }
+
+
+export const getListExamQuestionsQueryOptions = <TData = Awaited<ReturnType<typeof listExamQuestions>>, TError = ErrorType<unknown>>(examId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExamQuestions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExamQuestionsQueryKey(examId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExamQuestions>>> = ({ signal }) => listExamQuestions(examId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(examId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExamQuestions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListExamQuestionsQueryResult = NonNullable<Awaited<ReturnType<typeof listExamQuestions>>>
+export type ListExamQuestionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List questions assigned to an exam (admin)
+ */
+
+export function useListExamQuestions<TData = Awaited<ReturnType<typeof listExamQuestions>>, TError = ErrorType<unknown>>(
+ examId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExamQuestions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListExamQuestionsQueryOptions(examId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAddExamQuestionUrl = (examId: string,) => {
+
+
+
+
+  return `/api/exams/${examId}/questions`
+}
+
+/**
+ * @summary Add a question to an exam (admin)
+ */
+export const addExamQuestion = async (examId: string,
+    examQuestionAddInput: ExamQuestionAddInput, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getAddExamQuestionUrl(examId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      examQuestionAddInput,)
+  }
+);}
+
+
+
+
+export const getAddExamQuestionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addExamQuestion>>, TError,{examId: string;data: BodyType<ExamQuestionAddInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addExamQuestion>>, TError,{examId: string;data: BodyType<ExamQuestionAddInput>}, TContext> => {
+
+const mutationKey = ['addExamQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addExamQuestion>>, {examId: string;data: BodyType<ExamQuestionAddInput>}> = (props) => {
+          const {examId,data} = props ?? {};
+
+          return  addExamQuestion(examId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddExamQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof addExamQuestion>>>
+    export type AddExamQuestionMutationBody = BodyType<ExamQuestionAddInput>
+    export type AddExamQuestionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a question to an exam (admin)
+ */
+export const useAddExamQuestion = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addExamQuestion>>, TError,{examId: string;data: BodyType<ExamQuestionAddInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addExamQuestion>>,
+        TError,
+        {examId: string;data: BodyType<ExamQuestionAddInput>},
+        TContext
+      > => {
+      return useMutation(getAddExamQuestionMutationOptions(options));
+    }
+
+export const getRemoveExamQuestionUrl = (examId: string,
+    questionId: string,) => {
+
+
+
+
+  return `/api/exams/${examId}/questions/${questionId}`
+}
+
+/**
+ * @summary Remove a question from an exam (admin)
+ */
+export const removeExamQuestion = async (examId: string,
+    questionId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRemoveExamQuestionUrl(examId,questionId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getRemoveExamQuestionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeExamQuestion>>, TError,{examId: string;questionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeExamQuestion>>, TError,{examId: string;questionId: string}, TContext> => {
+
+const mutationKey = ['removeExamQuestion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeExamQuestion>>, {examId: string;questionId: string}> = (props) => {
+          const {examId,questionId} = props ?? {};
+
+          return  removeExamQuestion(examId,questionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveExamQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof removeExamQuestion>>>
+
+    export type RemoveExamQuestionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a question from an exam (admin)
+ */
+export const useRemoveExamQuestion = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeExamQuestion>>, TError,{examId: string;questionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeExamQuestion>>,
+        TError,
+        {examId: string;questionId: string},
+        TContext
+      > => {
+      return useMutation(getRemoveExamQuestionMutationOptions(options));
+    }
 
 export const getStartExamUrl = (examId: string,) => {
 
@@ -5050,4 +5344,222 @@ export function useGetAdminStats<TData = Awaited<ReturnType<typeof getAdminStats
 
 
 
+
+export const getListExternalTestsUrl = () => {
+
+
+
+
+  return `/api/external-tests`
+}
+
+/**
+ * @summary List user's external test logs
+ */
+export const listExternalTests = async ( options?: RequestInit): Promise<ExternalTest[]> => {
+
+  return customFetch<ExternalTest[]>(getListExternalTestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExternalTestsQueryKey = () => {
+    return [
+    `/api/external-tests`
+    ] as const;
+    }
+
+
+export const getListExternalTestsQueryOptions = <TData = Awaited<ReturnType<typeof listExternalTests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExternalTests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExternalTestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExternalTests>>> = ({ signal }) => listExternalTests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExternalTests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListExternalTestsQueryResult = NonNullable<Awaited<ReturnType<typeof listExternalTests>>>
+export type ListExternalTestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List user's external test logs
+ */
+
+export function useListExternalTests<TData = Awaited<ReturnType<typeof listExternalTests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExternalTests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListExternalTestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateExternalTestUrl = () => {
+
+
+
+
+  return `/api/external-tests`
+}
+
+/**
+ * @summary Log a new external test result
+ */
+export const createExternalTest = async (externalTestInput: ExternalTestInput, options?: RequestInit): Promise<ExternalTest> => {
+
+  return customFetch<ExternalTest>(getCreateExternalTestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      externalTestInput,)
+  }
+);}
+
+
+
+
+export const getCreateExternalTestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createExternalTest>>, TError,{data: BodyType<ExternalTestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createExternalTest>>, TError,{data: BodyType<ExternalTestInput>}, TContext> => {
+
+const mutationKey = ['createExternalTest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createExternalTest>>, {data: BodyType<ExternalTestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createExternalTest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateExternalTestMutationResult = NonNullable<Awaited<ReturnType<typeof createExternalTest>>>
+    export type CreateExternalTestMutationBody = BodyType<ExternalTestInput>
+    export type CreateExternalTestMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Log a new external test result
+ */
+export const useCreateExternalTest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createExternalTest>>, TError,{data: BodyType<ExternalTestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createExternalTest>>,
+        TError,
+        {data: BodyType<ExternalTestInput>},
+        TContext
+      > => {
+      return useMutation(getCreateExternalTestMutationOptions(options));
+    }
+
+export const getDeleteExternalTestUrl = (testId: string,) => {
+
+
+
+
+  return `/api/external-tests/${testId}`
+}
+
+/**
+ * @summary Delete an external test log
+ */
+export const deleteExternalTest = async (testId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteExternalTestUrl(testId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteExternalTestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExternalTest>>, TError,{testId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteExternalTest>>, TError,{testId: string}, TContext> => {
+
+const mutationKey = ['deleteExternalTest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteExternalTest>>, {testId: string}> = (props) => {
+          const {testId} = props ?? {};
+
+          return  deleteExternalTest(testId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteExternalTestMutationResult = NonNullable<Awaited<ReturnType<typeof deleteExternalTest>>>
+
+    export type DeleteExternalTestMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete an external test log
+ */
+export const useDeleteExternalTest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExternalTest>>, TError,{testId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteExternalTest>>,
+        TError,
+        {testId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteExternalTestMutationOptions(options));
+    }
 

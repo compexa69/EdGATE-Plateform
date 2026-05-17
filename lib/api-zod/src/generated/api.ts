@@ -660,6 +660,58 @@ export const GetExamResponse = zod.object({
 
 
 /**
+ * @summary Delete exam (admin only)
+ */
+export const DeleteExamParams = zod.object({
+  "examId": zod.coerce.string()
+})
+
+
+/**
+ * @summary List questions assigned to an exam (admin)
+ */
+export const ListExamQuestionsParams = zod.object({
+  "examId": zod.coerce.string()
+})
+
+export const ListExamQuestionsResponseItem = zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctOption": zod.number().nullish(),
+  "marks": zod.number(),
+  "topicId": zod.string().nullish(),
+  "textSolution": zod.string().nullish(),
+  "videoUrl": zod.string().nullish(),
+  "qrCodeSvg": zod.string().nullish(),
+  "difficulty": zod.enum(['easy', 'medium', 'hard'])
+})
+export const ListExamQuestionsResponse = zod.array(ListExamQuestionsResponseItem)
+
+
+/**
+ * @summary Add a question to an exam (admin)
+ */
+export const AddExamQuestionParams = zod.object({
+  "examId": zod.coerce.string()
+})
+
+export const AddExamQuestionBody = zod.object({
+  "questionId": zod.string(),
+  "order": zod.number().optional()
+})
+
+
+/**
+ * @summary Remove a question from an exam (admin)
+ */
+export const RemoveExamQuestionParams = zod.object({
+  "examId": zod.coerce.string(),
+  "questionId": zod.coerce.string()
+})
+
+
+/**
  * @summary Start an exam attempt
  */
 export const StartExamParams = zod.object({
@@ -1241,8 +1293,10 @@ export const GetWeakTopicsResponse = zod.array(GetWeakTopicsResponseItem)
  */
 export const GetPerformanceTrendResponseItem = zod.object({
   "date": zod.coerce.date(),
-  "averageScore": zod.number(),
-  "examCount": zod.number()
+  "averageScore": zod.number().nullish(),
+  "examCount": zod.number(),
+  "externalScore": zod.number().nullish(),
+  "externalExamName": zod.string().nullish()
 })
 export const GetPerformanceTrendResponse = zod.array(GetPerformanceTrendResponseItem)
 
@@ -1325,6 +1379,56 @@ export const GetAdminStatsResponse = zod.object({
   "totalExamsAttempted": zod.number(),
   "storageUsedBytes": zod.number(),
   "storageLimitBytes": zod.number()
+})
+
+
+/**
+ * @summary List user's external test logs
+ */
+export const ListExternalTestsResponseItem = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "examName": zod.string(),
+  "examType": zod.enum(['jee_main', 'jee_advanced', 'neet', 'gate', 'bitsat', 'viteee', 'other']),
+  "score": zod.number(),
+  "maxScore": zod.number(),
+  "totalQuestions": zod.number().nullish(),
+  "correctAnswers": zod.number().nullish(),
+  "incorrectAnswers": zod.number().nullish(),
+  "skippedAnswers": zod.number().nullish(),
+  "rank": zod.number().nullish(),
+  "percentile": zod.number().nullish(),
+  "attemptedAt": zod.coerce.date(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListExternalTestsResponse = zod.array(ListExternalTestsResponseItem)
+
+
+/**
+ * @summary Log a new external test result
+ */
+export const CreateExternalTestBody = zod.object({
+  "examName": zod.string(),
+  "examType": zod.enum(['jee_main', 'jee_advanced', 'neet', 'gate', 'bitsat', 'viteee', 'other']).optional(),
+  "score": zod.number(),
+  "maxScore": zod.number(),
+  "totalQuestions": zod.number().optional(),
+  "correctAnswers": zod.number().optional(),
+  "incorrectAnswers": zod.number().optional(),
+  "skippedAnswers": zod.number().optional(),
+  "rank": zod.number().optional(),
+  "percentile": zod.number().optional(),
+  "attemptedAt": zod.coerce.date(),
+  "notes": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete an external test log
+ */
+export const DeleteExternalTestParams = zod.object({
+  "testId": zod.coerce.string()
 })
 
 

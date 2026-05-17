@@ -2,8 +2,11 @@ import { useGetResult } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { ChevronRight, CheckCircle2, XCircle, MinusCircle, Trophy, Target, Clock, AlertTriangle, QrCode, Video, ExternalLink } from "lucide-react";
+import {
+  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+} from "recharts";
 
 export default function ExamResults() {
   const params = useParams();
@@ -18,6 +21,19 @@ export default function ExamResults() {
 
   const questionsWithVideo = result.questionWise.filter((q) => (q as any).videoUrl || (q as any).qrCodeSvg);
   const hasVideoContent = questionsWithVideo.length > 0;
+
+  const pieData = [
+    { name: "Correct", value: result.correctAnswers, color: "hsl(var(--success))" },
+    { name: "Incorrect", value: result.incorrectAnswers, color: "hsl(var(--destructive))" },
+    { name: "Skipped", value: result.skippedAnswers, color: "hsl(var(--muted-foreground))" },
+  ].filter((d) => d.value > 0);
+
+  const barData = result.topicWise.map((t) => ({
+    name: t.topicName.length > 14 ? t.topicName.slice(0, 14) + "…" : t.topicName,
+    Accuracy: t.accuracy,
+    Correct: t.correctAnswers,
+    Total: t.totalQuestions,
+  }));
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8 pb-24 md:pb-8">
@@ -68,29 +84,64 @@ export default function ExamResults() {
         </Card>
       </div>
 
-      {/* Breakdown */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-success/10 border border-success/20 p-4 rounded-lg flex items-center gap-4">
-          <CheckCircle2 className="w-8 h-8 text-success" />
-          <div>
-            <div className="text-2xl font-bold text-success">{result.correctAnswers}</div>
-            <div className="text-sm text-success/80">Correct</div>
+      {/* Summary Cards + Pie Chart */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div className="bg-success/10 border border-success/20 p-4 rounded-lg flex items-center gap-4">
+            <CheckCircle2 className="w-8 h-8 text-success" />
+            <div>
+              <div className="text-2xl font-bold text-success">{result.correctAnswers}</div>
+              <div className="text-sm text-success/80">Correct</div>
+            </div>
+          </div>
+          <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg flex items-center gap-4">
+            <XCircle className="w-8 h-8 text-destructive" />
+            <div>
+              <div className="text-2xl font-bold text-destructive">{result.incorrectAnswers}</div>
+              <div className="text-sm text-destructive/80">Incorrect</div>
+            </div>
+          </div>
+          <div className="bg-muted border border-border p-4 rounded-lg flex items-center gap-4">
+            <MinusCircle className="w-8 h-8 text-muted-foreground" />
+            <div>
+              <div className="text-2xl font-bold text-foreground">{result.skippedAnswers}</div>
+              <div className="text-sm text-muted-foreground">Skipped</div>
+            </div>
           </div>
         </div>
-        <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg flex items-center gap-4">
-          <XCircle className="w-8 h-8 text-destructive" />
-          <div>
-            <div className="text-2xl font-bold text-destructive">{result.incorrectAnswers}</div>
-            <div className="text-sm text-destructive/80">Incorrect</div>
-          </div>
-        </div>
-        <div className="bg-muted border border-border p-4 rounded-lg flex items-center gap-4">
-          <MinusCircle className="w-8 h-8 text-muted-foreground" />
-          <div>
-            <div className="text-2xl font-bold text-foreground">{result.skippedAnswers}</div>
-            <div className="text-sm text-muted-foreground">Skipped</div>
-          </div>
-        </div>
+
+        {pieData.length > 0 && (
+          <Card className="bg-card border-card-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold">Answer Distribution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip
+                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                    itemStyle={{ color: "hsl(var(--foreground))" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Tabs defaultValue="solutions" className="w-full">
@@ -103,7 +154,7 @@ export default function ExamResults() {
             </TabsTrigger>
           )}
         </TabsList>
-        
+
         <TabsContent value="solutions" className="space-y-6 mt-6">
           {result.questionWise.map((q, idx) => (
             <Card key={q.questionId} className={`border-l-4 ${q.isCorrect ? 'border-l-success' : q.selectedOption === null ? 'border-l-muted-foreground' : 'border-l-destructive'}`}>
@@ -157,7 +208,30 @@ export default function ExamResults() {
           ))}
         </TabsContent>
 
-        <TabsContent value="topic-wise" className="mt-6">
+        <TabsContent value="topic-wise" className="mt-6 space-y-6">
+          {barData.length > 0 && (
+            <Card className="bg-card border-card-border">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold">Topic-wise Accuracy</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={barData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                    <YAxis domain={[0, 100]} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} unit="%" />
+                    <RechartsTooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                      itemStyle={{ color: "hsl(var(--foreground))" }}
+                      formatter={(value: number) => [`${value}%`, "Accuracy"]}
+                    />
+                    <Bar dataKey="Accuracy" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Topic Performance</CardTitle>
@@ -173,9 +247,9 @@ export default function ExamResults() {
                       </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full ${topic.accuracy > 75 ? "bg-success" : topic.accuracy < 40 ? "bg-destructive" : "bg-warning"}`} 
-                        style={{ width: `${topic.accuracy}%` }} 
+                      <div
+                        className={`h-2 rounded-full ${topic.accuracy > 75 ? "bg-success" : topic.accuracy < 40 ? "bg-destructive" : "bg-warning"}`}
+                        style={{ width: `${topic.accuracy}%` }}
                       />
                     </div>
                   </div>
@@ -188,7 +262,7 @@ export default function ExamResults() {
         {hasVideoContent && (
           <TabsContent value="videos" className="mt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {questionsWithVideo.map((q, idx) => {
+              {questionsWithVideo.map((q) => {
                 const videoUrl = (q as any).videoUrl as string | null;
                 const qrCodeSvg = (q as any).qrCodeSvg as string | null;
                 const questionIdx = result.questionWise.findIndex(rq => rq.questionId === q.questionId);

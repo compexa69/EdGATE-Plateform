@@ -1,6 +1,6 @@
-import { useGetAdminStats, useListUsers } from "@workspace/api-client-react";
+import { useGetAdminStats } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, BookOpen, FileQuestion, HardDrive, UserCheck } from "lucide-react";
+import { Users, BookOpen, FileQuestion, HardDrive, UserCheck, ListChecks, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -92,7 +92,12 @@ export default function AdminDashboard() {
             <Link href="/admin/questions" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors group">
               <FileQuestion className="w-8 h-8 text-accent mb-3 group-hover:scale-110 transition-transform" />
               <h3 className="font-semibold text-lg mb-1">Question Bank</h3>
-              <p className="text-sm text-muted-foreground">Add/edit questions & exams</p>
+              <p className="text-sm text-muted-foreground">Add/edit questions, bulk import</p>
+            </Link>
+            <Link href="/admin/exams" className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors group">
+              <ListChecks className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
+              <h3 className="font-semibold text-lg mb-1">Exam Management</h3>
+              <p className="text-sm text-muted-foreground">Create exams, assign questions</p>
             </Link>
           </CardContent>
         </Card>

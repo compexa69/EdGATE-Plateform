@@ -8,6 +8,8 @@
 
 export interface PerformancePoint {
   date: Date;
-  averageScore: number;
+  averageScore?: number | null;
   examCount: number;
+  externalScore?: number | null;
+  externalExamName?: string | null;
 }

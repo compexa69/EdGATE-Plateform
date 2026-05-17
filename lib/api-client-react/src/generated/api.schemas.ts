@@ -769,8 +769,10 @@ export interface WeakTopic {
 
 export interface PerformancePoint {
   date: string;
-  averageScore: number;
+  averageScore?: number | null;
   examCount: number;
+  externalScore?: number | null;
+  externalExamName?: string | null;
 }
 
 export type AdminUserRole = typeof AdminUserRole[keyof typeof AdminUserRole];
@@ -828,6 +830,77 @@ export interface AdminStats {
   totalExamsAttempted: number;
   storageUsedBytes: number;
   storageLimitBytes: number;
+}
+
+export interface ExamQuestionAddInput {
+  questionId: string;
+  order?: number;
+}
+
+export type ExternalTestExamType = typeof ExternalTestExamType[keyof typeof ExternalTestExamType];
+
+
+export const ExternalTestExamType = {
+  jee_main: 'jee_main',
+  jee_advanced: 'jee_advanced',
+  neet: 'neet',
+  gate: 'gate',
+  bitsat: 'bitsat',
+  viteee: 'viteee',
+  other: 'other',
+} as const;
+
+export interface ExternalTest {
+  id: string;
+  userId: string;
+  examName: string;
+  examType: ExternalTestExamType;
+  score: number;
+  maxScore: number;
+  /** @nullable */
+  totalQuestions?: number | null;
+  /** @nullable */
+  correctAnswers?: number | null;
+  /** @nullable */
+  incorrectAnswers?: number | null;
+  /** @nullable */
+  skippedAnswers?: number | null;
+  /** @nullable */
+  rank?: number | null;
+  /** @nullable */
+  percentile?: number | null;
+  attemptedAt: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export type ExternalTestInputExamType = typeof ExternalTestInputExamType[keyof typeof ExternalTestInputExamType];
+
+
+export const ExternalTestInputExamType = {
+  jee_main: 'jee_main',
+  jee_advanced: 'jee_advanced',
+  neet: 'neet',
+  gate: 'gate',
+  bitsat: 'bitsat',
+  viteee: 'viteee',
+  other: 'other',
+} as const;
+
+export interface ExternalTestInput {
+  examName: string;
+  examType?: ExternalTestInputExamType;
+  score: number;
+  maxScore: number;
+  totalQuestions?: number;
+  correctAnswers?: number;
+  incorrectAnswers?: number;
+  skippedAnswers?: number;
+  rank?: number;
+  percentile?: number;
+  attemptedAt: string;
+  notes?: string;
 }
 
 export type ListExamsParams = {

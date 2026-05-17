@@ -658,6 +658,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExamDetail"
+    delete:
+      operationId: deleteExam
+      tags: [exams]
+      summary: Delete exam (admin only)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /exams/{examId}/questions:
+    get:
+      operationId: listExamQuestions
+      tags: [exams]
+      summary: List questions assigned to an exam (admin)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+    post:
+      operationId: addExamQuestion
+      tags: [exams]
+      summary: Add a question to an exam (admin)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExamQuestionAddInput"
+      responses:
+        "201":
+          description: Question added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /exams/{examId}/questions/{questionId}:
+    delete:
+      operationId: removeExamQuestion
+      tags: [exams]
+      summary: Remove a question from an exam (admin)
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
 
   /exams/{examId}/start:
     post:
@@ -1299,6 +1376,54 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminStats"
+
+  # External Tests
+  /external-tests:
+    get:
+      operationId: listExternalTests
+      tags: [external-tests]
+      summary: List user's external test logs
+      responses:
+        "200":
+          description: List of external tests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExternalTest"
+    post:
+      operationId: createExternalTest
+      tags: [external-tests]
+      summary: Log a new external test result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExternalTestInput"
+      responses:
+        "201":
+          description: Created external test log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalTest"
+
+  /external-tests/{testId}:
+    delete:
+      operationId: deleteExternalTest
+      tags: [external-tests]
+      summary: Delete an external test log
+      parameters:
+        - name: testId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
 
 components:
   schemas:
@@ -2639,12 +2764,17 @@ components:
           format: date
         averageScore:
           type: number
+          nullable: true
         examCount:
           type: integer
+        externalScore:
+          type: number
+          nullable: true
+        externalExamName:
+          type: string
+          nullable: true
       required:
         - date
-        - averageScore
-        - examCount
 
     # Admin
     AdminUser:
@@ -2724,3 +2854,95 @@ components:
         - totalExamsAttempted
         - storageUsedBytes
         - storageLimitBytes
+
+    ExamQuestionAddInput:
+      type: object
+      properties:
+        questionId:
+          type: string
+        order:
+          type: integer
+      required:
+        - questionId
+
+    ExternalTest:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        examName:
+          type: string
+        examType:
+          type: string
+          enum: [jee_main, jee_advanced, neet, gate, bitsat, viteee, other]
+        score:
+          type: number
+        maxScore:
+          type: number
+        totalQuestions:
+          type: ["integer", "null"]
+        correctAnswers:
+          type: ["integer", "null"]
+        incorrectAnswers:
+          type: ["integer", "null"]
+        skippedAnswers:
+          type: ["integer", "null"]
+        rank:
+          type: ["integer", "null"]
+        percentile:
+          type: ["number", "null"]
+        attemptedAt:
+          type: string
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - examName
+        - examType
+        - score
+        - maxScore
+        - attemptedAt
+        - createdAt
+
+    ExternalTestInput:
+      type: object
+      properties:
+        examName:
+          type: string
+        examType:
+          type: string
+          enum: [jee_main, jee_advanced, neet, gate, bitsat, viteee, other]
+        score:
+          type: number
+        maxScore:
+          type: number
+        totalQuestions:
+          type: integer
+        correctAnswers:
+          type: integer
+        incorrectAnswers:
+          type: integer
+        skippedAnswers:
+          type: integer
+        rank:
+          type: integer
+        percentile:
+          type: number
+        attemptedAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+      required:
+        - examName
+        - score
+        - maxScore
+        - attemptedAt
+

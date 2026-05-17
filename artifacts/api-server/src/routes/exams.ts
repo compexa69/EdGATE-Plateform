@@ -160,6 +160,53 @@ router.post("/exams", requireAdmin, async (req, res): Promise<void> => {
   });
 });
 
+router.delete("/exams/:examId", requireAdmin, async (req, res): Promise<void> => {
+  const examId = String(req.params.examId);
+  const [deleted] = await db.delete(examsTable).where(eq(examsTable.id, examId)).returning();
+  if (!deleted) { res.status(404).json({ error: "Exam not found" }); return; }
+  res.sendStatus(204);
+});
+
+router.get("/exams/:examId/questions", requireApproved, async (req, res): Promise<void> => {
+  const examId = String(req.params.examId);
+  const examQs = await db.select().from(examQuestionsTable)
+    .where(eq(examQuestionsTable.examId, examId))
+    .orderBy(examQuestionsTable.order);
+  if (examQs.length === 0) { res.json([]); return; }
+  const questionIds = examQs.map((aq) => aq.questionId);
+  const questions = await db.select().from(questionsTable)
+    .where(inArray(questionsTable.id, questionIds));
+  const ordered = examQs.map((aq) => questions.find((q) => q.id === aq.questionId)).filter(Boolean);
+  res.json(ordered.map((q) => formatQuestion(q!, false)));
+});
+
+router.post("/exams/:examId/questions", requireAdmin, async (req, res): Promise<void> => {
+  const examId = String(req.params.examId);
+  const { questionId, order } = req.body as { questionId?: string; order?: number };
+  if (!questionId) { res.status(400).json({ error: "questionId required" }); return; }
+  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, examId));
+  if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
+  const existingRows = await db.select().from(examQuestionsTable)
+    .where(and(eq(examQuestionsTable.examId, examId), eq(examQuestionsTable.questionId, String(questionId))));
+  if (existingRows.length > 0) { res.status(409).json({ error: "Question already in exam" }); return; }
+  const allQs = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, examId));
+  await db.insert(examQuestionsTable).values({
+    id: nanoid(),
+    examId,
+    questionId: String(questionId),
+    order: order ?? allQs.length,
+  });
+  res.status(201).json({ success: true, message: "Question added to exam" });
+});
+
+router.delete("/exams/:examId/questions/:questionId", requireAdmin, async (req, res): Promise<void> => {
+  const examId = String(req.params.examId);
+  const questionId = String(req.params.questionId);
+  await db.delete(examQuestionsTable)
+    .where(and(eq(examQuestionsTable.examId, examId), eq(examQuestionsTable.questionId, questionId)));
+  res.sendStatus(204);
+});
+
 router.get("/exams/:examId", requireApproved, async (req, res): Promise<void> => {
   const params = GetExamParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }

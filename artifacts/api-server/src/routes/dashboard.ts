@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, usersTable, subjectsTable, chaptersTable, topicsTable,
   topicProgressTable, examResultsTable, examsTable, pomodoroSessionsTable,
-  studyTasksTable,
+  studyTasksTable, externalTestsTable,
 } from "@workspace/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { requireApproved } from "../lib/auth";
@@ -193,11 +193,13 @@ router.get("/dashboard/weak-topics", requireApproved, async (req, res): Promise<
 });
 
 router.get("/dashboard/performance-trend", requireApproved, async (req, res): Promise<void> => {
-  const results = await db.select().from(examResultsTable)
-    .where(eq(examResultsTable.userId, req.user!.id));
+  const [internalResults, externalResults] = await Promise.all([
+    db.select().from(examResultsTable).where(eq(examResultsTable.userId, req.user!.id)),
+    db.select().from(externalTestsTable).where(eq(externalTestsTable.userId, req.user!.id)),
+  ]);
 
   const byDate = new Map<string, { total: number; count: number }>();
-  for (const r of results) {
+  for (const r of internalResults) {
     const date = r.submittedAt.toISOString().split("T")[0];
     const existing = byDate.get(date) ?? { total: 0, count: 0 };
     existing.total += r.accuracy;
@@ -205,12 +207,31 @@ router.get("/dashboard/performance-trend", requireApproved, async (req, res): Pr
     byDate.set(date, existing);
   }
 
-  const trend = Array.from(byDate.entries())
-    .map(([date, { total, count }]) => ({
-      date,
-      averageScore: Math.round(total / count),
-      examCount: count,
-    }))
+  const externalByDate = new Map<string, { score: number; maxScore: number; examName: string }>();
+  for (const e of externalResults) {
+    const date = e.attemptedAt.toISOString().split("T")[0];
+    if (!externalByDate.has(date)) {
+      externalByDate.set(date, {
+        score: e.score,
+        maxScore: e.maxScore,
+        examName: e.examName,
+      });
+    }
+  }
+
+  const allDates = new Set([...byDate.keys(), ...externalByDate.keys()]);
+  const trend = Array.from(allDates)
+    .map((date) => {
+      const internal = byDate.get(date);
+      const external = externalByDate.get(date);
+      return {
+        date,
+        averageScore: internal ? Math.round(internal.total / internal.count) : null,
+        examCount: internal?.count ?? 0,
+        externalScore: external ? Math.round((external.score / external.maxScore) * 100) : null,
+        externalExamName: external?.examName ?? null,
+      };
+    })
     .sort((a, b) => a.date.localeCompare(b.date));
 
   res.json(trend);

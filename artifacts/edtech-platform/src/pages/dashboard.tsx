@@ -3,7 +3,7 @@ import { Flame, Target, Trophy, CheckCircle, BookOpen, AlertCircle, ListTodo } f
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
 export default function Dashboard() {
   const { data: summary, isLoading: summaryLoading, error } = useGetDashboardSummary();
@@ -112,7 +112,13 @@ export default function Dashboard() {
           {/* Performance Trend */}
           <Card className="border-card-border bg-card">
             <CardHeader>
-              <CardTitle>Performance Trend</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Performance Trend</span>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground font-normal">
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-0.5 bg-primary rounded" />Platform Exams</span>
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-0.5 bg-secondary rounded" />External Tests</span>
+                </div>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {performanceTrend && performanceTrend.length > 0 ? (
@@ -121,12 +127,38 @@ export default function Dashboard() {
                     <LineChart data={performanceTrend}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="date" stroke="#94A3B8" fontSize={12} tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} />
-                      <YAxis stroke="#94A3B8" fontSize={12} domain={[0, 100]} />
+                      <YAxis stroke="#94A3B8" fontSize={12} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                       <RechartsTooltip 
                         contentStyle={{ backgroundColor: '#1E293B', borderColor: '#334155', color: '#F8FAFC' }}
                         labelFormatter={(v) => new Date(v).toLocaleDateString()}
+                        formatter={(value: number, name: string) => [
+                          `${value}%`,
+                          name === "averageScore" ? "Platform Avg" : "External Test",
+                        ]}
                       />
-                      <Line type="monotone" dataKey="averageScore" stroke="#6366F1" strokeWidth={3} dot={{ fill: '#6366F1', r: 4 }} activeDot={{ r: 6 }} />
+                      <Legend
+                        formatter={(value) => value === "averageScore" ? "Platform Exams" : "External Tests"}
+                        wrapperStyle={{ fontSize: 12, color: '#94A3B8' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="averageScore"
+                        stroke="#6366F1"
+                        strokeWidth={3}
+                        dot={{ fill: '#6366F1', r: 4 }}
+                        activeDot={{ r: 6 }}
+                        connectNulls={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="externalScore"
+                        stroke="#10B981"
+                        strokeWidth={2}
+                        strokeDasharray="5 3"
+                        dot={{ fill: '#10B981', r: 4 }}
+                        activeDot={{ r: 6 }}
+                        connectNulls={false}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
