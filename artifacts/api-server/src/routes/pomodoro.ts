@@ -1,14 +1,42 @@
 import { Router, type IRouter } from "express";
-import { db, pomodoroSessionsTable } from "@workspace/db";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { db, pomodoroSessionsTable, notificationsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListPomodoroSessionsQueryParams,
   CreatePomodoroSessionBody,
 } from "@workspace/api-zod";
 import { requireApproved } from "../lib/auth";
+import { createNotification } from "./notifications";
 
 const router: IRouter = Router();
+
+const STREAK_MILESTONES = [7, 30, 100] as const;
+
+function streakMessage(days: number): string {
+  if (days === 7)   return "One full week of consistent study sessions — you're building a powerful habit. Keep showing up!";
+  if (days === 30)  return "30 days straight! A whole month of daily focus. You're in elite territory now. Don't stop.";
+  if (days === 100) return "100 consecutive days of study. Legendary discipline — JEE/NEET toppers are forged exactly like this. 🏆";
+  return `${days}-day streak achieved! Incredible consistency.`;
+}
+
+function calcStreak(sessions: { startTime: Date }[]): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const uniqueDays = new Set(sessions.map((s) => s.startTime.toDateString()));
+  const dayList = Array.from(uniqueDays).sort().reverse();
+
+  let streak = 0;
+  const checkDate = new Date(today);
+  for (const day of dayList) {
+    if (new Date(day).toDateString() === checkDate.toDateString()) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else break;
+  }
+  return streak;
+}
 
 router.get("/pomodoro/sessions", requireApproved, async (req, res): Promise<void> => {
   const params = ListPomodoroSessionsQueryParams.safeParse(req.query);
@@ -49,6 +77,44 @@ router.post("/pomodoro/sessions", requireApproved, async (req, res): Promise<voi
     topicContext: session.topicContext ?? null, topicId: session.topicId ?? null,
     startTime: session.startTime.toISOString(), endTime: session.endTime.toISOString(),
   });
+
+  // ── Streak-milestone check (fire-and-forget after response) ──────────────
+  (async () => {
+    try {
+      const allSessions = await db.select({ startTime: pomodoroSessionsTable.startTime })
+        .from(pomodoroSessionsTable)
+        .where(eq(pomodoroSessionsTable.userId, req.user!.id));
+
+      const streak = calcStreak(allSessions);
+
+      for (const milestone of STREAK_MILESTONES) {
+        if (streak === milestone) {
+          const milestoneTitle = `${milestone}-Day Streak!`;
+
+          const [existing] = await db.select({ id: notificationsTable.id })
+            .from(notificationsTable)
+            .where(and(
+              eq(notificationsTable.userId, req.user!.id),
+              eq(notificationsTable.type, "streak_milestone"),
+              eq(notificationsTable.title, milestoneTitle),
+            ))
+            .limit(1);
+
+          if (!existing) {
+            await createNotification(
+              req.user!.id,
+              "streak_milestone",
+              milestoneTitle,
+              streakMessage(milestone),
+            );
+          }
+          break;
+        }
+      }
+    } catch {
+      // non-critical — never let this break the response
+    }
+  })();
 });
 
 router.get("/pomodoro/stats", requireApproved, async (req, res): Promise<void> => {
@@ -70,16 +136,7 @@ router.get("/pomodoro/stats", requireApproved, async (req, res): Promise<void> =
       .reduce((sum, s) => sum + s.durationSeconds, 0) / 60
   );
 
-  const uniqueDays = new Set(sessions.map((s) => s.startTime.toDateString()));
-  const dayList = Array.from(uniqueDays).sort().reverse();
-  let streak = 0;
-  const checkDate = new Date(today);
-  for (const day of dayList) {
-    if (new Date(day).toDateString() === checkDate.toDateString()) {
-      streak++;
-      checkDate.setDate(checkDate.getDate() - 1);
-    } else break;
-  }
+  const streak = calcStreak(sessions);
 
   res.json({
     todayMinutes,
