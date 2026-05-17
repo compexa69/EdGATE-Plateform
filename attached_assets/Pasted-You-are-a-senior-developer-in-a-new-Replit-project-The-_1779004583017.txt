@@ -1,0 +1,18 @@
+You are a senior developer in a new Replit project. The partially completed project code is imported from GitHub, and the SRS (requirements) document is in this workspace. Your goal is to continue development. Follow these steps:
+
+1. **Analyze the Project:** Review the repository files and the SRS to list all missing features or components. Identify any missing code modules, APIs, database schemas, or frontend pages required by the SRS.
+2. **Identify Dependencies:** Check for any missing dependencies. If files like `requirements.txt`, `package.json`, or `replit.nix` are present, install needed libraries. Update `.replit` run command if necessary to match the application’s entrypoint【17†L228-L236】.
+3. **Plan Development:** Based on the SRS, propose a prioritized task list. For each task, estimate complexity, agent-credit usage, and time. Use Economy mode by default (to minimize credits)【23†L138-L146】. Example tasks: user authentication, feature X, tests, UI improvements. Structure the plan in order (e.g., 1. [highest priority], 2. [next], etc.). 
+4. **Implement Features:** For each task in priority order, do the following:
+   - a. Use bullet points or numbered list for subtasks. Provide code edits or new file content as needed.
+   - b. Write or modify code to add the missing functionality (e.g., add endpoints, UI components).
+   - c. After each feature, create or update tests to verify it. (Use `pytest`, `npm test`, or similar.)
+   - d. Commit changes with descriptive messages and push to GitHub【27†L163-L171】.
+   - e. Use a Checkpoint after each major task to save progress【24†L1-L4】.
+5. **Setup/Run Instructions:** Include commands to run or build the app. If needed, add a Workflow: e.g., `Install dependencies`, then `pytest`, then `run app`. Ensure the app listens on `0.0.0.0` so Replit can route port properly【31†L121-L130】.
+6. **Testing & Debugging:** If tests fail, correct code or adjust. Use Replit’s “App Testing” mode to auto-test if possible. 
+7. **CI/DevOps Notes:** Suggest adding GitHub Actions workflows if applicable (e.g., `.github/workflows/test.yml` to run tests on push). Ensure `.replit` and `replit.nix` are in version control【17†L199-L201】.
+8. **Troubleshooting & Security:** Check that all secrets (API keys, DB passwords) are set in the Replit Secrets tool【40†L162-L166】. Update any hardcoded secrets. Use Dependabot or manual checks to update vulnerable libraries. Note common errors and fixes (e.g., port issues or missing deps【31†L121-L130】【17†L228-L236】).
+9. **Summary:** Confirm all SRS features are implemented, the app runs without errors, and include any final notes (like sample deployment steps).
+
+Be structured, detailed, and step-by-step. Provide code, instructions, and commit messages for each step. Use bullets/numbered lists to organize tasks and ensure clarity.

@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Clock, Pause, Play, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { MathText } from "@/components/math-text";
 
 export default function ExamInterface() {
   const params = useParams();
@@ -77,6 +78,50 @@ export default function ExamInterface() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
+
+  // ─── Keyboard shortcuts (SRS EX-08) ──────────────────────────────────────
+  useEffect(() => {
+    if (!exam || isPaused) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      switch (e.key) {
+        case "ArrowRight":
+        case "d":
+          e.preventDefault();
+          handleNext();
+          break;
+        case "ArrowLeft":
+        case "a":
+          e.preventDefault();
+          handlePrev();
+          break;
+        case "m":
+        case "M": {
+          e.preventDefault();
+          const q = exam.questions[currentQuestionIndex];
+          setAnswers(prev => ({
+            ...prev,
+            [q.id]: { ...prev[q.id], isMarkedForReview: !prev[q.id]?.isMarkedForReview },
+          }));
+          break;
+        }
+        case "1": case "2": case "3": case "4": {
+          e.preventDefault();
+          handleOptionSelect(parseInt(e.key) - 1);
+          break;
+        }
+        case "Enter": {
+          e.preventDefault();
+          handleNext();
+          break;
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [exam, isPaused, currentQuestionIndex, handleNext, handlePrev, handleOptionSelect]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ─── Tab-switch / visibility detection (SRS NFR-SEC-05) ──────────────────
   useEffect(() => {
@@ -283,8 +328,8 @@ export default function ExamInterface() {
                   </div>
                 </div>
                 
-                <div className="prose prose-invert max-w-none mb-8 text-lg">
-                  {currentQ.text}
+                <div className="prose prose-invert max-w-none mb-8 text-lg leading-relaxed">
+                  <MathText block>{currentQ.text}</MathText>
                 </div>
 
                 <div className="space-y-3">
@@ -303,7 +348,8 @@ export default function ExamInterface() {
                       }`}>
                         {currentAns.selectedOption === idx && <div className="w-3 h-3 bg-primary rounded-full" />}
                       </div>
-                      <span className="text-base">{option}</span>
+                      <span className="text-sm font-medium text-muted-foreground mr-1 shrink-0">{idx + 1}.</span>
+                      <MathText className="text-base">{option}</MathText>
                     </button>
                   ))}
                 </div>
@@ -312,28 +358,36 @@ export default function ExamInterface() {
           </div>
 
           {/* Footer Actions */}
-          <div className="h-20 border-t border-border bg-card px-4 lg:px-8 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Button variant="outline" onClick={handleClearResponse} disabled={currentAns.selectedOption === null}>
-                Clear
-              </Button>
-              <label className="flex items-center gap-2 cursor-pointer ml-2 sm:ml-4">
-                <Checkbox 
-                  checked={currentAns.isMarkedForReview} 
-                  onCheckedChange={(checked) => handleMarkReview(checked as boolean)}
-                />
-                <span className="text-sm font-medium select-none text-warning flex items-center gap-1">
-                  Mark for Review
-                </span>
-              </label>
+          <div className="border-t border-border bg-card px-4 lg:px-8 flex flex-col shrink-0">
+            <div className="h-16 flex items-center justify-between">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <Button variant="outline" onClick={handleClearResponse} disabled={currentAns.selectedOption === null}>
+                  Clear
+                </Button>
+                <label className="flex items-center gap-2 cursor-pointer ml-2 sm:ml-4">
+                  <Checkbox 
+                    checked={currentAns.isMarkedForReview} 
+                    onCheckedChange={(checked) => handleMarkReview(checked as boolean)}
+                  />
+                  <span className="text-sm font-medium select-none text-warning flex items-center gap-1">
+                    Mark for Review
+                  </span>
+                </label>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-4">
+                <Button variant="secondary" onClick={handlePrev} disabled={currentQuestionIndex === 0}>
+                  Previous
+                </Button>
+                <Button onClick={handleNext} disabled={currentQuestionIndex === exam.questions.length - 1} className="min-w-[100px]">
+                  {currentAns.selectedOption !== null ? "Save & Next" : "Next"}
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Button variant="secondary" onClick={handlePrev} disabled={currentQuestionIndex === 0}>
-                Previous
-              </Button>
-              <Button onClick={handleNext} disabled={currentQuestionIndex === exam.questions.length - 1} className="min-w-[100px]">
-                {currentAns.selectedOption !== null ? "Save & Next" : "Next"}
-              </Button>
+            <div className="hidden sm:flex items-center gap-4 pb-2 text-xs text-muted-foreground/60 select-none">
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-xs">←</kbd> / <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-xs">→</kbd> Navigate</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-xs">1–4</kbd> Select option</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-xs">M</kbd> Mark for review</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-xs">Enter</kbd> Save & next</span>
             </div>
           </div>
         </main>

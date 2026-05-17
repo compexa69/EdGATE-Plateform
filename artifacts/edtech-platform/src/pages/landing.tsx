@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronRight, ArrowRight, Brain, Target, Video, ShieldCheck, FolderLock, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -44,6 +44,8 @@ const slides = [
 
 export default function Landing() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -52,14 +54,37 @@ export default function Landing() {
     return () => clearInterval(timer);
   }, []);
 
-  const nextSlide = () => {
-    if (currentSlide < slides.length - 1) {
-      setCurrentSlide(currentSlide + 1);
+  const nextSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev < slides.length - 1 ? prev + 1 : prev));
+  }, []);
+
+  const prevSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev > 0 ? prev - 1 : prev));
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) > 50 && dy < 80) {
+      if (dx < 0) nextSlide();
+      else prevSlide();
     }
-  };
+    touchStartX.current = null;
+    touchStartY.current = null;
+  }, [nextSlide, prevSlide]);
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center relative overflow-hidden">
+    <div
+      className="min-h-screen w-full bg-background flex flex-col items-center justify-center relative overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <div className="absolute inset-0 z-0 bg-grid-slate-800/[0.04] bg-[size:32px_32px]" />
       
       <div className="w-full max-w-md mx-auto z-10 px-6 h-[600px] flex flex-col justify-between">
@@ -93,8 +118,10 @@ export default function Landing() {
         <div className="py-8 flex flex-col gap-6">
           <div className="flex justify-center gap-2">
             {slides.map((_, i) => (
-              <div
+              <button
                 key={i}
+                aria-label={`Go to slide ${i + 1}`}
+                onClick={() => setCurrentSlide(i)}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   i === currentSlide ? "w-8 bg-primary" : "w-2 bg-muted"
                 }`}
