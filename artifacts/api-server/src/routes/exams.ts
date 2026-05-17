@@ -20,6 +20,7 @@ import {
   GetResultParams,
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
+import { createNotification } from "./notifications";
 
 const router: IRouter = Router();
 
@@ -416,6 +417,20 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
     await updateTopicProgress(req.user!.id, exam.topicId, "topicTestPassed", passed);
   }
 
+  // Prompt a targeted drill when a topic test is failed with wrong (not just skipped) answers
+  if (exam.type === "topic_test" && !passed && incorrect > 0) {
+    (async () => {
+      try {
+        await createNotification(
+          req.user!.id,
+          "exam_reminder",
+          "Topic Test Failed — Drill Available",
+          `You got ${incorrect} question${incorrect > 1 ? "s" : ""} wrong in "${exam.title}". Open your results to launch a focused drill on exactly those gaps before retrying.`,
+        );
+      } catch {}
+    })();
+  }
+
   res.json({
     id: result.id, examId: exam.id, examTitle: exam.title, examType: exam.type,
     score: result.score, maxScore: result.maxScore, accuracy: result.accuracy,
@@ -552,6 +567,70 @@ router.get("/results", requireApproved, async (req, res): Promise<void> => {
   }));
 
   res.json(formatted);
+});
+
+// ── Weak-Topic Drill ──────────────────────────────────────────────────────────
+// Creates a fresh 5-question drill exam from the wrong answers in a failed result.
+
+router.post("/results/:resultId/drill", requireApproved, async (req, res): Promise<void> => {
+  const resultId = String(req.params.resultId);
+
+  const [result] = await db.select().from(examResultsTable)
+    .where(and(eq(examResultsTable.id, resultId), eq(examResultsTable.userId, req.user!.id)));
+  if (!result) { res.status(404).json({ error: "Result not found" }); return; }
+  if (result.passed) { res.status(400).json({ error: "Cannot drill a passed exam — well done!" }); return; }
+
+  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, result.examId));
+  if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
+  if (exam.type === "drill") { res.status(400).json({ error: "Cannot create a drill from a drill" }); return; }
+
+  // Fetch the original questions and the student's saved answers
+  const examQs = await db.select().from(examQuestionsTable)
+    .where(eq(examQuestionsTable.examId, exam.id));
+  const questionIds = examQs.map((q) => q.questionId);
+  if (questionIds.length === 0) { res.status(400).json({ error: "No questions found" }); return; }
+
+  const questions = await db.select().from(questionsTable)
+    .where(inArray(questionsTable.id, questionIds));
+
+  const answers = await db.select().from(attemptAnswersTable)
+    .where(eq(attemptAnswersTable.attemptId, result.attemptId));
+  const answerMap = new Map(answers.map((a) => [a.questionId, a]));
+
+  // Wrong = answered (not skipped) but chose the wrong option
+  const wrongQuestions = questions.filter((q) => {
+    const ans = answerMap.get(q.id);
+    if (!ans || ans.selectedOption == null) return false;
+    return parseInt(ans.selectedOption, 10) !== parseInt(q.correctOption, 10);
+  });
+
+  if (wrongQuestions.length === 0) {
+    res.status(400).json({ error: "No wrong answers to drill — you only skipped questions. Retry the full exam instead." });
+    return;
+  }
+
+  // Shuffle and cap at 5
+  const drillQs = wrongQuestions.sort(() => Math.random() - 0.5).slice(0, 5);
+
+  // Build the ephemeral drill exam (no passingScore, no negative marking)
+  const drillExamId = nanoid();
+  await db.insert(examsTable).values({
+    id: drillExamId,
+    title: `Drill: ${exam.title}`,
+    type: "drill",
+    topicId: exam.topicId,
+    subjectId: exam.subjectId,
+    chapterId: exam.chapterId,
+    durationMinutes: 10,
+    passingScore: null,
+    negativeMarking: 0,
+  });
+
+  await db.insert(examQuestionsTable).values(
+    drillQs.map((q, i) => ({ id: nanoid(), examId: drillExamId, questionId: q.id, order: i })),
+  );
+
+  res.json({ drillExamId, questionCount: drillQs.length });
 });
 
 // ── Gate check ────────────────────────────────────────────────────────────────

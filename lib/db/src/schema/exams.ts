@@ -6,7 +6,7 @@ import { chaptersTable } from "./chapters";
 import { topicsTable } from "./topics";
 import { questionsTable } from "./questions";
 
-export const examTypeEnum = pgEnum("exam_type", ["lecture_quiz", "dpp", "pyq", "topic_test", "chapter_test", "subject_test", "grand_test"]);
+export const examTypeEnum = pgEnum("exam_type", ["lecture_quiz", "dpp", "pyq", "topic_test", "chapter_test", "subject_test", "grand_test", "drill"]);
 
 export const examsTable = pgTable("exams", {
   id: text("id").primaryKey(),

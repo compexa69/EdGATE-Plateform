@@ -2,13 +2,16 @@ import { useGetResult } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronRight, CheckCircle2, XCircle, MinusCircle, Trophy, Target, Clock, AlertTriangle, QrCode, Video, ExternalLink, Filter } from "lucide-react";
+import { ChevronRight, CheckCircle2, XCircle, MinusCircle, Trophy, Target, Clock, AlertTriangle, QrCode, Video, ExternalLink, Filter, Zap, RefreshCw } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from "recharts";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { MathText } from "@/components/math-text";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 type AnswerFilter = "all" | "incorrect" | "skipped";
 
@@ -16,6 +19,9 @@ export default function ExamResults() {
   const params = useParams();
   const resultId = params.resultId!;
   const [answerFilter, setAnswerFilter] = useState<AnswerFilter>("all");
+  const [isDrilling, setIsDrilling] = useState(false);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data: result, isLoading } = useGetResult(resultId, {
     query: { enabled: !!resultId, queryKey: ["result", resultId] }
@@ -23,6 +29,30 @@ export default function ExamResults() {
 
   if (isLoading) return <div className="p-8">Loading results...</div>;
   if (!result) return <div className="p-8 text-destructive">Result not found</div>;
+
+  const examType = (result as any).examType as string;
+  const canDrill = !result.passed && result.incorrectAnswers > 0 && examType !== "drill";
+
+  const handleStartDrill = async () => {
+    setIsDrilling(true);
+    try {
+      const res = await fetch(`/api/results/${resultId}/drill`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast({ title: "Drill unavailable", description: err.error, variant: "destructive" });
+        return;
+      }
+      const { drillExamId } = await res.json();
+      setLocation(`/exam/${drillExamId}`);
+    } catch {
+      toast({ title: "Failed to start drill", variant: "destructive" });
+    } finally {
+      setIsDrilling(false);
+    }
+  };
 
   const questionsWithVideo = result.questionWise.filter((q) => (q as any).videoUrl || (q as any).qrCodeSvg);
   const hasVideoContent = questionsWithVideo.length > 0;
@@ -161,6 +191,36 @@ export default function ExamResults() {
           </Card>
         )}
       </div>
+
+      {/* Weak-Topic Drill CTA — shown when a non-drill exam is failed with wrong answers */}
+      {canDrill && (
+        <Card className="border border-primary/40 bg-gradient-to-r from-primary/10 to-primary/5">
+          <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-start gap-4 flex-1">
+              <div className="p-2.5 rounded-lg bg-primary/20 shrink-0">
+                <Zap className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground mb-1">Drill Your Mistakes</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  You got <span className="text-destructive font-semibold">{result.incorrectAnswers}</span> question{result.incorrectAnswers > 1 ? "s" : ""} wrong.
+                  Launch a focused <strong>{Math.min(result.incorrectAnswers, 5)}-question drill</strong> targeting exactly those gaps — no negative marking, 10 minutes.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleStartDrill}
+              disabled={isDrilling}
+              className="shrink-0 gap-2 min-w-[140px]"
+            >
+              {isDrilling
+                ? <><RefreshCw className="w-4 h-4 animate-spin" /> Building drill...</>
+                : <><Zap className="w-4 h-4" /> Start Drill</>
+              }
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="solutions" className="w-full">
         <TabsList className={`grid w-full ${hasVideoContent ? 'grid-cols-3' : 'grid-cols-2'}`}>
