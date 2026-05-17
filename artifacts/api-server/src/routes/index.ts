@@ -14,6 +14,7 @@ import dashboardRouter from "./dashboard";
 import adminRouter from "./admin";
 import leaderboardRouter from "./leaderboard";
 import externalTestsRouter from "./external-tests";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(dashboardRouter);
 router.use(adminRouter);
 router.use(leaderboardRouter);
 router.use(externalTestsRouter);
+router.use(notificationsRouter);
 
 export default router;

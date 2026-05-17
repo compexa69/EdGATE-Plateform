@@ -2,15 +2,20 @@ import { useGetResult } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronRight, CheckCircle2, XCircle, MinusCircle, Trophy, Target, Clock, AlertTriangle, QrCode, Video, ExternalLink } from "lucide-react";
+import { ChevronRight, CheckCircle2, XCircle, MinusCircle, Trophy, Target, Clock, AlertTriangle, QrCode, Video, ExternalLink, Filter } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from "recharts";
+import { useState } from "react";
+import { MathText } from "@/components/math-text";
+
+type AnswerFilter = "all" | "incorrect" | "skipped";
 
 export default function ExamResults() {
   const params = useParams();
   const resultId = params.resultId!;
+  const [answerFilter, setAnswerFilter] = useState<AnswerFilter>("all");
 
   const { data: result, isLoading } = useGetResult(resultId, {
     query: { enabled: !!resultId, queryKey: ["result", resultId] }
@@ -21,6 +26,12 @@ export default function ExamResults() {
 
   const questionsWithVideo = result.questionWise.filter((q) => (q as any).videoUrl || (q as any).qrCodeSvg);
   const hasVideoContent = questionsWithVideo.length > 0;
+
+  const filteredQuestions = result.questionWise.filter((q) => {
+    if (answerFilter === "incorrect") return !q.isCorrect && q.selectedOption !== null;
+    if (answerFilter === "skipped") return q.selectedOption === null;
+    return true;
+  });
 
   const pieData = [
     { name: "Correct", value: result.correctAnswers, color: "hsl(var(--success))" },
@@ -34,6 +45,13 @@ export default function ExamResults() {
     Correct: t.correctAnswers,
     Total: t.totalQuestions,
   }));
+
+  const filterBtnClass = (f: AnswerFilter) =>
+    `px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+      answerFilter === f
+        ? "bg-primary text-primary-foreground"
+        : "bg-muted text-muted-foreground hover:bg-muted/80"
+    }`;
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8 pb-24 md:pb-8">
@@ -146,7 +164,7 @@ export default function ExamResults() {
 
       <Tabs defaultValue="solutions" className="w-full">
         <TabsList className={`grid w-full ${hasVideoContent ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <TabsTrigger value="solutions">Detailed Solutions</TabsTrigger>
+          <TabsTrigger value="solutions">Answer Sheet</TabsTrigger>
           <TabsTrigger value="topic-wise">Topic Analysis</TabsTrigger>
           {hasVideoContent && (
             <TabsTrigger value="videos" className="flex items-center gap-2">
@@ -156,56 +174,84 @@ export default function ExamResults() {
         </TabsList>
 
         <TabsContent value="solutions" className="space-y-6 mt-6">
-          {result.questionWise.map((q, idx) => (
-            <Card key={q.questionId} className={`border-l-4 ${q.isCorrect ? 'border-l-success' : q.selectedOption === null ? 'border-l-muted-foreground' : 'border-l-destructive'}`}>
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex gap-4">
-                    <span className="font-bold text-muted-foreground shrink-0">Q{idx + 1}.</span>
-                    <p className="font-medium text-lg">{q.questionText}</p>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-2">
-                    {(q as any).videoUrl && (
-                      <a
-                        href={(q as any).videoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:text-primary/80"
-                        title="Watch video solution"
-                      >
-                        <Video className="w-4 h-4" />
-                      </a>
-                    )}
-                    <span className="text-sm font-bold">
-                      {q.marksAwarded > 0 ? <span className="text-success">+{q.marksAwarded}</span> : <span className="text-destructive">{q.marksAwarded}</span>}
-                    </span>
-                  </div>
-                </div>
+          {/* Filter buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground mr-1">Show:</span>
+            <button className={filterBtnClass("all")} onClick={() => setAnswerFilter("all")}>
+              All ({result.questionWise.length})
+            </button>
+            <button className={filterBtnClass("incorrect")} onClick={() => setAnswerFilter("incorrect")}>
+              Incorrect ({result.incorrectAnswers})
+            </button>
+            <button className={filterBtnClass("skipped")} onClick={() => setAnswerFilter("skipped")}>
+              Skipped ({result.skippedAnswers})
+            </button>
+          </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 bg-muted/30 p-4 rounded-lg">
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Your Answer</div>
-                    <div className="font-medium flex items-center gap-2">
-                      {q.selectedOption != null ? `Option ${q.selectedOption + 1}` : "Skipped"}
-                      {q.isCorrect && <CheckCircle2 className="w-4 h-4 text-success" />}
-                      {!q.isCorrect && q.selectedOption != null && <XCircle className="w-4 h-4 text-destructive" />}
+          {filteredQuestions.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              No questions match the selected filter.
+            </div>
+          )}
+
+          {filteredQuestions.map((q, idx) => {
+            const globalIdx = result.questionWise.findIndex(rq => rq.questionId === q.questionId);
+            return (
+              <Card key={q.questionId} className={`border-l-4 ${q.isCorrect ? 'border-l-success' : q.selectedOption === null ? 'border-l-muted-foreground' : 'border-l-destructive'}`}>
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex gap-4 flex-1 min-w-0">
+                      <span className="font-bold text-muted-foreground shrink-0">Q{globalIdx + 1}.</span>
+                      <div className="flex-1 min-w-0 text-lg font-medium">
+                        <MathText text={q.questionText} />
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                      {(q as any).videoUrl && (
+                        <a
+                          href={(q as any).videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:text-primary/80"
+                          title="Watch video solution"
+                        >
+                          <Video className="w-4 h-4" />
+                        </a>
+                      )}
+                      <span className="text-sm font-bold">
+                        {q.marksAwarded > 0 ? <span className="text-success">+{q.marksAwarded}</span> : <span className="text-destructive">{q.marksAwarded}</span>}
+                      </span>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Correct Answer</div>
-                    <div className="font-medium text-success">Option {q.correctOption + 1}</div>
-                  </div>
-                </div>
 
-                {q.textSolution && (
-                  <div className="mt-4 border-t border-border pt-4">
-                    <div className="text-sm font-bold mb-2">Solution:</div>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{q.textSolution}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 bg-muted/30 p-4 rounded-lg">
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">Your Answer</div>
+                      <div className="font-medium flex items-center gap-2">
+                        {q.selectedOption != null ? `Option ${q.selectedOption + 1}` : "Skipped"}
+                        {q.isCorrect && <CheckCircle2 className="w-4 h-4 text-success" />}
+                        {!q.isCorrect && q.selectedOption != null && <XCircle className="w-4 h-4 text-destructive" />}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">Correct Answer</div>
+                      <div className="font-medium text-success">Option {q.correctOption + 1}</div>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+
+                  {q.textSolution && (
+                    <div className="mt-4 border-t border-border pt-4">
+                      <div className="text-sm font-bold mb-2">Solution:</div>
+                      <div className="text-muted-foreground">
+                        <MathText text={q.textSolution} />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </TabsContent>
 
         <TabsContent value="topic-wise" className="mt-6 space-y-6">
@@ -271,7 +317,9 @@ export default function ExamResults() {
                     <CardContent className="p-6 space-y-4">
                       <div className="flex items-start gap-3">
                         <span className="font-bold text-muted-foreground shrink-0 text-sm">Q{questionIdx + 1}.</span>
-                        <p className="text-sm font-medium line-clamp-3">{q.questionText}</p>
+                        <div className="text-sm font-medium line-clamp-3">
+                          <MathText text={q.questionText} />
+                        </div>
                       </div>
 
                       {qrCodeSvg ? (

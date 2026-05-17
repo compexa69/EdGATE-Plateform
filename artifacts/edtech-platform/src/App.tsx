@@ -25,6 +25,7 @@ import AdminUsers from "@/pages/admin-users";
 import AdminSubjects from "@/pages/admin-subjects";
 import AdminQuestions from "@/pages/admin-questions";
 import AdminExams from "@/pages/admin-exams";
+import AdminSettings from "@/pages/admin-settings";
 import Leaderboard from "@/pages/leaderboard";
 import Planner from "@/pages/planner";
 import TestTracker from "@/pages/test-tracker";
@@ -141,6 +142,9 @@ function AppRouter() {
       </Route>
       <Route path="/admin/exams">
         {() => <ProtectedRoute component={AdminExams} adminOnly={true} />}
+      </Route>
+      <Route path="/admin/settings">
+        {() => <ProtectedRoute component={AdminSettings} adminOnly={true} />}
       </Route>
       <Route path="/test-tracker">
         {() => <ProtectedRoute component={TestTracker} />}

@@ -67,7 +67,7 @@ router.get("/leaderboard", requireApproved, async (req, res): Promise<void> => {
       return {
         userId: u.id,
         fullName: u.fullName,
-        photoUrl: u.photoUrl ?? null,
+        photoB2Key: u.photoB2Key ?? null,
         topicsCompleted,
         avgAccuracy: Math.round(avgAccuracy * 10) / 10,
         streakDays,
