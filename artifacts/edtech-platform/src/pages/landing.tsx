@@ -1,40 +1,45 @@
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { ChevronRight, ArrowRight, Brain, Target, Video, ShieldCheck } from "lucide-react";
+import { ChevronRight, ArrowRight, Brain, Target, Video, ShieldCheck, FolderLock, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const slides = [
   {
-    title: "Mastery Awaits.",
-    description: "Welcome to the cockpit for serious competitive exam preparation.",
-    icon: <Target className="w-12 h-12 text-primary" />,
+    title: "Smart Mastery Path.",
+    tagline: "Learn Deep, Not Fast.",
+    description: "No shortcuts. Unlock new topics only after mastering the previous ones. Your progression is earned, not given.",
+    icon: <Brain className="w-14 h-14 text-primary" />,
     color: "from-primary/20 to-background"
   },
   {
-    title: "Smart Mastery Path.",
-    description: "Follow a strictly gated progression. You don't move forward until you prove you're ready.",
-    icon: <Brain className="w-12 h-12 text-secondary" />,
-    color: "from-secondary/20 to-background"
-  },
-  {
     title: "Real Exam Simulation.",
-    description: "Full-screen, strict timer, instant analysis. Train how you fight.",
-    icon: <ShieldCheck className="w-12 h-12 text-warning" />,
+    tagline: "Train Like You Fight.",
+    description: "Full-screen timer, question navigation grid, mark for review, and auto-submit — exactly like the real test.",
+    icon: <ShieldCheck className="w-14 h-14 text-warning" />,
     color: "from-warning/20 to-background"
   },
   {
     title: "Instant Video Solutions.",
-    description: "Don't stay stuck. Every question comes with text and video breakdowns.",
-    icon: <Video className="w-12 h-12 text-accent" />,
+    tagline: "See It, Solve It.",
+    description: "Scan a QR code to watch expert video explanations for every question — even when you're offline.",
+    icon: <Video className="w-14 h-14 text-accent" />,
     color: "from-accent/20 to-background"
   },
   {
     title: "Distraction-Free Focus.",
-    description: "No fluff, no noise. Just you, the material, and your goals.",
-    icon: <Target className="w-12 h-12 text-success" />,
+    tagline: "Stay in the Zone.",
+    description: "Built-in Pomodoro timer and smart task planner to keep you on track, hour after hour.",
+    icon: <Timer className="w-14 h-14 text-secondary" />,
+    color: "from-secondary/20 to-background"
+  },
+  {
+    title: "Smart Note Vault.",
+    tagline: "Earn Your Notes.",
+    description: "Upload your notes only after completing a chapter — reinforcing learning at every step.",
+    icon: <FolderLock className="w-14 h-14 text-success" />,
     color: "from-success/20 to-background"
-  }
+  },
 ];
 
 export default function Landing() {
@@ -72,10 +77,13 @@ export default function Landing() {
               <div className={`p-6 rounded-full bg-gradient-to-b ${slides[currentSlide].color} mb-8 border border-border`}>
                 {slides[currentSlide].icon}
               </div>
+              <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mb-2">
+                {slides[currentSlide].tagline}
+              </p>
               <h1 className="text-3xl font-bold text-foreground mb-4 tracking-tight">
                 {slides[currentSlide].title}
               </h1>
-              <p className="text-muted-foreground text-lg leading-relaxed">
+              <p className="text-muted-foreground text-base leading-relaxed">
                 {slides[currentSlide].description}
               </p>
             </motion.div>

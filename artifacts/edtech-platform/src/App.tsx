@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
@@ -32,6 +32,28 @@ import { Layout } from "@/components/layout";
 
 const queryClient = new QueryClient();
 
+// ─── Theme Context ────────────────────────────────────────────────────────────
+type Theme = "dark" | "light";
+interface ThemeContextValue { theme: Theme; toggleTheme: () => void; }
+export const ThemeContext = createContext<ThemeContextValue>({ theme: "dark", toggleTheme: () => {} });
+export function useThemeMode() { return useContext(ThemeContext); }
+
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>(() => {
+    try { return (localStorage.getItem("edtech_theme") as Theme) || "dark"; } catch { return "dark"; }
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") { root.classList.add("dark"); } else { root.classList.remove("dark"); }
+    try { localStorage.setItem("edtech_theme", theme); } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
+  return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: any, adminOnly?: boolean }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [, setLocation] = useLocation();
@@ -57,10 +79,6 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
 
 function AppRouter() {
   const { isLoading } = useAuth();
-
-  useEffect(() => {
-    document.documentElement.classList.add("dark");
-  }, []);
 
   if (isLoading) {
     return <div className="min-h-screen w-full flex items-center justify-center bg-background text-primary">Loading...</div>;
@@ -137,12 +155,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <AppRouter />
-          </WouterRouter>
-          <Toaster />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <AppRouter />
+            </WouterRouter>
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

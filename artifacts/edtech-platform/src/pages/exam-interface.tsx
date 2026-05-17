@@ -78,6 +78,30 @@ export default function ExamInterface() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // ─── Tab-switch / visibility detection (SRS NFR-SEC-05) ──────────────────
+  useEffect(() => {
+    if (!exam || isPaused) return;
+    let warnCount = 0;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        warnCount++;
+        toast({
+          title: warnCount >= 3 ? "Warning: Multiple tab switches detected" : "Tab switch detected",
+          description: warnCount >= 3
+            ? "Repeated tab switching has been logged and may affect your assessment."
+            : "Please stay on this tab during your exam.",
+          variant: "destructive",
+          duration: 4000,
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [exam, isPaused, toast]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);

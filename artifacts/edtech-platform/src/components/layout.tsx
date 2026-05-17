@@ -1,12 +1,14 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { Home, BookOpen, User, LogOut, Settings, Trophy, CalendarDays, FolderOpen, ClipboardList } from "lucide-react";
+import { Home, BookOpen, User, LogOut, Settings, Trophy, CalendarDays, FolderOpen, ClipboardList, Sun, Moon } from "lucide-react";
 import { PomodoroWidget } from "@/components/pomodoro";
+import { useThemeMode } from "@/App";
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
+  const { theme, toggleTheme } = useThemeMode();
 
   const handleLogout = () => {
     logout();
@@ -54,6 +56,13 @@ export function Layout({ children }: { children: ReactNode }) {
               <p className="text-sm font-medium truncate">{user?.fullName}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.role}</p>
             </div>
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+              title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </div>
           <button 
             onClick={handleLogout}
