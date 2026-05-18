@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, examsTable, examAttemptsTable, examQuestionsTable, questionsTable,
   attemptAnswersTable, examResultsTable, topicProgressTable,
-  chaptersTable, topicsTable,
+  chaptersTable, topicsTable, subjectsTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -74,6 +74,19 @@ async function isSubjectTestUnlocked(subjectId: string, userId: string): Promise
   return true;
 }
 
+/**
+ * Grand Test is unlocked when every subject has at least one passed subject_test result.
+ */
+async function isGrandTestUnlocked(userId: string): Promise<boolean> {
+  const subjects = await db.select().from(subjectsTable);
+  if (subjects.length === 0) return false;
+  for (const s of subjects) {
+    const unlocked = await isSubjectTestUnlocked(s.id, userId);
+    if (!unlocked) return false;
+  }
+  return true;
+}
+
 /** Compute isUnlocked for a given exam row for this user. */
 async function computeExamUnlocked(
   exam: typeof examsTable.$inferSelect,
@@ -84,6 +97,9 @@ async function computeExamUnlocked(
   }
   if (exam.type === "subject_test" && exam.subjectId) {
     return isSubjectTestUnlocked(exam.subjectId, userId);
+  }
+  if (exam.type === "grand_test") {
+    return isGrandTestUnlocked(userId);
   }
   return true;
 }

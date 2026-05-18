@@ -2,9 +2,9 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateProfileBody } from "@workspace/api-zod";
-import { requireAuth, getUserById } from "../lib/auth";
+import { requireAuth, requireApproved, getUserById } from "../lib/auth";
 import { formatUser } from "./auth";
-import { getDownloadSignedUrl } from "../lib/b2";
+import { getDownloadSignedUrl, deleteObject } from "../lib/b2";
 
 const router: IRouter = Router();
 
@@ -49,6 +49,27 @@ router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
     try { photoUrl = await getDownloadSignedUrl(user.photoB2Key); } catch { /* ignore */ }
   }
   res.json({ ...base, photoUrl });
+});
+
+router.delete("/profile/photo", requireApproved, async (req, res): Promise<void> => {
+  const user = await getUserById(req.user!.id);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (!user.photoB2Key) {
+    res.status(404).json({ error: "No profile photo to remove" });
+    return;
+  }
+
+  await deleteObject(user.photoB2Key);
+
+  await db.update(usersTable)
+    .set({ photoB2Key: null })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ success: true, message: "Profile photo removed" });
 });
 
 export default router;

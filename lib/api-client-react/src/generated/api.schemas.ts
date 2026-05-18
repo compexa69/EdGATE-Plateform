@@ -770,7 +770,7 @@ export interface WeakTopic {
 export interface PerformancePoint {
   date: string;
   averageScore?: number | null;
-  examCount: number;
+  examCount?: number;
   externalScore?: number | null;
   externalExamName?: string | null;
 }
@@ -952,4 +952,17 @@ export const ListUsersStatus = {
   suspended: 'suspended',
   banned: 'banned',
 } as const;
+
+export type ExportUserData200UsersItem = { [key: string]: unknown };
+
+export type ExportUserData200ExamResultsItem = { [key: string]: unknown };
+
+export type ExportUserData200NotesItem = { [key: string]: unknown };
+
+export type ExportUserData200 = {
+  exportedAt?: string;
+  users?: ExportUserData200UsersItem[];
+  examResults?: ExportUserData200ExamResultsItem[];
+  notes?: ExportUserData200NotesItem[];
+};
 

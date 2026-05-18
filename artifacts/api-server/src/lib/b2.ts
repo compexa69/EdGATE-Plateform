@@ -23,7 +23,7 @@ export async function getUploadSignedUrl(key: string, contentType: string): Prom
     Key: key,
     ContentType: contentType,
   });
-  return getSignedUrl(s3Client, command, { expiresIn: 3600 });
+  return getSignedUrl(s3Client, command, { expiresIn: 900 });
 }
 
 export async function getDownloadSignedUrl(key: string): Promise<string> {
@@ -31,7 +31,7 @@ export async function getDownloadSignedUrl(key: string): Promise<string> {
     Bucket: B2_BUCKET_NAME,
     Key: key,
   });
-  return getSignedUrl(s3Client, command, { expiresIn: 3600 });
+  return getSignedUrl(s3Client, command, { expiresIn: 900 });
 }
 
 export async function deleteObject(key: string): Promise<void> {

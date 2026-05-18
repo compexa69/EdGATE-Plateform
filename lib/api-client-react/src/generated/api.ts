@@ -40,6 +40,7 @@ import type {
   ExamQuestionAddInput,
   ExamResult,
   ExamResultSummary,
+  ExportUserData200,
   ExternalTest,
   ExternalTestInput,
   ForgotPasswordInput,
@@ -898,6 +899,76 @@ export const useUpdateProfile = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateProfileMutationOptions(options));
+    }
+
+export const getRemoveProfilePhotoUrl = () => {
+
+
+
+
+  return `/api/profile/photo`
+}
+
+/**
+ * @summary Remove profile photo (deletes from B2 and clears key)
+ */
+export const removeProfilePhoto = async ( options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getRemoveProfilePhotoUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getRemoveProfilePhotoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeProfilePhoto>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeProfilePhoto>>, TError,void, TContext> => {
+
+const mutationKey = ['removeProfilePhoto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeProfilePhoto>>, void> = () => {
+
+
+          return  removeProfilePhoto(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveProfilePhotoMutationResult = NonNullable<Awaited<ReturnType<typeof removeProfilePhoto>>>
+
+    export type RemoveProfilePhotoMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove profile photo (deletes from B2 and clears key)
+ */
+export const useRemoveProfilePhoto = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeProfilePhoto>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeProfilePhoto>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRemoveProfilePhotoMutationOptions(options));
     }
 
 export const getListSubjectsUrl = () => {
@@ -5333,6 +5404,153 @@ export function useGetAdminStats<TData = Awaited<ReturnType<typeof getAdminStats
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAdminStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getResetUserProgressUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/reset-progress`
+}
+
+/**
+ * @summary Reset a user's topic/exam progress (super_admin only)
+ */
+export const resetUserProgress = async (userId: string, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getResetUserProgressUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getResetUserProgressMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetUserProgress>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetUserProgress>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['resetUserProgress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetUserProgress>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  resetUserProgress(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetUserProgressMutationResult = NonNullable<Awaited<ReturnType<typeof resetUserProgress>>>
+
+    export type ResetUserProgressMutationError = ErrorType<void>
+
+    /**
+ * @summary Reset a user's topic/exam progress (super_admin only)
+ */
+export const useResetUserProgress = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetUserProgress>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetUserProgress>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getResetUserProgressMutationOptions(options));
+    }
+
+export const getExportUserDataUrl = () => {
+
+
+
+
+  return `/api/admin/export-data`
+}
+
+/**
+ * @summary Export all user data as JSON (super_admin only, GDPR)
+ */
+export const exportUserData = async ( options?: RequestInit): Promise<ExportUserData200> => {
+
+  return customFetch<ExportUserData200>(getExportUserDataUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportUserDataQueryKey = () => {
+    return [
+    `/api/admin/export-data`
+    ] as const;
+    }
+
+
+export const getExportUserDataQueryOptions = <TData = Awaited<ReturnType<typeof exportUserData>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportUserData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportUserDataQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportUserData>>> = ({ signal }) => exportUserData({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportUserData>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportUserDataQueryResult = NonNullable<Awaited<ReturnType<typeof exportUserData>>>
+export type ExportUserDataQueryError = ErrorType<void>
+
+
+/**
+ * @summary Export all user data as JSON (super_admin only, GDPR)
+ */
+
+export function useExportUserData<TData = Awaited<ReturnType<typeof exportUserData>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportUserData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportUserDataQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

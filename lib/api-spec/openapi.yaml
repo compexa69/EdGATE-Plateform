@@ -229,6 +229,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserProfile"
 
+  /profile/photo:
+    delete:
+      operationId: removeProfilePhoto
+      tags: [profile]
+      summary: Remove profile photo (deletes from B2 and clears key)
+      responses:
+        "200":
+          description: Photo removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: No photo to remove
+
   # Subjects
   /subjects:
     get:
@@ -1376,6 +1391,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminStats"
+
+  /admin/users/{userId}/reset-progress:
+    post:
+      operationId: resetUserProgress
+      tags: [admin]
+      summary: Reset a user's topic/exam progress (super_admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Progress reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "403":
+          description: Forbidden
+        "404":
+          description: User not found
+
+  /admin/export-data:
+    get:
+      operationId: exportUserData
+      tags: [admin]
+      summary: Export all user data as JSON (super_admin only, GDPR)
+      responses:
+        "200":
+          description: Full user data export
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exportedAt:
+                    type: string
+                  users:
+                    type: array
+                    items:
+                      type: object
+                  examResults:
+                    type: array
+                    items:
+                      type: object
+                  notes:
+                    type: array
+                    items:
+                      type: object
+        "403":
+          description: Forbidden - super_admin only
 
   # External Tests
   /external-tests:

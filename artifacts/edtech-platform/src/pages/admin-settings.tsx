@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Save, RefreshCw, ShieldAlert, History } from "lucide-react";
+import { Settings, Save, RefreshCw, ShieldAlert, History, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { useExportUserData } from "@workspace/api-client-react";
 
 interface ConfigEntry {
   value: string;
@@ -56,6 +57,25 @@ export default function AdminSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const { refetch: fetchExport, isFetching: isExporting } = useExportUserData({
+    query: { enabled: false } as any,
+  });
+
+  const handleExport = async () => {
+    const result = await fetchExport();
+    if (result.data) {
+      const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `edtech-export-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Export complete", description: "User data downloaded as JSON." });
+    } else {
+      toast({ title: "Export failed", description: "Could not export data.", variant: "destructive" });
+    }
+  };
 
   const { data: config, isLoading: configLoading } = useQuery({
     queryKey: ["admin-config"],
@@ -107,7 +127,20 @@ export default function AdminSettings() {
           <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
           <p className="text-muted-foreground mt-1">Configure gate thresholds and platform rules.</p>
         </div>
-        <Settings className="w-8 h-8 text-muted-foreground" />
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={isExporting}
+            className="gap-2"
+          >
+            {isExporting
+              ? <><RefreshCw className="w-4 h-4 animate-spin" /> Exporting...</>
+              : <><Download className="w-4 h-4" /> Export Data</>
+            }
+          </Button>
+          <Settings className="w-8 h-8 text-muted-foreground" />
+        </div>
       </div>
 
       {/* Gate Configuration */}

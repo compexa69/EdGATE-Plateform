@@ -264,7 +264,7 @@ export default function ExamResults() {
                     <div className="flex gap-4 flex-1 min-w-0">
                       <span className="font-bold text-muted-foreground shrink-0">Q{globalIdx + 1}.</span>
                       <div className="flex-1 min-w-0 text-lg font-medium">
-                        <MathText text={q.questionText} />
+                        <MathText>{q.questionText}</MathText>
                       </div>
                     </div>
                     <div className="shrink-0 flex items-center gap-2">
@@ -304,7 +304,7 @@ export default function ExamResults() {
                     <div className="mt-4 border-t border-border pt-4">
                       <div className="text-sm font-bold mb-2">Solution:</div>
                       <div className="text-muted-foreground">
-                        <MathText text={q.textSolution} />
+                        <MathText>{q.textSolution}</MathText>
                       </div>
                     </div>
                   )}
@@ -378,7 +378,7 @@ export default function ExamResults() {
                       <div className="flex items-start gap-3">
                         <span className="font-bold text-muted-foreground shrink-0 text-sm">Q{questionIdx + 1}.</span>
                         <div className="text-sm font-medium line-clamp-3">
-                          <MathText text={q.questionText} />
+                          <MathText>{q.questionText}</MathText>
                         </div>
                       </div>
 

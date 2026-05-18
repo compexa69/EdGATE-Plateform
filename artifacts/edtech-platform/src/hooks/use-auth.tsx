@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { useGetCurrentUser } from "@workspace/api-client-react";
-import { UserProfile } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useGetCurrentUser, type UserProfile } from "@workspace/api-client-react";
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -21,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     query: {
       enabled: !!token,
       retry: false,
-    },
+    } as any,
   });
 
   useEffect(() => {

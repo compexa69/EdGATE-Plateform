@@ -1,10 +1,21 @@
-import { useListUsers, useApproveUser, useSuspendUser, useUpdateUserRole } from "@workspace/api-client-react";
+import { useListUsers, useApproveUser, useSuspendUser, useUpdateUserRole, useResetUserProgress } from "@workspace/api-client-react";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Check, X, RotateCcw } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -20,7 +31,24 @@ export default function AdminUsers() {
   const approveMutation = useApproveUser();
   const suspendMutation = useSuspendUser();
   const updateRoleMutation = useUpdateUserRole();
+  const resetProgressMutation = useResetUserProgress();
   const { toast } = useToast();
+
+  const handleResetProgress = (userId: string, name: string) => {
+    resetProgressMutation.mutate({ userId }, {
+      onSuccess: () => {
+        toast({ title: "Progress reset", description: `All progress cleared for ${name}.` });
+        refetch();
+      },
+      onError: (error) => {
+        toast({
+          title: "Reset failed",
+          description: (error as any)?.response?.data?.error || "Could not reset progress.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
 
   if (isLoading) return <div className="p-8">Loading users...</div>;
 
@@ -121,7 +149,7 @@ export default function AdminUsers() {
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 flex-wrap">
                       {user.status === 'pending_approval' && (
                         <Button size="sm" onClick={() => handleApprove(user.id)} className="bg-success hover:bg-success/90 h-8">
                           <Check className="w-4 h-4 mr-1" /> Approve
@@ -136,6 +164,32 @@ export default function AdminUsers() {
                         <Button size="sm" variant="outline" onClick={() => handleApprove(user.id)} className="h-8">
                           Restore
                         </Button>
+                      )}
+                      {user.role !== 'super_admin' && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/50 h-8">
+                              <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Reset Progress for {user.fullName}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete all topic progress, exam attempts, and results for this user. This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleResetProgress(user.id, user.fullName)}
+                                className="bg-destructive hover:bg-destructive/90"
+                              >
+                                Reset Progress
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </td>

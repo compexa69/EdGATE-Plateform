@@ -1,4 +1,4 @@
-import { useGetProfile, useUpdateProfile, useGetProfileUploadUrl, useChangePassword } from "@workspace/api-client-react";
+import { useGetProfile, useUpdateProfile, useGetProfileUploadUrl, useChangePassword, useRemoveProfilePhoto } from "@workspace/api-client-react";
 import { useState, useRef } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, ShieldCheck, Mail, Phone, Calendar, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Camera, ShieldCheck, Mail, Phone, Calendar, KeyRound, Eye, EyeOff, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const profileSchema = z.object({
@@ -153,9 +153,26 @@ export default function Profile() {
   const { data: profile, isLoading, refetch } = useGetProfile();
   const updateProfileMutation = useUpdateProfile();
   const getUploadUrlMutation = useGetProfileUploadUrl();
+  const removePhotoMutation = useRemoveProfilePhoto();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  const handleRemovePhoto = () => {
+    removePhotoMutation.mutate(undefined, {
+      onSuccess: () => {
+        toast({ title: "Profile photo removed" });
+        refetch();
+      },
+      onError: (error) => {
+        toast({
+          title: "Failed to remove photo",
+          description: (error as any)?.response?.data?.error || error.message,
+          variant: "destructive",
+        });
+      },
+    });
+  };
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -262,6 +279,16 @@ export default function Profile() {
                 />
               </div>
               {isUploading && <p className="text-xs text-muted-foreground mb-2">Uploading…</p>}
+              {profile.photoUrl && (
+                <button
+                  onClick={handleRemovePhoto}
+                  disabled={removePhotoMutation.isPending}
+                  className="absolute top-0 right-0 w-6 h-6 bg-destructive rounded-full flex items-center justify-center text-destructive-foreground hover:bg-destructive/90 transition-colors shadow-sm"
+                  title="Remove photo"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
               <h2 className="text-xl font-bold">{profile.fullName}</h2>
               <div className="text-muted-foreground text-sm mt-1 capitalize">{profile.role.replace('_', ' ')}</div>
 

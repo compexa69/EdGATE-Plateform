@@ -181,6 +181,15 @@ export const UpdateProfileResponse = zod.object({
 
 
 /**
+ * @summary Remove profile photo (deletes from B2 and clears key)
+ */
+export const RemoveProfilePhotoResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary List all subjects with user progress
  */
 export const ListSubjectsResponseItem = zod.object({
@@ -1294,7 +1303,7 @@ export const GetWeakTopicsResponse = zod.array(GetWeakTopicsResponseItem)
 export const GetPerformanceTrendResponseItem = zod.object({
   "date": zod.coerce.date(),
   "averageScore": zod.number().nullish(),
-  "examCount": zod.number(),
+  "examCount": zod.number().optional(),
   "externalScore": zod.number().nullish(),
   "externalExamName": zod.string().nullish()
 })
@@ -1379,6 +1388,36 @@ export const GetAdminStatsResponse = zod.object({
   "totalExamsAttempted": zod.number(),
   "storageUsedBytes": zod.number(),
   "storageLimitBytes": zod.number()
+})
+
+
+/**
+ * @summary Reset a user's topic/exam progress (super_admin only)
+ */
+export const ResetUserProgressParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const ResetUserProgressResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Export all user data as JSON (super_admin only, GDPR)
+ */
+export const ExportUserDataResponse = zod.object({
+  "exportedAt": zod.string().optional(),
+  "users": zod.array(zod.object({
+
+}).passthrough()).optional(),
+  "examResults": zod.array(zod.object({
+
+}).passthrough()).optional(),
+  "notes": zod.array(zod.object({
+
+}).passthrough()).optional()
 })
 
 

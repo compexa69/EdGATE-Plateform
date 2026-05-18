@@ -209,6 +209,14 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
     return;
   }
 
+  const strengthRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+  if (!strengthRegex.test(parsed.data.newPassword)) {
+    res.status(400).json({
+      error: "Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.",
+    });
+    return;
+  }
+
   const hash = await hashPassword(parsed.data.newPassword);
   await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, user.id));
 

@@ -35,7 +35,8 @@ async function checkNotesUploadUnlocked(chapterId: string, userId: string): Prom
 const router: IRouter = Router();
 
 const USER_STORAGE_LIMIT = 500 * 1024 * 1024;
-const GLOBAL_STORAGE_LIMIT = 10 * 1024 * 1024 * 1024;
+const GLOBAL_STORAGE_LIMIT = 9 * 1024 * 1024 * 1024;
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 router.get("/notes", requireApproved, async (req, res): Promise<void> => {
   const params = ListNotesQueryParams.safeParse(req.query);
@@ -99,18 +100,31 @@ router.post("/b2/upload-url", requireApproved, async (req, res): Promise<void> =
     return;
   }
 
+  if (fileSizeBytes > MAX_FILE_SIZE) {
+    res.status(400).json({ error: "File too large. Maximum allowed size is 10 MB." });
+    return;
+  }
+
   const userNotes = await db.select().from(notesTable).where(eq(notesTable.userId, req.user!.id));
   const userUsage = userNotes.reduce((sum, n) => sum + n.fileSizeBytes, 0);
 
   if (userUsage + fileSizeBytes > USER_STORAGE_LIMIT) {
-    res.status(429).json({ error: "Storage quota exceeded" });
+    res.status(429).json({ error: "Storage quota exceeded. You have used your 500 MB limit." });
+    return;
+  }
+
+  const allNotes = await db.select().from(notesTable);
+  const globalUsage = allNotes.reduce((sum, n) => sum + n.fileSizeBytes, 0);
+
+  if (globalUsage + fileSizeBytes > GLOBAL_STORAGE_LIMIT) {
+    res.status(429).json({ error: "Global storage capacity reached. Uploads are temporarily paused." });
     return;
   }
 
   const b2Key = `notes/${req.user!.id}/${chapterId}/${nanoid()}-${fileName}`;
   const uploadUrl = await getUploadSignedUrl(b2Key, "application/pdf");
 
-  res.json({ uploadUrl, b2Key, expiresIn: 3600 });
+  res.json({ uploadUrl, b2Key, expiresIn: 900 });
 });
 
 router.post("/b2/download-url", requireApproved, async (req, res): Promise<void> => {
@@ -125,21 +139,21 @@ router.post("/b2/download-url", requireApproved, async (req, res): Promise<void>
   }
 
   const downloadUrl = await getDownloadSignedUrl(note.b2Key);
-  res.json({ downloadUrl, expiresIn: 3600 });
+  res.json({ downloadUrl, expiresIn: 900 });
 });
 
 router.post("/b2/profile-upload-url", requireApproved, async (req, res): Promise<void> => {
   const { fileName } = req.body as { fileName: string };
   const b2Key = `profiles/${req.user!.id}/${nanoid()}-${fileName}`;
   const uploadUrl = await getUploadSignedUrl(b2Key, "image/jpeg");
-  res.json({ uploadUrl, b2Key, expiresIn: 3600 });
+  res.json({ uploadUrl, b2Key, expiresIn: 900 });
 });
 
 router.post("/b2/profile-download-url", requireApproved, async (req, res): Promise<void> => {
   const { userId } = req.body as { userId: string };
   const b2Key = `profiles/${userId}/`;
   const downloadUrl = await getDownloadSignedUrl(b2Key);
-  res.json({ downloadUrl, expiresIn: 3600 });
+  res.json({ downloadUrl, expiresIn: 900 });
 });
 
 router.post("/b2/confirm-upload", requireApproved, async (req, res): Promise<void> => {

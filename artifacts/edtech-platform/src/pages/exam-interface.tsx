@@ -18,10 +18,11 @@ export default function ExamInterface() {
   const [answers, setAnswers] = useState<Record<string, { selectedOption: number | null, isMarkedForReview: boolean, timeSpentSeconds: number }>>({});
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(Date.now());
 
-  const { data: exam, isLoading: examLoading } = useGetExam(examId, { query: { enabled: !!examId } });
+  const { data: exam, isLoading: examLoading } = useGetExam(examId);
   const startExamMutation = useStartExam();
   const saveAnswerMutation = useSaveAnswer();
   const submitExamMutation = useSubmitExam();
@@ -30,14 +31,13 @@ export default function ExamInterface() {
 
   useEffect(() => {
     if (exam && timeLeft === null) {
-      // Initialize exam
       startExamMutation.mutate({ examId }, {
         onSuccess: (attempt) => {
+          setAttemptId(attempt.id);
           setTimeLeft(attempt.remainingSeconds);
-          // Pre-fill existing answers if any
           const initialAnswers: any = {};
           exam.questions.forEach(q => {
-            const existing = attempt.answers.find(a => a.questionId === q.id);
+            const existing = attempt.answers.find((a: any) => a.questionId === q.id);
             initialAnswers[q.id] = {
               selectedOption: existing?.selectedOption ?? null,
               isMarkedForReview: existing?.isMarkedForReview ?? false,
@@ -78,6 +78,147 @@ export default function ExamInterface() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
+
+  // ─── Tab-switch / visibility detection (SRS NFR-SEC-05) ──────────────────
+  useEffect(() => {
+    if (!exam || isPaused) return;
+    let warnCount = 0;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        warnCount++;
+        toast({
+          title: warnCount >= 3 ? "Warning: Multiple tab switches detected" : "Tab switch detected",
+          description: warnCount >= 3
+            ? "Repeated tab switching has been logged and may affect your assessment."
+            : "Please stay on this tab during your exam.",
+          variant: "destructive",
+          duration: 4000,
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [exam, isPaused, toast]);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const handleSaveCurrentAnswer = useCallback(() => {
+    if (!exam || !attemptId) return;
+    const q = exam.questions[currentQuestionIndex];
+    const ans = answers[q.id];
+    if (ans) {
+      const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const updatedTime = ans.timeSpentSeconds + timeSpent;
+      
+      setAnswers(prev => ({
+        ...prev,
+        [q.id]: { ...ans, timeSpentSeconds: updatedTime }
+      }));
+
+      saveAnswerMutation.mutate({
+        attemptId,
+        data: {
+          questionId: q.id,
+          selectedOption: ans.selectedOption,
+          isMarkedForReview: ans.isMarkedForReview,
+          timeSpentSeconds: updatedTime
+        }
+      });
+    }
+    startTimeRef.current = Date.now();
+  }, [exam, currentQuestionIndex, answers, attemptId, saveAnswerMutation]);
+
+  const handleNext = useCallback(() => {
+    handleSaveCurrentAnswer();
+    if (exam && currentQuestionIndex < exam.questions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    }
+  }, [handleSaveCurrentAnswer, exam, currentQuestionIndex]);
+
+  const handlePrev = useCallback(() => {
+    handleSaveCurrentAnswer();
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
+  }, [handleSaveCurrentAnswer, currentQuestionIndex]);
+
+  const handleOptionSelect = useCallback((optionIndex: number) => {
+    if (!exam) return;
+    const q = exam.questions[currentQuestionIndex];
+    setAnswers(prev => ({
+      ...prev,
+      [q.id]: { ...prev[q.id], selectedOption: optionIndex }
+    }));
+  }, [exam, currentQuestionIndex]);
+
+  const handleJumpToQuestion = (index: number) => {
+    handleSaveCurrentAnswer();
+    setCurrentQuestionIndex(index);
+  };
+
+  const handleClearResponse = () => {
+    if (!exam) return;
+    const q = exam.questions[currentQuestionIndex];
+    setAnswers(prev => ({
+      ...prev,
+      [q.id]: { ...prev[q.id], selectedOption: null }
+    }));
+  };
+
+  const handleMarkReview = (checked: boolean) => {
+    if (!exam) return;
+    const q = exam.questions[currentQuestionIndex];
+    setAnswers(prev => ({
+      ...prev,
+      [q.id]: { ...prev[q.id], isMarkedForReview: checked }
+    }));
+  };
+
+  const handlePause = () => {
+    handleSaveCurrentAnswer();
+    if (!attemptId) return;
+    pauseExamMutation.mutate({ attemptId }, {
+      onSuccess: () => setIsPaused(true)
+    });
+  };
+
+  const handleResume = () => {
+    if (!attemptId) return;
+    resumeExamMutation.mutate({ attemptId }, {
+      onSuccess: () => {
+        setIsPaused(false);
+        startTimeRef.current = Date.now();
+      }
+    });
+  };
+
+  const handleSubmit = useCallback(() => {
+    handleSaveCurrentAnswer();
+    if (!attemptId) return;
+    const formattedAnswers = Object.entries(answers).map(([qId, ans]) => ({
+      questionId: qId,
+      selectedOption: ans.selectedOption,
+      isMarkedForReview: ans.isMarkedForReview,
+      timeSpentSeconds: ans.timeSpentSeconds
+    }));
+
+    submitExamMutation.mutate({ attemptId, data: { answers: formattedAnswers } }, {
+      onSuccess: (result) => {
+        setLocation(`/results/${result.id}`);
+      },
+      onError: () => {
+        toast({ title: "Failed to submit exam", variant: "destructive" });
+      }
+    });
+  }, [handleSaveCurrentAnswer, attemptId, answers, submitExamMutation, setLocation, toast]);
 
   // ─── Keyboard shortcuts (SRS EX-08) ──────────────────────────────────────
   useEffect(() => {
@@ -122,144 +263,6 @@ export default function ExamInterface() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [exam, isPaused, currentQuestionIndex, handleNext, handlePrev, handleOptionSelect]);
   // ─────────────────────────────────────────────────────────────────────────
-
-  // ─── Tab-switch / visibility detection (SRS NFR-SEC-05) ──────────────────
-  useEffect(() => {
-    if (!exam || isPaused) return;
-    let warnCount = 0;
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        warnCount++;
-        toast({
-          title: warnCount >= 3 ? "Warning: Multiple tab switches detected" : "Tab switch detected",
-          description: warnCount >= 3
-            ? "Repeated tab switching has been logged and may affect your assessment."
-            : "Please stay on this tab during your exam.",
-          variant: "destructive",
-          duration: 4000,
-        });
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [exam, isPaused, toast]);
-  // ─────────────────────────────────────────────────────────────────────────
-
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const handleSaveCurrentAnswer = useCallback(() => {
-    if (!exam) return;
-    const q = exam.questions[currentQuestionIndex];
-    const ans = answers[q.id];
-    if (ans) {
-      const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      const updatedTime = ans.timeSpentSeconds + timeSpent;
-      
-      setAnswers(prev => ({
-        ...prev,
-        [q.id]: { ...ans, timeSpentSeconds: updatedTime }
-      }));
-
-      saveAnswerMutation.mutate({
-        examId,
-        data: {
-          questionId: q.id,
-          selectedOption: ans.selectedOption,
-          isMarkedForReview: ans.isMarkedForReview,
-          timeSpentSeconds: updatedTime
-        }
-      });
-    }
-    startTimeRef.current = Date.now();
-  }, [exam, currentQuestionIndex, answers, examId, saveAnswerMutation]);
-
-  const handleNext = () => {
-    handleSaveCurrentAnswer();
-    if (exam && currentQuestionIndex < exam.questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    }
-  };
-
-  const handlePrev = () => {
-    handleSaveCurrentAnswer();
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
-  };
-
-  const handleJumpToQuestion = (index: number) => {
-    handleSaveCurrentAnswer();
-    setCurrentQuestionIndex(index);
-  };
-
-  const handleOptionSelect = (optionIndex: number) => {
-    if (!exam) return;
-    const q = exam.questions[currentQuestionIndex];
-    setAnswers(prev => ({
-      ...prev,
-      [q.id]: { ...prev[q.id], selectedOption: optionIndex }
-    }));
-  };
-
-  const handleClearResponse = () => {
-    if (!exam) return;
-    const q = exam.questions[currentQuestionIndex];
-    setAnswers(prev => ({
-      ...prev,
-      [q.id]: { ...prev[q.id], selectedOption: null }
-    }));
-  };
-
-  const handleMarkReview = (checked: boolean) => {
-    if (!exam) return;
-    const q = exam.questions[currentQuestionIndex];
-    setAnswers(prev => ({
-      ...prev,
-      [q.id]: { ...prev[q.id], isMarkedForReview: checked }
-    }));
-  };
-
-  const handlePause = () => {
-    handleSaveCurrentAnswer();
-    pauseExamMutation.mutate({ examId }, {
-      onSuccess: () => setIsPaused(true)
-    });
-  };
-
-  const handleResume = () => {
-    resumeExamMutation.mutate({ examId }, {
-      onSuccess: () => {
-        setIsPaused(false);
-        startTimeRef.current = Date.now();
-      }
-    });
-  };
-
-  const handleSubmit = () => {
-    handleSaveCurrentAnswer();
-    const formattedAnswers = Object.entries(answers).map(([qId, ans]) => ({
-      questionId: qId,
-      selectedOption: ans.selectedOption,
-      isMarkedForReview: ans.isMarkedForReview,
-      timeSpentSeconds: ans.timeSpentSeconds
-    }));
-
-    submitExamMutation.mutate({ examId, data: { answers: formattedAnswers } }, {
-      onSuccess: (result) => {
-        setLocation(`/results/${result.id}`);
-      },
-      onError: () => {
-        toast({ title: "Failed to submit exam", variant: "destructive" });
-      }
-    });
-  };
 
   if (examLoading) return <div className="min-h-screen flex items-center justify-center">Loading exam...</div>;
   if (!exam) return <div className="min-h-screen flex items-center justify-center text-destructive">Exam not found</div>;
@@ -324,7 +327,9 @@ export default function ExamInterface() {
                   <h2 className="text-xl font-bold text-foreground">Question {currentQuestionIndex + 1} of {exam.questions.length}</h2>
                   <div className="flex gap-4 text-sm font-medium">
                     <span className="text-success">+{currentQ.marks}</span>
-                    <span className="text-destructive">-{currentQ.negativeMarking}</span>
+                    {(exam as any).negativeMarking != null && (
+                      <span className="text-destructive">-{(exam as any).negativeMarking}</span>
+                    )}
                   </div>
                 </div>
                 

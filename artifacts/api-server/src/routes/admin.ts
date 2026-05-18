@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, subjectsTable, chaptersTable, topicsTable, questionsTable, examResultsTable, notesTable, topicProgressTable, systemConfigTable, auditLogsTable } from "@workspace/db";
+import { db, usersTable, subjectsTable, chaptersTable, topicsTable, questionsTable, examResultsTable, examAttemptsTable, attemptAnswersTable, notesTable, topicProgressTable, systemConfigTable, auditLogsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
@@ -126,7 +126,7 @@ router.patch("/admin/users/:userId/role", requireAdmin, async (req, res): Promis
     return;
   }
 
-  if (params.data.userId === req.user!.id && parsed.data.role !== "super_admin") {
+  if (params.data.userId === req.user!.id && (parsed.data.role as string) !== "super_admin") {
     const allSuperAdmins = await db.select().from(usersTable)
       .where(eq(usersTable.role, "super_admin"));
     if (allSuperAdmins.length <= 1) {
@@ -200,7 +200,7 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
     totalQuestions: questions.length,
     totalExamsAttempted: results.length,
     storageUsedBytes,
-    storageLimitBytes: 10 * 1024 * 1024 * 1024,
+    storageLimitBytes: 9 * 1024 * 1024 * 1024,
     totalLectureClicks,
     lowCtrTopics,
   });
@@ -256,6 +256,79 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res): Promise<void> =>
     details: l.details,
     createdAt: l.createdAt.toISOString(),
   })));
+});
+
+router.post("/admin/users/:userId/reset-progress", requireAdmin, async (req, res): Promise<void> => {
+  const actor = req.user!;
+  if (actor.role !== "super_admin") {
+    res.status(403).json({ error: "Only super_admin can reset user progress." });
+    return;
+  }
+
+  const { userId } = req.params as { userId: string };
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  await db.delete(topicProgressTable).where(eq(topicProgressTable.userId, userId));
+
+  const userAttempts = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.userId, userId));
+  for (const attempt of userAttempts) {
+    await db.delete(attemptAnswersTable).where(eq(attemptAnswersTable.attemptId, attempt.id));
+  }
+  await db.delete(examAttemptsTable).where(eq(examAttemptsTable.userId, userId));
+  await db.delete(examResultsTable).where(eq(examResultsTable.userId, userId));
+
+  await logAudit(actor.id, userId, "reset_progress", `Reset all progress for user ${target.email}`);
+
+  res.json({ success: true, message: `Progress reset for ${target.fullName}` });
+});
+
+router.get("/admin/export-data", requireAdmin, async (req, res): Promise<void> => {
+  const actor = req.user!;
+  if (actor.role !== "super_admin") {
+    res.status(403).json({ error: "Only super_admin can export user data." });
+    return;
+  }
+
+  const users = await db.select().from(usersTable);
+  const results = await db.select().from(examResultsTable);
+  const notes = await db.select().from(notesTable);
+  const progress = await db.select().from(topicProgressTable);
+
+  const sanitizedUsers = users.map((u) => ({
+    id: u.id,
+    fullName: u.fullName,
+    email: u.email,
+    mobile: u.mobile,
+    role: u.role,
+    status: u.status,
+    emailVerified: u.emailVerified,
+    createdAt: u.createdAt.toISOString(),
+    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+  }));
+
+  await logAudit(actor.id, null, "export_data", "Exported all user data (GDPR)");
+
+  res.json({
+    exportedAt: new Date().toISOString(),
+    users: sanitizedUsers,
+    examResults: results.map((r) => ({
+      ...r,
+      submittedAt: r.submittedAt.toISOString(),
+    })),
+    notes: notes.map((n) => ({
+      ...n,
+      uploadedAt: n.uploadedAt.toISOString(),
+    })),
+    topicProgress: progress.map((p) => ({
+      ...p,
+      updatedAt: p.updatedAt?.toISOString() ?? null,
+    })),
+  });
 });
 
 export default router;

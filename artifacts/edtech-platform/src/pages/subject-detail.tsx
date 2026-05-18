@@ -10,13 +10,9 @@ export default function SubjectDetail() {
   const subjectId = params.subjectId!;
   const [, setLocation] = useLocation();
 
-  const { data: subject, isLoading: subjectLoading } = useGetSubject(subjectId, {
-    query: { enabled: !!subjectId }
-  });
+  const { data: subject, isLoading: subjectLoading } = useGetSubject(subjectId);
 
-  const { data: chapters, isLoading: chaptersLoading } = useListChapters({ subjectId }, {
-    query: { enabled: !!subjectId }
-  });
+  const { data: chapters, isLoading: chaptersLoading } = useListChapters(subjectId);
 
   if (subjectLoading || chaptersLoading) {
     return <div className="p-8">Loading subject details...</div>;
