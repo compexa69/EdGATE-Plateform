@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, topicsTable, topicProgressTable, examsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, topicsTable, topicProgressTable, examsTable, examQuestionsTable, examResultsTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListTopicsParams,
@@ -99,16 +99,45 @@ router.get("/topics/:topicId", requireApproved, async (req, res): Promise<void> 
   const availableExams = await db.select().from(examsTable)
     .where(eq(examsTable.topicId, topic.id));
 
-  res.json({
-    ...base,
-    availableExams: availableExams.map((e) => ({
+  const enrichedExams = await Promise.all(availableExams.map(async (e) => {
+    const examQs = await db.select({ id: examQuestionsTable.id })
+      .from(examQuestionsTable).where(eq(examQuestionsTable.examId, e.id));
+    const totalQuestions = examQs.length;
+
+    const [lastResult] = await db.select()
+      .from(examResultsTable)
+      .where(and(eq(examResultsTable.examId, e.id), eq(examResultsTable.userId, req.user!.id)))
+      .orderBy(desc(examResultsTable.submittedAt))
+      .limit(1);
+    const hasAttempted = !!lastResult;
+    const lastScore = lastResult ? lastResult.accuracy : null;
+
+    let isUnlocked = false;
+    if (e.type === "lecture_quiz") {
+      isUnlocked = base.lectureClickCount > 0;
+    } else if (e.type === "dpp") {
+      isUnlocked = base.lectureQuizPassed;
+    } else if (e.type === "pyq") {
+      isUnlocked = base.dppCompleted;
+    } else if (e.type === "topic_test") {
+      isUnlocked = base.pyqCompleted;
+    } else {
+      isUnlocked = true;
+    }
+
+    return {
       id: e.id, title: e.title, type: e.type,
       subjectId: e.subjectId ?? null, chapterId: e.chapterId ?? null, topicId: e.topicId ?? null,
-      durationMinutes: e.durationMinutes, totalQuestions: 0, totalMarks: 0,
+      durationMinutes: e.durationMinutes, totalQuestions, totalMarks: totalQuestions,
       passingScore: e.passingScore ?? null, negativeMarking: e.negativeMarking,
-      isUnlocked: true, hasAttempted: false, lastScore: null,
+      isUnlocked, hasAttempted, lastScore,
       createdAt: e.createdAt.toISOString(),
-    })),
+    };
+  }));
+
+  res.json({
+    ...base,
+    availableExams: enrichedExams,
   });
 });
 

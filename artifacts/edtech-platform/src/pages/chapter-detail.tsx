@@ -2,7 +2,7 @@ import { useGetChapter, useListTopics } from "@workspace/api-client-react";
 import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Lock, CheckCircle, ChevronRight, PlayCircle, FileText, HelpCircle, FileCheck, Target } from "lucide-react";
+import { Lock, CheckCircle, ChevronRight, PlayCircle, FileText, HelpCircle, FileCheck, Target, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -106,8 +106,35 @@ export default function ChapterDetail() {
         </div>
       </div>
       
+      {/* Notes Vault Section */}
+      <Card className={`border-card-border bg-card ${!chapter.notesUploadUnlocked ? 'opacity-60 grayscale' : 'border-primary/50 shadow-[0_0_20px_-5px_rgba(99,102,241,0.15)]'}`}>
+        <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${chapter.notesUploadUnlocked ? 'bg-primary/20' : 'bg-muted'}`}>
+              {chapter.notesUploadUnlocked
+                ? <FolderOpen className="w-6 h-6 text-primary" />
+                : <Lock className="w-6 h-6 text-muted-foreground" />
+              }
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-foreground">Notes Vault</h3>
+              <p className="text-sm text-muted-foreground">
+                {chapter.notesUploadUnlocked
+                  ? "Chapter test attempted. Your vault is open — upload your handwritten or typed notes."
+                  : "Attempt the Chapter Test to unlock your personal Notes Vault for this chapter."}
+              </p>
+            </div>
+          </div>
+          <div>
+            <Badge variant={chapter.notesUploadUnlocked ? "default" : "secondary"} className="text-sm px-3 py-1">
+              {chapter.notesUploadUnlocked ? "Vault Unlocked" : "Locked"}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Chapter Test Section */}
-      <Card className={`border-card-border bg-card mt-8 ${!chapter.chapterTestUnlocked ? 'opacity-60 grayscale' : 'border-warning/50'}`}>
+      <Card className={`border-card-border bg-card ${!chapter.chapterTestUnlocked ? 'opacity-60 grayscale' : 'border-warning/50'}`}>
         <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-warning/20 flex items-center justify-center">

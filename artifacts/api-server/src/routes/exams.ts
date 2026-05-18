@@ -447,6 +447,28 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
     })();
   }
 
+  // Topic-wise breakdown
+  const twStats = new Map<string, { name: string; correct: number; total: number }>();
+  for (const q of questions) {
+    if (!q.topicId) continue;
+    const stat = twStats.get(q.topicId) ?? { name: "", correct: 0, total: 0 };
+    stat.total++;
+    const ans = answerMap.get(q.id);
+    if (ans?.selectedOption != null && ans.selectedOption === parseInt(q.correctOption, 10)) stat.correct++;
+    twStats.set(q.topicId, stat);
+  }
+  const twIds = Array.from(twStats.keys());
+  if (twIds.length > 0) {
+    const topicRows = await db.select({ id: topicsTable.id, name: topicsTable.name })
+      .from(topicsTable).where(inArray(topicsTable.id, twIds));
+    for (const t of topicRows) { const s = twStats.get(t.id); if (s) s.name = t.name; }
+  }
+  const topicWise = Array.from(twStats.entries()).map(([topicId, s]) => ({
+    topicId, topicName: s.name || "Unknown",
+    correctAnswers: s.correct, totalQuestions: s.total,
+    accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
+  }));
+
   res.json({
     id: result.id, examId: exam.id, examTitle: exam.title, examType: exam.type,
     score: result.score, maxScore: result.maxScore, accuracy: result.accuracy,
@@ -455,7 +477,7 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
     timeTakenSeconds: result.timeTakenSeconds, percentile: null,
     passed: result.passed,
     questionWise,
-    topicWise: [],
+    topicWise,
     submittedAt: result.submittedAt.toISOString(),
   });
 });
@@ -557,13 +579,36 @@ router.get("/results/:resultId", requireApproved, async (req, res): Promise<void
     };
   });
 
+  // Topic-wise breakdown (GET results)
+  const twStatsGet = new Map<string, { name: string; correct: number; total: number }>();
+  for (const q of questions) {
+    if (!q.topicId) continue;
+    const stat = twStatsGet.get(q.topicId) ?? { name: "", correct: 0, total: 0 };
+    stat.total++;
+    const ans = answerMap.get(q.id);
+    const sel = ans?.selectedOption != null ? parseInt(ans.selectedOption, 10) : null;
+    if (sel != null && sel === parseInt(q.correctOption, 10)) stat.correct++;
+    twStatsGet.set(q.topicId, stat);
+  }
+  const twIdsGet = Array.from(twStatsGet.keys());
+  if (twIdsGet.length > 0) {
+    const topicRowsGet = await db.select({ id: topicsTable.id, name: topicsTable.name })
+      .from(topicsTable).where(inArray(topicsTable.id, twIdsGet));
+    for (const t of topicRowsGet) { const s = twStatsGet.get(t.id); if (s) s.name = t.name; }
+  }
+  const topicWise = Array.from(twStatsGet.entries()).map(([topicId, s]) => ({
+    topicId, topicName: s.name || "Unknown",
+    correctAnswers: s.correct, totalQuestions: s.total,
+    accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
+  }));
+
   res.json({
     id: result.id, examId: result.examId, examTitle: exam.title, examType: exam.type,
     score: result.score, maxScore: result.maxScore, accuracy: result.accuracy,
     totalQuestions: result.totalQuestions, correctAnswers: result.correctAnswers,
     incorrectAnswers: result.incorrectAnswers, skippedAnswers: result.skippedAnswers,
     timeTakenSeconds: result.timeTakenSeconds, percentile: null,
-    passed: result.passed, questionWise, topicWise: [],
+    passed: result.passed, questionWise, topicWise,
     submittedAt: result.submittedAt.toISOString(),
   });
 });

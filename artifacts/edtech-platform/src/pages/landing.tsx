@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronRight, ArrowRight, Brain, Target, Video, ShieldCheck, FolderLock, Timer } from "lucide-react";
+import { ChevronRight, ArrowRight, Brain, Video, ShieldCheck, GraduationCap, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const slides = [
@@ -34,11 +34,11 @@ const slides = [
     color: "from-secondary/20 to-background"
   },
   {
-    title: "Smart Note Vault.",
-    tagline: "Earn Your Notes.",
-    description: "Upload your notes only after completing a chapter — reinforcing learning at every step.",
-    icon: <FolderLock className="w-14 h-14 text-success" />,
-    color: "from-success/20 to-background"
+    title: "Your Cockpit. Your Mastery.",
+    tagline: "Begin Your Ascent Today.",
+    description: "Join JEE / NEET / GATE aspirants on the only platform built to make you battle-ready — every concept locked in, every step earned.",
+    icon: <GraduationCap className="w-14 h-14 text-primary" />,
+    color: "from-primary/20 to-background"
   },
 ];
 
