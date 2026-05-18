@@ -126,6 +126,15 @@ router.patch("/admin/users/:userId/role", requireAdmin, async (req, res): Promis
     return;
   }
 
+  if (params.data.userId === req.user!.id && parsed.data.role !== "super_admin") {
+    const allSuperAdmins = await db.select().from(usersTable)
+      .where(eq(usersTable.role, "super_admin"));
+    if (allSuperAdmins.length <= 1) {
+      res.status(403).json({ error: "Cannot demote the sole super_admin. Promote another user first." });
+      return;
+    }
+  }
+
   const [user] = await db.update(usersTable)
     .set({ role: parsed.data.role })
     .where(eq(usersTable.id, params.data.userId))

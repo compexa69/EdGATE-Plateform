@@ -41,6 +41,8 @@ function formatUser(user: typeof usersTable.$inferSelect) {
   };
 }
 
+const INDIAN_MOBILE_REGEX = /^(\+91)[\s-]?[6-9]\d{9}$/;
+
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
@@ -49,6 +51,11 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
 
   const { fullName, mobile, email, password } = parsed.data;
+
+  if (!INDIAN_MOBILE_REGEX.test(mobile)) {
+    res.status(400).json({ error: "Please enter a valid Indian mobile number (+91...)" });
+    return;
+  }
 
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
   if (existing) {
@@ -193,6 +200,12 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
   const valid = await comparePassword(parsed.data.currentPassword, user.passwordHash);
   if (!valid) {
     res.status(400).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  const isSamePassword = await comparePassword(parsed.data.newPassword, user.passwordHash);
+  if (isSamePassword) {
+    res.status(400).json({ error: "New password cannot be the same as your current password" });
     return;
   }
 
