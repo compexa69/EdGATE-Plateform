@@ -1390,6 +1390,19 @@ export const SuspendUserResponse = zod.object({
 
 
 /**
+ * @summary Permanently ban a user
+ */
+export const BanUserParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const BanUserResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Change user role
  */
 export const UpdateUserRoleParams = zod.object({

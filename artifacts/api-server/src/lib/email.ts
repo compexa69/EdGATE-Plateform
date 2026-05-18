@@ -54,3 +54,27 @@ export async function sendApprovalEmail(to: string, name: string): Promise<void>
   `;
   await sendEmail(to, "Account Approved - EdTech Study Platform", html);
 }
+
+export async function sendStorageAlertEmail(to: string, usedGB: number, limitGB: number): Promise<void> {
+  const percentUsed = Math.round((usedGB / limitGB) * 100);
+  const html = `
+    <h2 style="color:#EF4444">⚠️ B2 Storage Alert</h2>
+    <p>Your EdTech platform B2 storage has reached a critical level.</p>
+    <table style="border-collapse:collapse;margin:16px 0">
+      <tr>
+        <td style="padding:4px 12px 4px 0;color:#64748B">Used</td>
+        <td style="padding:4px 0;font-weight:bold">${usedGB.toFixed(2)} GB</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 12px 4px 0;color:#64748B">Limit</td>
+        <td style="padding:4px 0;font-weight:bold">${limitGB.toFixed(2)} GB</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 12px 4px 0;color:#64748B">Usage</td>
+        <td style="padding:4px 0;font-weight:bold;color:#EF4444">${percentUsed}%</td>
+      </tr>
+    </table>
+    <p>Please review stored notes and free up space to ensure continued uploads.</p>
+  `;
+  await sendEmail(to, `[ACTION REQUIRED] B2 Storage at ${percentUsed}% - EdTech Platform`, html);
+}

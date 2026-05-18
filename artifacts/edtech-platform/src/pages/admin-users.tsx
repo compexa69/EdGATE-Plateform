@@ -1,10 +1,10 @@
-import { useListUsers, useApproveUser, useSuspendUser, useUpdateUserRole, useResetUserProgress } from "@workspace/api-client-react";
+import { useListUsers, useApproveUser, useSuspendUser, useBanUser, useUpdateUserRole, useResetUserProgress } from "@workspace/api-client-react";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, RotateCcw } from "lucide-react";
+import { Check, X, RotateCcw, Ban } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ export default function AdminUsers() {
   
   const approveMutation = useApproveUser();
   const suspendMutation = useSuspendUser();
+  const banMutation = useBanUser();
   const updateRoleMutation = useUpdateUserRole();
   const resetProgressMutation = useResetUserProgress();
   const { toast } = useToast();
@@ -72,6 +73,22 @@ export default function AdminUsers() {
     });
   };
 
+  const handleBan = (userId: string) => {
+    banMutation.mutate({ userId }, {
+      onSuccess: () => {
+        toast({ title: "User permanently banned", variant: "destructive" });
+        refetch();
+      },
+      onError: (error) => {
+        toast({
+          title: "Ban failed",
+          description: (error as any)?.response?.data?.error || "Could not ban user.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
+
   const handleRoleChange = (userId: string, role: "student" | "admin") => {
     updateRoleMutation.mutate({ userId, data: { role } }, {
       onSuccess: () => {
@@ -97,6 +114,7 @@ export default function AdminUsers() {
             <SelectItem value="pending_approval">Pending Approval</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="suspended">Suspended</SelectItem>
+            <SelectItem value="banned">Banned</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -144,6 +162,7 @@ export default function AdminUsers() {
                       ${user.status === 'approved' ? 'bg-success/10 text-success border-success/20' : ''}
                       ${user.status === 'pending_approval' ? 'bg-warning/10 text-warning border-warning/20' : ''}
                       ${user.status === 'suspended' ? 'bg-destructive/10 text-destructive border-destructive/20' : ''}
+                      ${user.status === 'banned' ? 'bg-destructive/20 text-destructive border-destructive/40 font-bold' : ''}
                     `}>
                       {user.status.replace('_', ' ')}
                     </Badge>
@@ -160,7 +179,38 @@ export default function AdminUsers() {
                           <X className="w-4 h-4 mr-1" /> Suspend
                         </Button>
                       )}
+                      {(user.status === 'approved' || user.status === 'suspended') && user.role !== 'super_admin' && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/50 h-8">
+                              <Ban className="w-3.5 h-3.5 mr-1" /> Ban
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Permanently Ban {user.fullName}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will block the user from logging in permanently. They will see a "banned" status on any login attempt. This action can only be undone manually via restore.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleBan(user.id)}
+                                className="bg-destructive hover:bg-destructive/90"
+                              >
+                                <Ban className="w-4 h-4 mr-1" /> Ban Permanently
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                       {user.status === 'suspended' && (
+                        <Button size="sm" variant="outline" onClick={() => handleApprove(user.id)} className="h-8">
+                          Restore
+                        </Button>
+                      )}
+                      {user.status === 'banned' && (
                         <Button size="sm" variant="outline" onClick={() => handleApprove(user.id)} className="h-8">
                           Restore
                         </Button>

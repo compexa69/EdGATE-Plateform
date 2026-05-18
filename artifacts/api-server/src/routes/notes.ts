@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, notesTable, chaptersTable, topicsTable, topicProgressTable, examsTable, examResultsTable, inlineNotesTable } from "@workspace/db";
+import { db, notesTable, chaptersTable, topicsTable, topicProgressTable, examsTable, examResultsTable, inlineNotesTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
@@ -8,6 +8,11 @@ import {
 } from "@workspace/api-zod";
 import { requireApproved } from "../lib/auth";
 import { getUploadSignedUrl, getDownloadSignedUrl, deleteObject } from "../lib/b2";
+import { sendStorageAlertEmail } from "../lib/email";
+import { logger } from "../lib/logger";
+
+const STORAGE_ALERT_THRESHOLD = 8 * 1024 * 1024 * 1024;
+let lastStorageAlertSent = 0;
 
 /** PDF upload is unlocked when the user has submitted at least one chapter_test attempt for the chapter. */
 async function checkNotesUploadUnlocked(chapterId: string, userId: string): Promise<boolean> {
@@ -187,6 +192,26 @@ router.post("/b2/confirm-upload", requireApproved, async (req, res): Promise<voi
     fileSizeBytes: note.fileSizeBytes, b2Key: note.b2Key,
     uploadedAt: note.uploadedAt.toISOString(),
   });
+
+  // Fire storage alert email when global usage crosses 8 GB threshold — debounced to once per 24h
+  try {
+    const allNotesAfter = await db.select().from(notesTable);
+    const globalUsageAfter = allNotesAfter.reduce((sum, n) => sum + n.fileSizeBytes, 0);
+    const hoursSinceLastAlert = (Date.now() - lastStorageAlertSent) / (1000 * 60 * 60);
+    if (globalUsageAfter >= STORAGE_ALERT_THRESHOLD && hoursSinceLastAlert >= 24) {
+      lastStorageAlertSent = Date.now();
+      const superAdmins = await db.select().from(usersTable)
+        .where(eq(usersTable.role, "super_admin"));
+      const usedGB = globalUsageAfter / (1024 * 1024 * 1024);
+      const limitGB = GLOBAL_STORAGE_LIMIT / (1024 * 1024 * 1024);
+      for (const admin of superAdmins) {
+        await sendStorageAlertEmail(admin.email, usedGB, limitGB);
+      }
+      logger.warn({ globalUsageAfter, usedGB }, "Storage alert email sent to super_admins");
+    }
+  } catch (alertErr) {
+    logger.error({ alertErr }, "Failed to check/send storage alert email");
+  }
 });
 
 router.get("/b2/quota", requireApproved, async (req, res): Promise<void> => {

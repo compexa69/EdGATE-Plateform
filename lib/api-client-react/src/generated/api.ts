@@ -5421,6 +5421,76 @@ export const useSuspendUser = <TError = ErrorType<unknown>,
       return useMutation(getSuspendUserMutationOptions(options));
     }
 
+export const getBanUserUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/ban`
+}
+
+/**
+ * @summary Permanently ban a user
+ */
+export const banUser = async (userId: string, options?: RequestInit): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getBanUserUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getBanUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof banUser>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof banUser>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['banUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof banUser>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  banUser(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BanUserMutationResult = NonNullable<Awaited<ReturnType<typeof banUser>>>
+
+    export type BanUserMutationError = ErrorType<void>
+
+    /**
+ * @summary Permanently ban a user
+ */
+export const useBanUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof banUser>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof banUser>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getBanUserMutationOptions(options));
+    }
+
 export const getUpdateUserRoleUrl = (userId: string,) => {
 
 

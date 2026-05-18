@@ -6,6 +6,7 @@ import {
   ListUsersQueryParams,
   ApproveUserParams,
   SuspendUserParams,
+  BanUserParams,
   UpdateUserRoleParams,
   UpdateUserRoleBody,
 } from "@workspace/api-zod";
@@ -112,6 +113,35 @@ router.post("/admin/users/:userId/suspend", requireAdmin, async (req, res): Prom
   await logAudit(req.user!.id, user.id, "suspend_user", `Suspended user ${user.email}`);
 
   res.json({ success: true, message: "User suspended" });
+});
+
+router.post("/admin/users/:userId/ban", requireAdmin, async (req, res): Promise<void> => {
+  const params = BanUserParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.userId));
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (user.role === "super_admin") {
+    res.status(403).json({ error: "Cannot ban a super_admin account." });
+    return;
+  }
+
+  const [updated] = await db.update(usersTable)
+    .set({ status: "banned" })
+    .where(eq(usersTable.id, params.data.userId))
+    .returning();
+
+  await logAudit(req.user!.id, updated.id, "ban_user", `Permanently banned user ${updated.email}`);
+
+  res.json({ success: true, message: "User banned" });
 });
 
 router.patch("/admin/users/:userId/role", requireAdmin, async (req, res): Promise<void> => {
