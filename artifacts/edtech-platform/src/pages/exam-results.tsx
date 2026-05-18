@@ -1,4 +1,4 @@
-import { useGetResult } from "@workspace/api-client-react";
+import { useGetResult, useLogQrScan } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +26,7 @@ export default function ExamResults() {
   const { data: result, isLoading } = useGetResult(resultId, {
     query: { enabled: !!resultId, queryKey: ["result", resultId] }
   });
+  const logScan = useLogQrScan();
 
   if (isLoading) return <div className="p-8">Loading results...</div>;
   if (!result) return <div className="p-8 text-destructive">Result not found</div>;
@@ -397,6 +398,7 @@ export default function ExamResults() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                              onClick={() => logScan.mutate({ data: { questionId: q.questionId, examId: (result as any).examId ?? null, resultId } })}
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                               Open in browser
@@ -409,6 +411,7 @@ export default function ExamResults() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-3 p-4 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors"
+                          onClick={() => logScan.mutate({ data: { questionId: q.questionId, examId: (result as any).examId ?? null, resultId } })}
                         >
                           <Video className="w-8 h-8 text-primary shrink-0" />
                           <div>

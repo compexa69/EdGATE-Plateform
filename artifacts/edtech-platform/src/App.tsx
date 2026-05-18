@@ -29,6 +29,7 @@ import AdminSettings from "@/pages/admin-settings";
 import Leaderboard from "@/pages/leaderboard";
 import Planner from "@/pages/planner";
 import TestTracker from "@/pages/test-tracker";
+import QrHistory from "@/pages/qr-history";
 import { Layout } from "@/components/layout";
 
 const queryClient = new QueryClient();
@@ -148,6 +149,9 @@ function AppRouter() {
       </Route>
       <Route path="/test-tracker">
         {() => <ProtectedRoute component={TestTracker} />}
+      </Route>
+      <Route path="/qr-history">
+        {() => <ProtectedRoute component={QrHistory} />}
       </Route>
 
       <Route component={NotFound} />

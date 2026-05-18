@@ -1493,6 +1493,45 @@ paths:
         "204":
           description: Deleted
 
+  /qr-scans:
+    post:
+      operationId: logQrScan
+      tags: [qr-scans]
+      summary: Log a QR code scan event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrScanInput"
+      responses:
+        "201":
+          description: Scan logged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  scannedAt:
+                    type: string
+                    format: date-time
+                required: [id, scannedAt]
+    get:
+      operationId: listQrScans
+      tags: [qr-scans]
+      summary: List the current user's QR code scan history
+      responses:
+        "200":
+          description: List of QR scan events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QrScanEntry"
+
 components:
   schemas:
     HealthStatus:
@@ -3013,4 +3052,46 @@ components:
         - score
         - maxScore
         - attemptedAt
+
+    QrScanInput:
+      type: object
+      properties:
+        questionId:
+          type: string
+        examId:
+          type: ["string", "null"]
+        resultId:
+          type: ["string", "null"]
+      required:
+        - questionId
+
+    QrScanEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        questionId:
+          type: string
+        questionText:
+          type: string
+        videoUrl:
+          type: ["string", "null"]
+        examId:
+          type: ["string", "null"]
+        examTitle:
+          type: ["string", "null"]
+        resultId:
+          type: ["string", "null"]
+        topicId:
+          type: ["string", "null"]
+        topicName:
+          type: ["string", "null"]
+        scannedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - questionId
+        - questionText
+        - scannedAt
 

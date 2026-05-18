@@ -1471,3 +1471,31 @@ export const DeleteExternalTestParams = zod.object({
 })
 
 
+/**
+ * @summary Log a QR code scan event
+ */
+export const LogQrScanBody = zod.object({
+  "questionId": zod.string(),
+  "examId": zod.string().nullish(),
+  "resultId": zod.string().nullish()
+})
+
+
+/**
+ * @summary List the current user's QR code scan history
+ */
+export const ListQrScansResponseItem = zod.object({
+  "id": zod.string(),
+  "questionId": zod.string(),
+  "questionText": zod.string(),
+  "videoUrl": zod.string().nullish(),
+  "examId": zod.string().nullish(),
+  "examTitle": zod.string().nullish(),
+  "resultId": zod.string().nullish(),
+  "topicId": zod.string().nullish(),
+  "topicName": zod.string().nullish(),
+  "scannedAt": zod.coerce.date()
+})
+export const ListQrScansResponse = zod.array(ListQrScansResponseItem)
+
+

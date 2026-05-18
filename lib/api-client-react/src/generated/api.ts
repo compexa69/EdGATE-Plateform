@@ -53,6 +53,7 @@ import type {
   ListQuestionsParams,
   ListTasksParams,
   ListUsersParams,
+  LogQrScan201,
   LoginInput,
   MessageResponse,
   Note,
@@ -64,6 +65,8 @@ import type {
   ProfileUpdate,
   ProfileUploadUrlInput,
   ProgressSummary,
+  QrScanEntry,
+  QrScanInput,
   Question,
   QuestionInput,
   QuestionUpdate,
@@ -5780,4 +5783,152 @@ export const useDeleteExternalTest = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteExternalTestMutationOptions(options));
     }
+
+export const getLogQrScanUrl = () => {
+
+
+
+
+  return `/api/qr-scans`
+}
+
+/**
+ * @summary Log a QR code scan event
+ */
+export const logQrScan = async (qrScanInput: QrScanInput, options?: RequestInit): Promise<LogQrScan201> => {
+
+  return customFetch<LogQrScan201>(getLogQrScanUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      qrScanInput,)
+  }
+);}
+
+
+
+
+export const getLogQrScanMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logQrScan>>, TError,{data: BodyType<QrScanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logQrScan>>, TError,{data: BodyType<QrScanInput>}, TContext> => {
+
+const mutationKey = ['logQrScan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logQrScan>>, {data: BodyType<QrScanInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  logQrScan(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogQrScanMutationResult = NonNullable<Awaited<ReturnType<typeof logQrScan>>>
+    export type LogQrScanMutationBody = BodyType<QrScanInput>
+    export type LogQrScanMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Log a QR code scan event
+ */
+export const useLogQrScan = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logQrScan>>, TError,{data: BodyType<QrScanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logQrScan>>,
+        TError,
+        {data: BodyType<QrScanInput>},
+        TContext
+      > => {
+      return useMutation(getLogQrScanMutationOptions(options));
+    }
+
+export const getListQrScansUrl = () => {
+
+
+
+
+  return `/api/qr-scans`
+}
+
+/**
+ * @summary List the current user's QR code scan history
+ */
+export const listQrScans = async ( options?: RequestInit): Promise<QrScanEntry[]> => {
+
+  return customFetch<QrScanEntry[]>(getListQrScansUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListQrScansQueryKey = () => {
+    return [
+    `/api/qr-scans`
+    ] as const;
+    }
+
+
+export const getListQrScansQueryOptions = <TData = Awaited<ReturnType<typeof listQrScans>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listQrScans>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListQrScansQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listQrScans>>> = ({ signal }) => listQrScans({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listQrScans>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListQrScansQueryResult = NonNullable<Awaited<ReturnType<typeof listQrScans>>>
+export type ListQrScansQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the current user's QR code scan history
+ */
+
+export function useListQrScans<TData = Awaited<ReturnType<typeof listQrScans>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listQrScans>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListQrScansQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 

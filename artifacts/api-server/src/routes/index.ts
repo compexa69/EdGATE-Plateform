@@ -15,6 +15,7 @@ import adminRouter from "./admin";
 import leaderboardRouter from "./leaderboard";
 import externalTestsRouter from "./external-tests";
 import notificationsRouter from "./notifications";
+import qrScansRouter from "./qr-scans";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(adminRouter);
 router.use(leaderboardRouter);
 router.use(externalTestsRouter);
 router.use(notificationsRouter);
+router.use(qrScansRouter);
 
 export default router;

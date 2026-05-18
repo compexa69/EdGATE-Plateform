@@ -903,6 +903,33 @@ export interface ExternalTestInput {
   notes?: string;
 }
 
+export interface QrScanInput {
+  questionId: string;
+  /** @nullable */
+  examId?: string | null;
+  /** @nullable */
+  resultId?: string | null;
+}
+
+export interface QrScanEntry {
+  id: string;
+  questionId: string;
+  questionText: string;
+  /** @nullable */
+  videoUrl?: string | null;
+  /** @nullable */
+  examId?: string | null;
+  /** @nullable */
+  examTitle?: string | null;
+  /** @nullable */
+  resultId?: string | null;
+  /** @nullable */
+  topicId?: string | null;
+  /** @nullable */
+  topicName?: string | null;
+  scannedAt: string;
+}
+
 export type ListExamsParams = {
 type?: ListExamsType;
 subjectId?: string;
@@ -964,5 +991,10 @@ export type ExportUserData200 = {
   users?: ExportUserData200UsersItem[];
   examResults?: ExportUserData200ExamResultsItem[];
   notes?: ExportUserData200NotesItem[];
+};
+
+export type LogQrScan201 = {
+  id: string;
+  scannedAt: string;
 };
 
