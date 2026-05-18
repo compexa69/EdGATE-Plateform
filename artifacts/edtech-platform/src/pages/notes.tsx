@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { useListNotes, useDeleteNote, useGetDownloadUrl } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Trash2, Download, FolderOpen, Lock } from "lucide-react";
+import { FileText, Trash2, Download, FolderOpen, Lock, Eye, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,12 +16,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function Notes() {
   const { data: notes, isLoading, refetch } = useListNotes();
   const deleteNote = useDeleteNote();
   const getDownloadUrl = useGetDownloadUrl();
   const { toast } = useToast();
+  const [previewState, setPreviewState] = useState<{ url: string; name: string } | null>(null);
 
   const handleDownload = async (noteId: string, fileName: string) => {
     try {
@@ -32,6 +40,15 @@ export default function Notes() {
       a.click();
     } catch {
       toast({ title: "Download failed", description: "Could not generate download link.", variant: "destructive" });
+    }
+  };
+
+  const handlePreview = async (noteId: string, fileName: string) => {
+    try {
+      const result = await getDownloadUrl.mutateAsync({ data: { noteId } });
+      setPreviewState({ url: result.downloadUrl, name: fileName });
+    } catch {
+      toast({ title: "Preview failed", description: "Could not load the file.", variant: "destructive" });
     }
   };
 
@@ -110,6 +127,17 @@ export default function Notes() {
                     variant="outline"
                     size="sm"
                     className="flex-1 sm:flex-none"
+                    onClick={() => handlePreview(note.id, note.fileName)}
+                    disabled={getDownloadUrl.isPending}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Preview
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 sm:flex-none"
                     onClick={() => handleDownload(note.id, note.fileName)}
                     disabled={getDownloadUrl.isPending}
                   >
@@ -147,6 +175,24 @@ export default function Notes() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!previewState} onOpenChange={() => setPreviewState(null)}>
+        <DialogContent className="max-w-4xl w-full h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 border-b border-border flex-row items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold truncate pr-8">
+              <FileText className="w-4 h-4 text-primary shrink-0" />
+              {previewState?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {previewState && (
+            <iframe
+              src={previewState.url}
+              className="flex-1 w-full border-0 rounded-b-lg"
+              title={previewState.name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -48,6 +48,8 @@ export * from './gateCheckInputTargetType';
 export * from './gateCheckResult';
 export * from './gateCheckResultGateStatus';
 export * from './healthStatus';
+export * from './inlineNote';
+export * from './inlineNoteInput';
 export * from './listExamsParams';
 export * from './listExamsType';
 export * from './listNotesParams';

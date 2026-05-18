@@ -1,0 +1,19 @@
+{
+  "name": "EdTech Study Platform",
+  "short_name": "StudyPlatform",
+  "description": "Serious competitive exam preparation for JEE, NEET, and GATE",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#6366F1",
+  "orientation": "any",
+  "categories": ["education"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, notesTable, chaptersTable, topicsTable, topicProgressTable, examsTable, examResultsTable } from "@workspace/db";
+import { db, notesTable, chaptersTable, topicsTable, topicProgressTable, examsTable, examResultsTable, inlineNotesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
@@ -202,6 +202,44 @@ router.get("/b2/quota", requireApproved, async (req, res): Promise<void> => {
     globalUsageBytes,
     globalLimitBytes: GLOBAL_STORAGE_LIMIT,
   });
+});
+
+router.get("/notes/inline/:topicId", requireApproved, async (req, res): Promise<void> => {
+  const { topicId } = req.params;
+  const [note] = await db.select()
+    .from(inlineNotesTable)
+    .where(and(eq(inlineNotesTable.userId, req.user!.id), eq(inlineNotesTable.topicId, topicId)));
+  res.json({
+    topicId,
+    content: note?.content ?? "",
+    updatedAt: (note?.updatedAt ?? new Date()).toISOString(),
+  });
+});
+
+router.put("/notes/inline/:topicId", requireApproved, async (req, res): Promise<void> => {
+  const { topicId } = req.params;
+  const { content } = req.body as { content: string };
+  if (typeof content !== "string") {
+    res.status(400).json({ error: "content is required" });
+    return;
+  }
+  const now = new Date();
+  const [existing] = await db.select({ id: inlineNotesTable.id })
+    .from(inlineNotesTable)
+    .where(and(eq(inlineNotesTable.userId, req.user!.id), eq(inlineNotesTable.topicId, topicId)));
+  if (existing) {
+    await db.update(inlineNotesTable)
+      .set({ content, updatedAt: now })
+      .where(eq(inlineNotesTable.id, existing.id));
+  } else {
+    await db.insert(inlineNotesTable).values({
+      id: nanoid(),
+      userId: req.user!.id,
+      topicId,
+      content,
+    });
+  }
+  res.json({ topicId, content, updatedAt: now.toISOString() });
 });
 
 export default router;

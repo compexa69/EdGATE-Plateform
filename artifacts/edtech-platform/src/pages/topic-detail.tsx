@@ -1,10 +1,10 @@
-import { useGetTopic, useCheckGate, useRecordLectureClick, useGetChapter, useGetUploadUrl, useConfirmUpload } from "@workspace/api-client-react";
+import { useGetTopic, useCheckGate, useRecordLectureClick, useGetChapter, useGetUploadUrl, useConfirmUpload, useGetInlineNote, useSaveInlineNote } from "@workspace/api-client-react";
 import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Lock, PlayCircle, FileText, HelpCircle, Target, CheckCircle, ChevronRight, ExternalLink, Upload, FolderOpen } from "lucide-react";
+import { Lock, PlayCircle, FileText, HelpCircle, Target, CheckCircle, ChevronRight, ExternalLink, Upload, FolderOpen, PenLine, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 export default function TopicDetail() {
   const params = useParams();
@@ -14,6 +14,9 @@ export default function TopicDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [noteUploaded, setNoteUploaded] = useState(false);
+  const [noteContent, setNoteContent] = useState("");
+  const [isPreview, setIsPreview] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const { data: topic, isLoading: topicLoading } = useGetTopic(topicId, {
     query: { enabled: !!topicId, queryKey: ["topic", topicId] }
@@ -25,8 +28,30 @@ export default function TopicDetail() {
 
   const getUploadUrl = useGetUploadUrl();
   const confirmUpload = useConfirmUpload();
+  const { data: existingNote } = useGetInlineNote(topicId, {
+    query: { enabled: !!topicId, queryKey: ["inline-note", topicId] }
+  });
+  const saveNote = useSaveInlineNote();
+
+  useEffect(() => {
+    if (existingNote?.content !== undefined) {
+      setNoteContent(existingNote.content);
+    }
+  }, [existingNote]);
   const recordClick = useRecordLectureClick();
   const checkGate = useCheckGate();
+
+  const handleSaveNote = async () => {
+    setSaveStatus("saving");
+    try {
+      await saveNote.mutateAsync({ topicId, data: { content: noteContent } });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
+    } catch {
+      toast({ title: "Failed to save note", variant: "destructive" });
+      setSaveStatus("idle");
+    }
+  };
 
   if (topicLoading) return <div className="p-8">Loading topic...</div>;
   if (!topic) return <div className="p-8 text-destructive">Topic not found</div>;
@@ -217,6 +242,23 @@ export default function TopicDetail() {
     }
   ];
 
+  function renderMarkdown(text: string) {
+    if (!text.trim()) return "<p class='text-muted-foreground text-sm'>Nothing to preview. Switch to Edit and start writing.</p>";
+    const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    return escaped
+      .replace(/^### (.+)$/gm,"<h3 style='font-size:1rem;font-weight:600;margin:0.75rem 0 0.25rem'>$1</h3>")
+      .replace(/^## (.+)$/gm,"<h2 style='font-size:1.1rem;font-weight:700;margin:1rem 0 0.25rem'>$1</h2>")
+      .replace(/^# (.+)$/gm,"<h1 style='font-size:1.25rem;font-weight:700;margin:1rem 0 0.5rem'>$1</h1>")
+      .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g,"<em>$1</em>")
+      .replace(/`(.+?)`/g,"<code style='background:rgba(99,102,241,0.12);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.8rem;font-family:monospace'>$1</code>")
+      .replace(/^- (.+)$/gm,"<li style='margin-left:1.25rem;list-style:disc'>$1</li>")
+      .replace(/\n\n/g,"</p><p style='margin-bottom:0.5rem'>")
+      .replace(/\n/g,"<br/>")
+      .replace(/^/,"<p style='margin-bottom:0.5rem'>")
+      .replace(/$/,"</p>");
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-8 pb-24 md:pb-8">
       <div className="space-y-4">
@@ -254,6 +296,65 @@ export default function TopicDetail() {
           </Card>
         ))}
       </div>
+
+      <Card className="border-card-border bg-card">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <PenLine className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold text-lg">My Notes</h3>
+              <span className="text-xs text-muted-foreground hidden sm:inline">— Markdown supported</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={isPreview ? "outline" : "secondary"}
+                size="sm"
+                onClick={() => setIsPreview(false)}
+                className="gap-1.5"
+              >
+                <PenLine className="w-3.5 h-3.5" /> Edit
+              </Button>
+              <Button
+                variant={isPreview ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setIsPreview(true)}
+                className="gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5" /> Preview
+              </Button>
+            </div>
+          </div>
+
+          {isPreview ? (
+            <div
+              className="min-h-[200px] p-4 rounded-lg bg-background border border-border text-sm leading-relaxed text-foreground overflow-auto"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(noteContent) }}
+            />
+          ) : (
+            <textarea
+              className="w-full min-h-[200px] p-4 rounded-lg bg-background border border-border text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground leading-relaxed"
+              placeholder={"Write your notes here…\n\nMarkdown tips:\n# Heading   **bold**   *italic*   `code`\n- list item"}
+              value={noteContent}
+              onChange={(e) => setNoteContent(e.target.value)}
+              onBlur={handleSaveNote}
+            />
+          )}
+
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "✓ Saved" : "Auto-saves on blur"}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSaveNote}
+              disabled={saveStatus === "saving"}
+            >
+              Save
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

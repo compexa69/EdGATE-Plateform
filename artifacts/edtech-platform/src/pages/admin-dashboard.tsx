@@ -1,9 +1,15 @@
+import { useState } from "react";
 import { useGetAdminStats } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, BookOpen, FileQuestion, HardDrive, UserCheck, ListChecks, AlertTriangle, TrendingDown, MousePointerClick, Settings } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Users, BookOpen, FileQuestion, HardDrive, UserCheck, ListChecks, AlertTriangle, TrendingDown, MousePointerClick, Settings, Send, Bell } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
 
 interface LowCtrTopic {
   topicId: string;
@@ -13,8 +19,30 @@ interface LowCtrTopic {
   ctrPercent: number;
 }
 
+async function broadcastNotification(data: { title: string; message: string }) {
+  const res = await fetch("/api/admin/notifications/broadcast", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to send broadcast");
+  return res.json() as Promise<{ success: boolean; sent: number }>;
+}
+
 export default function AdminDashboard() {
   const { data: stats, isLoading } = useGetAdminStats();
+  const { toast } = useToast();
+  const [broadcastForm, setBroadcastForm] = useState({ title: "", message: "" });
+
+  const broadcastMutation = useMutation({
+    mutationFn: broadcastNotification,
+    onSuccess: (result) => {
+      toast({ title: "Broadcast sent", description: `Delivered to ${result.sent} student${result.sent !== 1 ? "s" : ""}.` });
+      setBroadcastForm({ title: "", message: "" });
+    },
+    onError: () => toast({ title: "Broadcast failed", variant: "destructive" }),
+  });
   
   if (isLoading) return <div className="p-8">Loading stats...</div>;
   if (!stats) return <div className="p-8 text-destructive">Failed to load admin stats</div>;
@@ -200,6 +228,51 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      <Card className="border-card-border bg-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="w-5 h-5 text-primary" />
+            Broadcast Announcement
+          </CardTitle>
+          <CardDescription>Send a notification to all approved students on the platform.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="bc-title">Title</Label>
+            <Input
+              id="bc-title"
+              placeholder="e.g. JEE Mains mock test live now"
+              value={broadcastForm.title}
+              onChange={(e) => setBroadcastForm((f) => ({ ...f, title: e.target.value }))}
+              className="bg-background"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bc-message">Message</Label>
+            <Textarea
+              id="bc-message"
+              placeholder="Write your announcement here…"
+              rows={3}
+              value={broadcastForm.message}
+              onChange={(e) => setBroadcastForm((f) => ({ ...f, message: e.target.value }))}
+              className="bg-background resize-none"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button
+              onClick={() => broadcastMutation.mutate(broadcastForm)}
+              disabled={!broadcastForm.title.trim() || !broadcastForm.message.trim() || broadcastMutation.isPending}
+              className="gap-2"
+            >
+              {broadcastMutation.isPending
+                ? "Sending…"
+                : <><Send className="w-4 h-4" /> Send to All Students</>
+              }
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

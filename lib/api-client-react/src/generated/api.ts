@@ -47,6 +47,8 @@ import type {
   GateCheckInput,
   GateCheckResult,
   HealthStatus,
+  InlineNote,
+  InlineNoteInput,
   ListExamsParams,
   ListNotesParams,
   ListPomodoroSessionsParams,
@@ -3852,6 +3854,155 @@ export const useDeleteNote = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteNoteMutationOptions(options));
+    }
+
+export const getGetInlineNoteUrl = (topicId: string,) => {
+
+
+
+
+  return `/api/notes/inline/${topicId}`
+}
+
+/**
+ * @summary Get the user's inline Markdown note for a topic
+ */
+export const getInlineNote = async (topicId: string, options?: RequestInit): Promise<InlineNote> => {
+
+  return customFetch<InlineNote>(getGetInlineNoteUrl(topicId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInlineNoteQueryKey = (topicId: string,) => {
+    return [
+    `/api/notes/inline/${topicId}`
+    ] as const;
+    }
+
+
+export const getGetInlineNoteQueryOptions = <TData = Awaited<ReturnType<typeof getInlineNote>>, TError = ErrorType<unknown>>(topicId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInlineNote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInlineNoteQueryKey(topicId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInlineNote>>> = ({ signal }) => getInlineNote(topicId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(topicId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInlineNote>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInlineNoteQueryResult = NonNullable<Awaited<ReturnType<typeof getInlineNote>>>
+export type GetInlineNoteQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the user's inline Markdown note for a topic
+ */
+
+export function useGetInlineNote<TData = Awaited<ReturnType<typeof getInlineNote>>, TError = ErrorType<unknown>>(
+ topicId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInlineNote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInlineNoteQueryOptions(topicId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSaveInlineNoteUrl = (topicId: string,) => {
+
+
+
+
+  return `/api/notes/inline/${topicId}`
+}
+
+/**
+ * @summary Create or update the user's inline Markdown note for a topic
+ */
+export const saveInlineNote = async (topicId: string,
+    inlineNoteInput: InlineNoteInput, options?: RequestInit): Promise<InlineNote> => {
+
+  return customFetch<InlineNote>(getSaveInlineNoteUrl(topicId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      inlineNoteInput,)
+  }
+);}
+
+
+
+
+export const getSaveInlineNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveInlineNote>>, TError,{topicId: string;data: BodyType<InlineNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveInlineNote>>, TError,{topicId: string;data: BodyType<InlineNoteInput>}, TContext> => {
+
+const mutationKey = ['saveInlineNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveInlineNote>>, {topicId: string;data: BodyType<InlineNoteInput>}> = (props) => {
+          const {topicId,data} = props ?? {};
+
+          return  saveInlineNote(topicId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveInlineNoteMutationResult = NonNullable<Awaited<ReturnType<typeof saveInlineNote>>>
+    export type SaveInlineNoteMutationBody = BodyType<InlineNoteInput>
+    export type SaveInlineNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create or update the user's inline Markdown note for a topic
+ */
+export const useSaveInlineNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveInlineNote>>, TError,{topicId: string;data: BodyType<InlineNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveInlineNote>>,
+        TError,
+        {topicId: string;data: BodyType<InlineNoteInput>},
+        TContext
+      > => {
+      return useMutation(getSaveInlineNoteMutationOptions(options));
     }
 
 export const getGetUploadUrlUrl = () => {

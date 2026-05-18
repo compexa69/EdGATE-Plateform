@@ -1010,6 +1010,48 @@ paths:
         "204":
           description: Deleted
 
+  /notes/inline/{topicId}:
+    get:
+      operationId: getInlineNote
+      tags: [notes]
+      summary: Get the user's inline Markdown note for a topic
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Inline note content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InlineNote"
+    put:
+      operationId: saveInlineNote
+      tags: [notes]
+      summary: Create or update the user's inline Markdown note for a topic
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InlineNoteInput"
+      responses:
+        "200":
+          description: Saved inline note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InlineNote"
+
   # B2 Storage
   /b2/upload-url:
     post:
@@ -3052,6 +3094,29 @@ components:
         - score
         - maxScore
         - attemptedAt
+
+    InlineNote:
+      type: object
+      properties:
+        topicId:
+          type: string
+        content:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - topicId
+        - content
+        - updatedAt
+
+    InlineNoteInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
 
     QrScanInput:
       type: object

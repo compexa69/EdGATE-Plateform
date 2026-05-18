@@ -1048,6 +1048,38 @@ export const DeleteNoteParams = zod.object({
 
 
 /**
+ * @summary Get the user's inline Markdown note for a topic
+ */
+export const GetInlineNoteParams = zod.object({
+  "topicId": zod.coerce.string()
+})
+
+export const GetInlineNoteResponse = zod.object({
+  "topicId": zod.string(),
+  "content": zod.string(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Create or update the user's inline Markdown note for a topic
+ */
+export const SaveInlineNoteParams = zod.object({
+  "topicId": zod.coerce.string()
+})
+
+export const SaveInlineNoteBody = zod.object({
+  "content": zod.string()
+})
+
+export const SaveInlineNoteResponse = zod.object({
+  "topicId": zod.string(),
+  "content": zod.string(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Get a signed upload URL for PDF note
  */
 export const GetUploadUrlBody = zod.object({

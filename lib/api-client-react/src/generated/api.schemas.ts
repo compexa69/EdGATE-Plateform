@@ -903,6 +903,16 @@ export interface ExternalTestInput {
   notes?: string;
 }
 
+export interface InlineNote {
+  topicId: string;
+  content: string;
+  updatedAt: string;
+}
+
+export interface InlineNoteInput {
+  content: string;
+}
+
 export interface QrScanInput {
   questionId: string;
   /** @nullable */
