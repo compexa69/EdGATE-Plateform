@@ -21,6 +21,7 @@ import {
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendWelcomeEmail,
 } from "../lib/email";
 
 const router: IRouter = Router();
@@ -84,6 +85,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }).returning();
 
   await sendVerificationEmail(email, verifyToken);
+  sendWelcomeEmail(email, fullName).catch(() => {});
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, status: user.status });
   res.status(201).json({

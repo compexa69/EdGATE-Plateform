@@ -10,11 +10,28 @@ import { useToast } from "@/hooks/use-toast";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Sparkles, CheckCircle2,
   Circle, BookOpen, AlertTriangle, Loader2, RotateCcw, Target,
-  Clock, CalendarCheck, Brain, Flame, ExternalLink, Trash2,
+  Clock, CalendarCheck, Brain, Flame, ExternalLink, Trash2, GripVertical,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,6 +129,15 @@ async function patchTask(taskId: string, status: Task["status"]): Promise<Task> 
   return res.json();
 }
 
+async function reorderTask(taskId: string, sortOrder: number): Promise<void> {
+  const res = await fetch(`/api/tasks/${taskId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ sortOrder }),
+  });
+  if (!res.ok) throw new Error("Failed to reorder task");
+}
+
 async function deleteTask(taskId: string): Promise<void> {
   const res = await fetch(`/api/tasks/${taskId}`, {
     method: "DELETE",
@@ -133,10 +159,11 @@ async function generatePlan(config: PlanConfig): Promise<GenerateResult> {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function TaskCard({ task, onToggle, onDelete }: {
+function TaskCard({ task, onToggle, onDelete, dragHandleProps }: {
   task: Task;
   onToggle: (t: Task) => void;
   onDelete: (id: string) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 }) {
   const done = task.status === "completed";
   const isRevision = task.title.startsWith("[Revision]");
@@ -186,13 +213,43 @@ function TaskCard({ task, onToggle, onDelete }: {
           )}
         </div>
       </div>
-      <button
-        onClick={() => onDelete(task.id)}
-        className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 text-muted-foreground hover:text-destructive"
-        aria-label="Delete task"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+      <div className="flex flex-col gap-1 shrink-0">
+        {dragHandleProps && (
+          <button
+            {...dragHandleProps}
+            className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+            aria-label="Drag to reorder"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button
+          onClick={() => onDelete(task.id)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+          aria-label="Delete task"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SortableTaskCard({ task, onToggle, onDelete }: {
+  task: Task;
+  onToggle: (t: Task) => void;
+  onDelete: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskCard task={task} onToggle={onToggle} onDelete={onDelete} dragHandleProps={{ ...attributes, ...listeners } as any} />
     </div>
   );
 }
@@ -391,6 +448,14 @@ export default function Planner() {
     staleTime: 30_000,
   });
 
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  useEffect(() => { setLocalTasks(tasks); }, [tasks]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   const toggleMutation = useMutation({
     mutationFn: (task: Task) =>
       patchTask(task.id, task.status === "completed" ? "pending" : "completed"),
@@ -405,6 +470,23 @@ export default function Planner() {
     },
   });
 
+  const handleDragEnd = useCallback((event: DragEndEvent, dateStr: string) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setLocalTasks((prev) => {
+      const dayTasks = prev.filter((t) => t.scheduledDate === dateStr).sort((a, b) => a.sortOrder - b.sortOrder);
+      const oldIdx = dayTasks.findIndex((t) => t.id === active.id);
+      const newIdx = dayTasks.findIndex((t) => t.id === over.id);
+      if (oldIdx === -1 || newIdx === -1) return prev;
+      const reordered = arrayMove(dayTasks, oldIdx, newIdx);
+      const otherTasks = prev.filter((t) => t.scheduledDate !== dateStr);
+      const updated = reordered.map((t, i) => ({ ...t, sortOrder: i }));
+      updated.forEach((t) => { reorderTask(t.id, t.sortOrder).catch(() => {}); });
+      return [...otherTasks, ...updated];
+    });
+  }, []);
+
   const handleGenerated = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["tasks-range"] });
   }, [qc]);
@@ -418,12 +500,12 @@ export default function Planner() {
       dateStr: ds,
       isToday: ds === today,
       label: DAY_LABELS[d.getDay()],
-      tasks: tasks.filter((t) => t.scheduledDate === ds),
+      tasks: localTasks.filter((t) => t.scheduledDate === ds).sort((a, b) => a.sortOrder - b.sortOrder),
     };
   });
 
-  const weekCompleted = tasks.filter((t) => t.status === "completed").length;
-  const weekTotal = tasks.length;
+  const weekCompleted = localTasks.filter((t) => t.status === "completed").length;
+  const weekTotal = localTasks.length;
   const weekPct = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
   return (
@@ -457,7 +539,7 @@ export default function Planner() {
                 </span>
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Sparkles className="w-4 h-4 text-primary" />
-                  {tasks.filter((t) => t.source === "auto").length} smart tasks
+                  {localTasks.filter((t) => t.source === "auto").length} smart tasks
                 </span>
               </div>
               <div className="flex items-center gap-3 min-w-[160px]">
@@ -530,26 +612,37 @@ export default function Planner() {
                   )}
                 </div>
 
-                {/* Task list */}
-                <div className="flex-1 p-2 space-y-2 min-h-[120px]">
-                  {day.tasks.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center py-6 text-center">
-                      <Circle className="w-5 h-5 text-muted-foreground/30 mb-1.5" />
-                      <p className="text-[11px] text-muted-foreground/60">
-                        {weekOffset === 0 && day.dateStr < today ? "No tasks" : "Free day"}
-                      </p>
+                {/* Task list — sortable within day */}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(e) => handleDragEnd(e, day.dateStr)}
+                >
+                  <SortableContext
+                    items={day.tasks.map((t) => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="flex-1 p-2 space-y-2 min-h-[120px]">
+                      {day.tasks.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center py-6 text-center">
+                          <Circle className="w-5 h-5 text-muted-foreground/30 mb-1.5" />
+                          <p className="text-[11px] text-muted-foreground/60">
+                            {weekOffset === 0 && day.dateStr < today ? "No tasks" : "Free day"}
+                          </p>
+                        </div>
+                      ) : (
+                        day.tasks.map((task) => (
+                          <SortableTaskCard
+                            key={task.id}
+                            task={task}
+                            onToggle={(t) => toggleMutation.mutate(t)}
+                            onDelete={(id) => deleteMutation.mutate(id)}
+                          />
+                        ))
+                      )}
                     </div>
-                  ) : (
-                    day.tasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        onToggle={(t) => toggleMutation.mutate(t)}
-                        onDelete={(id) => deleteMutation.mutate(id)}
-                      />
-                    ))
-                  )}
-                </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             );
           })}

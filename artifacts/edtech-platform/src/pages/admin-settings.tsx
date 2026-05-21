@@ -50,6 +50,7 @@ const CONFIG_LABELS: Record<string, string> = {
   topic_test_passing_score: "Topic Test Passing Score (%)",
   chapter_test_passing_score: "Chapter Test Passing Score (%)",
   max_quiz_attempts: "Max Quiz Attempts",
+  max_exam_pauses: "Max Exam Pauses Per Attempt",
   low_ctr_threshold: "Low CTR Flag Threshold (%)",
 };
 

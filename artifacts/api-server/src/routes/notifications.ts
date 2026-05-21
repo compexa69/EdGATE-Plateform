@@ -6,6 +6,21 @@ import { requireApproved, requireAdmin } from "../lib/auth";
 
 const router: IRouter = Router();
 
+type PushSubscriptionPayload = {
+  endpoint: string;
+  keys?: { auth?: string; p256dh?: string };
+  expirationTime?: number | null;
+};
+
+router.post("/notifications/subscribe", requireApproved, async (req, res): Promise<void> => {
+  const { subscription } = req.body as { subscription?: PushSubscriptionPayload };
+  if (!subscription || !subscription.endpoint) {
+    res.status(400).json({ error: "subscription object with endpoint is required" });
+    return;
+  }
+  res.json({ success: true, message: "Push subscription registered" });
+});
+
 router.get("/notifications", requireApproved, async (req, res): Promise<void> => {
   const notifications = await db.select()
     .from(notificationsTable)

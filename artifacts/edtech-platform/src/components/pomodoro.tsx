@@ -5,7 +5,11 @@ import { Card } from "@/components/ui/card";
 import { Play, Pause, Square, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export function PomodoroWidget() {
+interface PomodoroWidgetProps {
+  topicId?: string;
+}
+
+export function PomodoroWidget({ topicId }: PomodoroWidgetProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -37,7 +41,8 @@ export function PomodoroWidget() {
           data: { 
             durationSeconds: 25 * 60,
             startTime: new Date(Date.now() - (25 * 60 * 1000)).toISOString(),
-            endTime: new Date().toISOString()
+            endTime: new Date().toISOString(),
+            ...(topicId ? { topicId } : {}),
           } 
         });
         toast({ title: "Focus session completed!", description: "Great job. Take a break." });

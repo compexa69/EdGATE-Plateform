@@ -568,15 +568,41 @@ router.post("/attempts/:attemptId/pause", requireApproved, async (req, res): Pro
   const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
+  if (attempt.userId !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (attempt.status !== "in_progress") { res.status(409).json({ error: "Exam is not in progress" }); return; }
+
+  // ── Pause limit enforcement (SRS EX-02, H-06) ────────────────────────────
+  const [configRow] = await db.select().from(systemConfigTable)
+    .where(eq(systemConfigTable.key, "max_exam_pauses"));
+  const maxPauses = configRow ? parseInt(configRow.value, 10) : 2;
+
+  if (attempt.pauseCount >= maxPauses) {
+    res.status(403).json({
+      error: `Pause limit reached`,
+      reason: `You have already paused this exam ${attempt.pauseCount} time${attempt.pauseCount !== 1 ? "s" : ""}. Maximum allowed is ${maxPauses}.`,
+      pausesUsed: attempt.pauseCount,
+      maxPauses,
+    });
+    return;
+  }
+
+  const newPauseCount = attempt.pauseCount + 1;
+
   await db.update(examAttemptsTable)
     .set({
       status: "paused",
-      pauseCount: attempt.pauseCount + 1,
+      pauseCount: newPauseCount,
       remainingSeconds: body.data.remainingSeconds,
     })
     .where(eq(examAttemptsTable.id, attempt.id));
 
-  res.json({ success: true, message: "Exam paused" });
+  res.json({
+    success: true,
+    message: "Exam paused",
+    pausesUsed: newPauseCount,
+    pausesRemaining: maxPauses - newPauseCount,
+    maxPauses,
+  });
 });
 
 router.post("/attempts/:attemptId/resume", requireApproved, async (req, res): Promise<void> => {

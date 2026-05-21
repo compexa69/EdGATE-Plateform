@@ -55,6 +55,33 @@ export async function sendApprovalEmail(to: string, name: string): Promise<void>
   await sendEmail(to, "Account Approved - EdTech Study Platform", html);
 }
 
+export async function sendWelcomeEmail(to: string, name: string): Promise<void> {
+  const html = `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0F172A;color:#E2E8F0;padding:32px;border-radius:12px">
+      <h1 style="color:#6366F1;font-size:24px;margin-bottom:8px">Welcome to Smart Mastery Path! 🎉</h1>
+      <p style="font-size:16px;line-height:1.6;margin-bottom:16px">Hi ${name},</p>
+      <p style="font-size:15px;line-height:1.6;color:#CBD5E1;margin-bottom:16px">
+        You're now part of a focused community preparing for JEE, NEET, and GATE with the
+        <strong style="color:#E2E8F0">Smart Gated Learning System</strong> — where every topic must be
+        mastered before the next one unlocks.
+      </p>
+      <div style="background:#1E293B;border-radius:8px;padding:16px;margin-bottom:20px">
+        <p style="margin:0 0 8px;font-weight:bold;color:#E2E8F0">Your journey starts here:</p>
+        <ul style="margin:0;padding-left:18px;color:#94A3B8;font-size:14px;line-height:2">
+          <li>Watch lectures → pass quizzes → unlock the next step</li>
+          <li>Complete topic tests to unlock chapter tests</li>
+          <li>Use the Pomodoro timer to track focus sessions</li>
+          <li>Upload your handwritten notes after passing each chapter</li>
+        </ul>
+      </div>
+      <p style="font-size:14px;color:#64748B;margin-top:24px">
+        Your account is pending admin approval. You'll receive an email once you're approved.
+      </p>
+    </div>
+  `;
+  await sendEmail(to, "Welcome to EdTech Study Platform — Smart Mastery Path", html);
+}
+
 export async function sendStorageAlertEmail(to: string, usedGB: number, limitGB: number): Promise<void> {
   const percentUsed = Math.round((usedGB / limitGB) * 100);
   const html = `

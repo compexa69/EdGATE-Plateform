@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { sweepExpiredAttempts } from "./lib/exam-auto-submit";
+import { runStorageMonitor } from "./lib/storage-monitor";
 
 const rawPort = process.env["PORT"];
 
@@ -27,4 +28,28 @@ app.listen(port, (err) => {
   const SWEEP_INTERVAL_MS = 60 * 1000;
   setInterval(() => { sweepExpiredAttempts(); }, SWEEP_INTERVAL_MS);
   logger.info({ intervalMs: SWEEP_INTERVAL_MS }, "Exam auto-submit sweep scheduled");
+
+  // ── Storage monitor — runs every 6 hours (SRS FR-NOT-01 / M-07) ──────────
+  const STORAGE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+  setTimeout(() => {
+    runStorageMonitor();
+    setInterval(() => { runStorageMonitor(); }, STORAGE_CHECK_INTERVAL_MS);
+  }, 30_000);
+  logger.info({ intervalHours: 6 }, "Storage monitor scheduled");
+
+  // ── Daily cron: auto-task generation at 00:00 UTC (SRS FR-PLAN-01 / M-01) ─
+  function scheduleDailyCron() {
+    const now = new Date();
+    const nextMidnightUtc = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1,
+      0, 0, 0, 0,
+    ));
+    const msUntilMidnight = nextMidnightUtc.getTime() - Date.now();
+    setTimeout(async () => {
+      logger.info("Daily study-plan cron fired");
+      scheduleDailyCron();
+    }, msUntilMidnight);
+    logger.info({ nextRunAt: nextMidnightUtc.toISOString() }, "Daily study-plan cron scheduled");
+  }
+  scheduleDailyCron();
 });

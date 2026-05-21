@@ -19,6 +19,8 @@ export default function ExamInterface() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [pausesUsed, setPausesUsed] = useState(0);
+  const [maxPauses, setMaxPauses] = useState(2);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(Date.now());
 
@@ -186,7 +188,24 @@ export default function ExamInterface() {
     handleSaveCurrentAnswer();
     if (!attemptId) return;
     pauseExamMutation.mutate({ attemptId, data: { remainingSeconds: timeLeft ?? 0 } }, {
-      onSuccess: () => setIsPaused(true)
+      onSuccess: (data: any) => {
+        setIsPaused(true);
+        if (data?.pausesUsed != null) setPausesUsed(data.pausesUsed);
+        if (data?.maxPauses != null) setMaxPauses(data.maxPauses);
+      },
+      onError: (err: any) => {
+        const resp = err?.response?.data;
+        if (resp?.pausesUsed != null) {
+          toast({
+            title: "Pause limit reached",
+            description: resp.reason ?? `You cannot pause this exam anymore (${resp.pausesUsed}/${resp.maxPauses} pauses used).`,
+            variant: "destructive",
+            duration: 6000,
+          });
+        } else {
+          toast({ title: "Failed to pause exam", description: resp?.error ?? "Please try again.", variant: "destructive" });
+        }
+      },
     });
   };
 
@@ -312,8 +331,18 @@ export default function ExamInterface() {
           {timeLeft !== null ? formatTime(timeLeft) : "--:--:--"}
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
-          <Button variant="outline" size="sm" onClick={handlePause} className="hidden sm:flex">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePause}
+            disabled={pausesUsed >= maxPauses}
+            title={pausesUsed >= maxPauses ? "Pause limit reached" : `Pauses remaining: ${maxPauses - pausesUsed}`}
+            className="hidden sm:flex"
+          >
             <Pause className="w-4 h-4 mr-2" /> Pause
+            {maxPauses > 0 && (
+              <span className="ml-1.5 text-xs opacity-60">({maxPauses - pausesUsed} left)</span>
+            )}
           </Button>
           <Button onClick={handleSubmit} variant="default" className="bg-success hover:bg-success/90">
             Submit
