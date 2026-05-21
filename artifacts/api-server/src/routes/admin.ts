@@ -213,8 +213,12 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
     return { topicId: t.id, topicName: t.name, totalClicks, uniqueClickers, ctrPercent };
   });
 
+  const [lowCtrConfig] = await db.select().from(systemConfigTable)
+    .where(eq(systemConfigTable.key, "low_ctr_threshold"));
+  const lowCtrThreshold = lowCtrConfig ? parseInt(lowCtrConfig.value, 10) : 10;
+
   const lowCtrTopics = topicsWithCtr
-    .filter((t) => t.ctrPercent < 10)
+    .filter((t) => t.ctrPercent < lowCtrThreshold)
     .sort((a, b) => a.ctrPercent - b.ctrPercent)
     .slice(0, 10);
 

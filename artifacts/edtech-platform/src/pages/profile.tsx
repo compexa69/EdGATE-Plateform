@@ -13,6 +13,32 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, ShieldCheck, Mail, Phone, Calendar, KeyRound, Eye, EyeOff, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+async function compressImage(file: File, maxSidePx = 512, quality = 0.82): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, maxSidePx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas unavailable")); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Compression failed"))),
+        "image/jpeg",
+        quality,
+      );
+    };
+    img.onerror = reject;
+    img.src = objectUrl;
+  });
+}
+
 const profileSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
   mobile: z.string().regex(/^(\+91)[\s-]?[6-9]\d{9}$/, "Must be a valid Indian mobile number starting with +91").optional().or(z.literal('')),
@@ -198,27 +224,29 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Profile photo must be under 2MB.", variant: "destructive" });
-      return;
-    }
-
     const allowed = ["image/jpeg", "image/png", "image/webp"];
     if (!allowed.includes(file.type)) {
       toast({ title: "Invalid file type", description: "Only JPG, PNG, and WEBP are supported.", variant: "destructive" });
       return;
     }
 
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please select an image under 10 MB.", variant: "destructive" });
+      return;
+    }
+
     setIsUploading(true);
     try {
+      const compressed = await compressImage(file);
+
       const { uploadUrl, b2Key } = await getUploadUrlMutation.mutateAsync({
-        data: { fileName: `profile_${profile.id}.${file.type.split('/')[1]}`, fileSizeBytes: file.size }
+        data: { fileName: `profile_${profile.id}.jpg`, fileSizeBytes: compressed.size }
       });
 
       await fetch(uploadUrl, {
         method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type }
+        body: compressed,
+        headers: { "Content-Type": "image/jpeg" }
       });
 
       // Persist b2Key to user profile

@@ -214,8 +214,19 @@ export default function ExamInterface() {
       onSuccess: (result) => {
         setLocation(`/results/${result.id}`);
       },
-      onError: () => {
-        toast({ title: "Failed to submit exam", variant: "destructive" });
+      onError: (err: any) => {
+        const code = err?.response?.data?.code;
+        if (code === "EXAM_TIME_EXPIRED") {
+          toast({
+            title: "Time Expired",
+            description: "Your exam time ran out. Your saved answers have been auto-submitted.",
+            variant: "destructive",
+            duration: 6000,
+          });
+          setLocation(`/exams`);
+        } else {
+          toast({ title: "Failed to submit exam", description: err?.response?.data?.error || "Please try again.", variant: "destructive" });
+        }
       }
     });
   }, [handleSaveCurrentAnswer, attemptId, answers, submitExamMutation, setLocation, toast]);

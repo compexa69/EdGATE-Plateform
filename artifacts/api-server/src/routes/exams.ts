@@ -21,6 +21,7 @@ import {
   GetResultParams,
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
+import { systemConfigTable } from "@workspace/db";
 import { createNotification } from "./notifications";
 
 const router: IRouter = Router();
@@ -285,6 +286,25 @@ router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<v
       return;
     }
   }
+
+  // ── Attempt limit enforcement (SRS EX-04) ────────────────────────────────
+  const [configRow] = await db.select().from(systemConfigTable)
+    .where(eq(systemConfigTable.key, "max_quiz_attempts"));
+  const maxAttempts = configRow ? parseInt(configRow.value, 10) : 3;
+
+  const previousAttempts = await db.select().from(examResultsTable)
+    .where(and(eq(examResultsTable.examId, exam.id), eq(examResultsTable.userId, req.user!.id)));
+
+  if (previousAttempts.length >= maxAttempts) {
+    res.status(403).json({
+      error: `Attempt limit reached`,
+      reason: `You have already attempted this exam ${previousAttempts.length} time${previousAttempts.length !== 1 ? "s" : ""}. Maximum allowed is ${maxAttempts}.`,
+      attemptsUsed: previousAttempts.length,
+      maxAttempts,
+    });
+    return;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const now = new Date();
   const [attempt] = await db.insert(examAttemptsTable).values({
