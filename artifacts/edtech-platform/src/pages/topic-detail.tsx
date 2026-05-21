@@ -58,14 +58,25 @@ export default function TopicDetail() {
 
   const notesUnlocked = !!chapter?.chapterTestUnlocked && topic.topicTestPassed;
 
-  const handleLectureClick = () => {
+  const telegramUrl = (topic as any).telegramUrl as string | null;
+  const youtubeUrl = (topic as any).youtubeUrl as string | null;
+
+  const handleLectureClick = (platform?: "telegram" | "youtube") => {
     recordClick.mutate({ topicId });
-    if (topic.telegramChatId && topic.telegramMessageId) {
+    if (platform === "youtube" && youtubeUrl) {
+      window.open(youtubeUrl, "_blank");
+    } else if (telegramUrl) {
+      window.open(telegramUrl, "_blank");
+    } else if (topic.telegramChatId && topic.telegramMessageId) {
       window.open(`tg://resolve?domain=${topic.telegramChatId}&post=${topic.telegramMessageId}`, "_blank");
+    } else if (youtubeUrl) {
+      window.open(youtubeUrl, "_blank");
     } else {
-      toast({ title: "No lecture link available", variant: "destructive" });
+      toast({ title: "No lecture link configured", description: "Ask your admin to add a lecture link for this topic.", variant: "destructive" });
     }
   };
+
+  const hasLecture = !!(telegramUrl || (topic.telegramChatId && topic.telegramMessageId) || youtubeUrl);
 
   const handleExamClick = async (examId: string, targetType: "lecture_quiz" | "dpp" | "pyq" | "topic_test") => {
     try {
@@ -124,15 +135,30 @@ export default function TopicDetail() {
     {
       id: "lecture",
       title: "1. Video Lecture",
-      description: "Watch the comprehensive concept breakdown.",
+      description: hasLecture
+        ? "Watch the comprehensive concept breakdown."
+        : "No lecture link configured yet — ask your admin to add one.",
       icon: <PlayCircle className="w-6 h-6" />,
       isCompleted: topic.lectureQuizPassed,
       isLocked: false,
-      action: (
-        <Button onClick={handleLectureClick} className="w-full sm:w-auto">
-          Watch Lecture <ExternalLink className="w-4 h-4 ml-2" />
+      action: hasLecture ? (
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {(telegramUrl || (topic.telegramChatId && topic.telegramMessageId)) && (
+            <Button onClick={() => handleLectureClick("telegram")} className="w-full sm:w-auto gap-2">
+              <PlayCircle className="w-4 h-4" /> Telegram
+            </Button>
+          )}
+          {youtubeUrl && (
+            <Button onClick={() => handleLectureClick("youtube")} variant="outline" className="w-full sm:w-auto gap-2 border-red-500/40 text-red-400 hover:bg-red-500/10">
+              <ExternalLink className="w-4 h-4" /> YouTube
+            </Button>
+          )}
+        </div>
+      ) : (
+        <Button variant="outline" disabled className="w-full sm:w-auto opacity-50">
+          No link yet
         </Button>
-      )
+      ),
     },
     {
       id: "quiz",

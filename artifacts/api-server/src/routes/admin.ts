@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, subjectsTable, chaptersTable, topicsTable, questionsTable, examResultsTable, examAttemptsTable, attemptAnswersTable, notesTable, topicProgressTable, systemConfigTable, auditLogsTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { db, usersTable, subjectsTable, chaptersTable, topicsTable, questionsTable, examResultsTable, examAttemptsTable, attemptAnswersTable, notesTable, topicProgressTable, systemConfigTable, auditLogsTable, qrScanLogsTable, examsTable } from "@workspace/db";
+import { eq, sql, desc, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListUsersQueryParams,
@@ -363,6 +363,146 @@ router.get("/admin/export-data", requireAdmin, async (req, res): Promise<void> =
       updatedAt: p.updatedAt?.toISOString() ?? null,
     })),
   });
+});
+
+router.get("/admin/qr-analytics", requireAdmin, async (req, res): Promise<void> => {
+  const topQuestions = await db.select({
+    questionId: qrScanLogsTable.questionId,
+    scanCount: sql<number>`count(*)::int`,
+  })
+    .from(qrScanLogsTable)
+    .groupBy(qrScanLogsTable.questionId)
+    .orderBy(desc(sql`count(*)`))
+    .limit(20);
+
+  const recentScans = await db.select({
+    id: qrScanLogsTable.id,
+    questionId: qrScanLogsTable.questionId,
+    userId: qrScanLogsTable.userId,
+    examId: qrScanLogsTable.examId,
+    scannedAt: qrScanLogsTable.scannedAt,
+    userName: usersTable.fullName,
+  })
+    .from(qrScanLogsTable)
+    .leftJoin(usersTable, eq(qrScanLogsTable.userId, usersTable.id))
+    .orderBy(desc(qrScanLogsTable.scannedAt))
+    .limit(30);
+
+  const totalScans = await db.select({ count: sql<number>`count(*)::int` }).from(qrScanLogsTable);
+  const uniqueStudents = await db.select({ count: sql<number>`count(distinct ${qrScanLogsTable.userId})::int` }).from(qrScanLogsTable);
+
+  res.json({
+    totalScans: totalScans[0]?.count ?? 0,
+    uniqueStudents: uniqueStudents[0]?.count ?? 0,
+    topQuestions,
+    recentScans: recentScans.map((s) => ({
+      ...s,
+      scannedAt: s.scannedAt.toISOString(),
+    })),
+  });
+});
+
+router.get("/admin/live-attempts", requireAdmin, async (req, res): Promise<void> => {
+  const liveAttempts = await db.select({
+    id: examAttemptsTable.id,
+    userId: examAttemptsTable.userId,
+    examId: examAttemptsTable.examId,
+    status: examAttemptsTable.status,
+    startTime: examAttemptsTable.startTime,
+    remainingSeconds: examAttemptsTable.remainingSeconds,
+    pauseCount: examAttemptsTable.pauseCount,
+    userName: usersTable.fullName,
+    examTitle: examsTable.title,
+    examType: examsTable.type,
+  })
+    .from(examAttemptsTable)
+    .leftJoin(usersTable, eq(examAttemptsTable.userId, usersTable.id))
+    .leftJoin(examsTable, eq(examAttemptsTable.examId, examsTable.id))
+    .where(eq(examAttemptsTable.status, "in_progress"))
+    .orderBy(desc(examAttemptsTable.startTime));
+
+  res.json(liveAttempts.map((a) => ({
+    ...a,
+    startTime: a.startTime.toISOString(),
+    elapsedMinutes: Math.floor((Date.now() - new Date(a.startTime).getTime()) / 60000),
+  })));
+});
+
+router.post("/admin/import-syllabus", requireAdmin, async (req, res): Promise<void> => {
+  const { rows } = req.body as { rows?: Array<{ subject_name: string; chapter_name: string; topic_name: string; topic_order?: number }> };
+
+  if (!rows || !Array.isArray(rows) || rows.length === 0) {
+    res.status(400).json({ error: "rows array is required" });
+    return;
+  }
+
+  const created = { subjects: 0, chapters: 0, topics: 0 };
+  const subjectCache: Record<string, string> = {};
+  const chapterCache: Record<string, string> = {};
+
+  for (const row of rows) {
+    const subjectName = row.subject_name?.trim();
+    const chapterName = row.chapter_name?.trim();
+    const topicName = row.topic_name?.trim();
+
+    if (!subjectName || !chapterName || !topicName) continue;
+
+    if (!subjectCache[subjectName]) {
+      const [existing] = await db.select().from(subjectsTable).where(eq(subjectsTable.name, subjectName));
+      if (existing) {
+        subjectCache[subjectName] = existing.id;
+      } else {
+        const [allSubjects] = await db.select({ count: sql<number>`count(*)::int` }).from(subjectsTable);
+        const [newSubject] = await db.insert(subjectsTable).values({
+          id: nanoid(),
+          name: subjectName,
+          order: (allSubjects?.count ?? 0) + 1,
+        }).returning();
+        subjectCache[subjectName] = newSubject.id;
+        created.subjects++;
+      }
+    }
+
+    const subjectId = subjectCache[subjectName];
+    const chapterKey = `${subjectId}::${chapterName}`;
+
+    if (!chapterCache[chapterKey]) {
+      const existing = await db.select().from(chaptersTable)
+        .where(and(eq(chaptersTable.subjectId, subjectId), eq(chaptersTable.name, chapterName)));
+      if (existing[0]) {
+        chapterCache[chapterKey] = existing[0].id;
+      } else {
+        const chapterCount = await db.select({ count: sql<number>`count(*)::int` }).from(chaptersTable).where(eq(chaptersTable.subjectId, subjectId));
+        const [newChapter] = await db.insert(chaptersTable).values({
+          id: nanoid(),
+          subjectId,
+          name: chapterName,
+          order: (chapterCount[0]?.count ?? 0) + 1,
+        }).returning();
+        chapterCache[chapterKey] = newChapter.id;
+        created.chapters++;
+      }
+    }
+
+    const chapterId = chapterCache[chapterKey];
+
+    const existingTopics = await db.select().from(topicsTable)
+      .where(and(eq(topicsTable.chapterId, chapterId), eq(topicsTable.name, topicName)));
+    if (!existingTopics[0]) {
+      const topicCount = await db.select({ count: sql<number>`count(*)::int` }).from(topicsTable).where(eq(topicsTable.chapterId, chapterId));
+      await db.insert(topicsTable).values({
+        id: nanoid(),
+        chapterId,
+        name: topicName,
+        order: row.topic_order ?? (topicCount[0]?.count ?? 0) + 1,
+      });
+      created.topics++;
+    }
+  }
+
+  await logAudit(req.user!.id, null, "import_syllabus", `Imported ${created.subjects} subjects, ${created.chapters} chapters, ${created.topics} topics`);
+
+  res.json({ success: true, created });
 });
 
 export default router;

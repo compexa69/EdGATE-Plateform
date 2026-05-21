@@ -11,6 +11,8 @@ export const topicsTable = pgTable("topics", {
   order: integer("order").notNull().default(0),
   telegramChatId: text("telegram_chat_id"),
   telegramMessageId: text("telegram_message_id"),
+  telegramUrl: text("telegram_url"),
+  youtubeUrl: text("youtube_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

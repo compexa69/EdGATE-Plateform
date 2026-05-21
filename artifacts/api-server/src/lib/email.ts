@@ -20,37 +20,45 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
     if (!res.ok) {
       const data = await res.text();
       logger.error({ to, subject, status: res.status, data }, "Failed to send email");
+      throw new Error(`Email API error: ${res.status}`);
     }
   } catch (err) {
     logger.error({ err, to, subject }, "Error sending email");
+    throw err;
   }
 }
 
 export async function sendVerificationEmail(to: string, token: string): Promise<void> {
   const html = `
-    <h2>Verify your email</h2>
-    <p>Use this token to verify your email address:</p>
-    <h3 style="letter-spacing:4px;font-family:monospace">${token}</h3>
-    <p>This token expires in 24 hours.</p>
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0F172A;color:#E2E8F0;padding:32px;border-radius:12px">
+      <h2 style="color:#6366F1">Verify your email</h2>
+      <p>Use this code to verify your email address:</p>
+      <h3 style="letter-spacing:8px;font-family:monospace;font-size:28px;color:#E2E8F0;background:#1E293B;padding:16px 24px;border-radius:8px;text-align:center">${token}</h3>
+      <p style="color:#94A3B8;font-size:14px">This code expires in 24 hours.</p>
+    </div>
   `;
   await sendEmail(to, "Verify your email - EdTech Study Platform", html);
 }
 
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
   const html = `
-    <h2>Reset your password</h2>
-    <p>Use this token to reset your password:</p>
-    <h3 style="letter-spacing:4px;font-family:monospace">${token}</h3>
-    <p>This token expires in 1 hour.</p>
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0F172A;color:#E2E8F0;padding:32px;border-radius:12px">
+      <h2 style="color:#6366F1">Reset your password</h2>
+      <p>Use this code to reset your password:</p>
+      <h3 style="letter-spacing:8px;font-family:monospace;font-size:28px;color:#E2E8F0;background:#1E293B;padding:16px 24px;border-radius:8px;text-align:center">${token}</h3>
+      <p style="color:#94A3B8;font-size:14px">This code expires in 1 hour.</p>
+    </div>
   `;
   await sendEmail(to, "Reset your password - EdTech Study Platform", html);
 }
 
 export async function sendApprovalEmail(to: string, name: string): Promise<void> {
   const html = `
-    <h2>Account Approved</h2>
-    <p>Hi ${name},</p>
-    <p>Your account has been approved. You can now log in and start studying.</p>
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0F172A;color:#E2E8F0;padding:32px;border-radius:12px">
+      <h2 style="color:#6366F1">Account Approved 🎉</h2>
+      <p>Hi ${name},</p>
+      <p>Your account has been approved. You can now log in and start your study journey.</p>
+    </div>
   `;
   await sendEmail(to, "Account Approved - EdTech Study Platform", html);
 }
@@ -62,8 +70,7 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<void> 
       <p style="font-size:16px;line-height:1.6;margin-bottom:16px">Hi ${name},</p>
       <p style="font-size:15px;line-height:1.6;color:#CBD5E1;margin-bottom:16px">
         You're now part of a focused community preparing for JEE, NEET, and GATE with the
-        <strong style="color:#E2E8F0">Smart Gated Learning System</strong> — where every topic must be
-        mastered before the next one unlocks.
+        <strong style="color:#E2E8F0">Smart Gated Learning System</strong>.
       </p>
       <div style="background:#1E293B;border-radius:8px;padding:16px;margin-bottom:20px">
         <p style="margin:0 0 8px;font-weight:bold;color:#E2E8F0">Your journey starts here:</p>
@@ -75,7 +82,7 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<void> 
         </ul>
       </div>
       <p style="font-size:14px;color:#64748B;margin-top:24px">
-        Your account is pending admin approval. You'll receive an email once you're approved.
+        Your account is pending admin approval. You'll receive an email once approved.
       </p>
     </div>
   `;
@@ -104,4 +111,17 @@ export async function sendStorageAlertEmail(to: string, usedGB: number, limitGB:
     <p>Please review stored notes and free up space to ensure continued uploads.</p>
   `;
   await sendEmail(to, `[ACTION REQUIRED] B2 Storage at ${percentUsed}% - EdTech Platform`, html);
+}
+
+export async function sendEmailChangeVerification(to: string, newEmail: string, token: string): Promise<void> {
+  const html = `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0F172A;color:#E2E8F0;padding:32px;border-radius:12px">
+      <h2 style="color:#6366F1">Confirm Email Change</h2>
+      <p>You requested to change your email to <strong>${newEmail}</strong>.</p>
+      <p>Use this code to confirm the change:</p>
+      <h3 style="letter-spacing:8px;font-family:monospace;font-size:28px;color:#E2E8F0;background:#1E293B;padding:16px 24px;border-radius:8px;text-align:center">${token}</h3>
+      <p style="color:#94A3B8;font-size:14px">This code expires in 1 hour. If you did not request this, ignore this email.</p>
+    </div>
+  `;
+  await sendEmail(to, "Confirm your new email - EdTech Study Platform", html);
 }

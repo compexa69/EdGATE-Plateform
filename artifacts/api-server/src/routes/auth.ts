@@ -22,6 +22,7 @@ import {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
+  sendEmailChangeVerification,
 } from "../lib/email";
 
 const router: IRouter = Router();
@@ -79,19 +80,29 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     passwordHash,
     role: isFirstUser ? "super_admin" : "student",
     status: isFirstUser ? "approved" : "pending_approval",
-    emailVerified: false,
-    emailVerifyToken: verifyToken,
-    emailVerifyExpiry: verifyExpiry,
+    emailVerified: isFirstUser,
+    emailVerifyToken: isFirstUser ? null : verifyToken,
+    emailVerifyExpiry: isFirstUser ? null : verifyExpiry,
   }).returning();
 
-  await sendVerificationEmail(email, verifyToken);
-  sendWelcomeEmail(email, fullName).catch(() => {});
+  if (!isFirstUser) {
+    try {
+      await sendVerificationEmail(email, verifyToken);
+    } catch (err) {
+      await db.delete(usersTable).where(eq(usersTable.id, user.id));
+      res.status(503).json({ error: "Failed to send verification email. Please try again shortly." });
+      return;
+    }
+    sendWelcomeEmail(email, fullName).catch(() => {});
+  }
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, status: user.status });
   res.status(201).json({
     user: formatUser(user),
     token,
-    message: "Registration successful. Please verify your email.",
+    message: isFirstUser
+      ? "Welcome! You are the super admin."
+      : "Registration successful. Please verify your email.",
   });
 });
 
@@ -107,6 +118,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
   if (!user) {
     res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+
+  if (user.deletedAt) {
+    res.status(403).json({ error: "This account has been deleted" });
     return;
   }
 
@@ -287,6 +303,84 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     .where(eq(usersTable.id, user.id));
 
   res.json({ success: true, message: "Password reset successfully" });
+});
+
+router.post("/auth/request-email-change", requireAuth, async (req, res): Promise<void> => {
+  const { newEmail } = req.body as { newEmail?: string };
+  if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    res.status(400).json({ error: "A valid new email address is required" });
+    return;
+  }
+
+  const user = await getUserById(req.user!.id);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (newEmail.toLowerCase() === user.email.toLowerCase()) {
+    res.status(400).json({ error: "New email must be different from your current email" });
+    return;
+  }
+
+  const [existingWithEmail] = await db.select().from(usersTable).where(eq(usersTable.email, newEmail));
+  if (existingWithEmail) {
+    res.status(400).json({ error: "This email is already in use by another account" });
+    return;
+  }
+
+  const token = randomBytes(3).toString("hex").toUpperCase();
+  const expiry = new Date(Date.now() + 60 * 60 * 1000);
+
+  await db.update(usersTable)
+    .set({ emailChangeToken: token, emailChangeNewEmail: newEmail, emailChangeExpiry: expiry })
+    .where(eq(usersTable.id, user.id));
+
+  try {
+    await sendEmailChangeVerification(newEmail, newEmail, token);
+  } catch {
+    res.status(503).json({ error: "Failed to send verification email. Please try again." });
+    return;
+  }
+
+  res.json({ success: true, message: "Verification code sent to your new email address." });
+});
+
+router.post("/auth/confirm-email-change", requireAuth, async (req, res): Promise<void> => {
+  const { token } = req.body as { token?: string };
+  if (!token) {
+    res.status(400).json({ error: "Verification token is required" });
+    return;
+  }
+
+  const user = await getUserById(req.user!.id);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  if (!user.emailChangeToken || user.emailChangeToken !== token.toUpperCase()) {
+    res.status(400).json({ error: "Invalid verification code" });
+    return;
+  }
+
+  if (!user.emailChangeExpiry || user.emailChangeExpiry < new Date()) {
+    res.status(400).json({ error: "Verification code has expired. Please request a new one." });
+    return;
+  }
+
+  const newEmail = user.emailChangeNewEmail!;
+
+  await db.update(usersTable)
+    .set({
+      email: newEmail,
+      emailChangeToken: null,
+      emailChangeNewEmail: null,
+      emailChangeExpiry: null,
+    })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ success: true, message: "Email address updated successfully.", newEmail });
 });
 
 export { formatUser };

@@ -18,8 +18,12 @@ export const usersTable = pgTable("users", {
   emailVerifyExpiry: timestamp("email_verify_expiry", { withTimezone: true }),
   passwordResetToken: text("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry", { withTimezone: true }),
+  emailChangeToken: text("email_change_token"),
+  emailChangeNewEmail: text("email_change_new_email"),
+  emailChangeExpiry: timestamp("email_change_expiry", { withTimezone: true }),
   photoB2Key: text("photo_b2_key"),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

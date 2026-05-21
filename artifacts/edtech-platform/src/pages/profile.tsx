@@ -10,8 +10,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, ShieldCheck, Mail, Phone, Calendar, KeyRound, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Camera, ShieldCheck, Mail, Phone, Calendar, KeyRound, Eye, EyeOff, Trash2, AtSign, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 
 async function compressImage(file: File, maxSidePx = 512, quality = 0.82): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -107,61 +109,49 @@ function ChangePasswordModal() {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 pt-2">
-            <FormField
-              control={form.control}
-              name="currentPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Current Password</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input type={showCurrent ? "text" : "password"} placeholder="••••••••" {...field} />
-                      <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowCurrent(!showCurrent)}>
-                        {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="newPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>New Password</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input type={showNew ? "text" : "password"} placeholder="••••••••" {...field} />
-                      <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowNew(!showNew)}>
-                        {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">Min 8 chars, uppercase, lowercase, number, special character</p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmNewPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm New Password</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input type={showConfirm ? "text" : "password"} placeholder="••••••••" {...field} />
-                      <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowConfirm(!showConfirm)}>
-                        {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FormField control={form.control} name="currentPassword" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Current Password</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input type={showCurrent ? "text" : "password"} placeholder="••••••••" {...field} />
+                    <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowCurrent(!showCurrent)}>
+                      {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="newPassword" render={({ field }) => (
+              <FormItem>
+                <FormLabel>New Password</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input type={showNew ? "text" : "password"} placeholder="••••••••" {...field} />
+                    <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowNew(!showNew)}>
+                      {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </FormControl>
+                <p className="text-xs text-muted-foreground">Min 8 chars, uppercase, lowercase, number, special character</p>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="confirmNewPassword" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Confirm New Password</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input type={showConfirm ? "text" : "password"} placeholder="••••••••" {...field} />
+                    <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowConfirm(!showConfirm)}>
+                      {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit" className="flex-1" disabled={changePasswordMutation.isPending}>
@@ -170,6 +160,211 @@ function ChangePasswordModal() {
             </div>
           </form>
         </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ChangeEmailModal({ currentEmail }: { currentEmail: string }) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"request" | "confirm">("request");
+  const [newEmail, setNewEmail] = useState("");
+  const [token, setToken] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const { toast } = useToast();
+
+  const getToken = () => localStorage.getItem("edtech_token");
+
+  const handleRequest = async () => {
+    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      toast({ title: "Enter a valid email address", variant: "destructive" });
+      return;
+    }
+    setIsPending(true);
+    try {
+      const res = await fetch("/api/auth/request-email-change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ newEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error || "Failed to send code", variant: "destructive" }); return; }
+      toast({ title: "Verification code sent", description: `Check ${newEmail} for your 6-digit code.` });
+      setStep("confirm");
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!token.trim()) { toast({ title: "Enter the verification code", variant: "destructive" }); return; }
+    setIsPending(true);
+    try {
+      const res = await fetch("/api/auth/confirm-email-change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ token: token.trim().toUpperCase() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error || "Invalid code", variant: "destructive" }); return; }
+      toast({ title: "Email updated", description: `Your email is now ${data.newEmail}. Please log in again.` });
+      setOpen(false);
+      setStep("request");
+      setNewEmail("");
+      setToken("");
+      setTimeout(() => window.location.href = "/login", 1500);
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setStep("request"); setNewEmail(""); setToken(""); } }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="w-full justify-start gap-3 h-11">
+          <AtSign className="w-4 h-4 text-muted-foreground" />
+          Change Email
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AtSign className="w-5 h-5 text-primary" /> Change Email Address
+          </DialogTitle>
+        </DialogHeader>
+        {step === "request" ? (
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">Current email: <strong className="text-foreground">{currentEmail}</strong></p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">New Email Address</label>
+              <Input
+                type="email"
+                placeholder="new@example.com"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRequest()}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">A verification code will be sent to your new email address.</p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={handleRequest} disabled={isPending}>
+                {isPending ? "Sending…" : "Send Code"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">Enter the verification code sent to <strong className="text-foreground">{newEmail}</strong>.</p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Verification Code</label>
+              <Input
+                placeholder="XXXXXX"
+                value={token}
+                onChange={(e) => setToken(e.target.value.toUpperCase())}
+                className="font-mono tracking-widest text-center text-lg"
+                maxLength={6}
+                onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setStep("request")}>Back</Button>
+              <Button className="flex-1" onClick={handleConfirm} disabled={isPending}>
+                {isPending ? "Confirming…" : "Confirm Change"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteAccountModal({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const { toast } = useToast();
+  const { logout } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const handleDelete = async () => {
+    if (confirm !== "DELETE") {
+      toast({ title: 'Type "DELETE" to confirm', variant: "destructive" });
+      return;
+    }
+    setIsPending(true);
+    try {
+      const token = localStorage.getItem("edtech_token");
+      const res = await fetch("/api/profile", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error || "Failed to delete account", variant: "destructive" }); return; }
+      toast({ title: "Account deleted", description: "Your account has been permanently removed." });
+      logout();
+      setLocation("/login");
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-3 h-11 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          disabled={isSuperAdmin}
+          title={isSuperAdmin ? "Super admins cannot self-delete — transfer ownership first" : undefined}
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete Account
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="w-5 h-5" /> Delete Account
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive space-y-1">
+            <p className="font-semibold">This action is permanent and cannot be undone.</p>
+            <ul className="list-disc list-inside text-xs space-y-0.5 text-destructive/80">
+              <li>All your progress and exam results will be erased</li>
+              <li>Your uploaded notes will be deleted</li>
+              <li>You will be immediately logged out</li>
+            </ul>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Type <code className="bg-muted px-1 rounded">DELETE</code> to confirm</label>
+            <Input
+              placeholder="DELETE"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="font-mono"
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={handleDelete}
+              disabled={isPending || confirm !== "DELETE"}
+            >
+              {isPending ? "Deleting…" : "Delete My Account"}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -186,37 +381,22 @@ export default function Profile() {
 
   const handleRemovePhoto = () => {
     removePhotoMutation.mutate(undefined, {
-      onSuccess: () => {
-        toast({ title: "Profile photo removed" });
-        refetch();
-      },
+      onSuccess: () => { toast({ title: "Profile photo removed" }); refetch(); },
       onError: (error) => {
-        toast({
-          title: "Failed to remove photo",
-          description: (error as any)?.response?.data?.error || error.message,
-          variant: "destructive",
-        });
+        toast({ title: "Failed to remove photo", description: (error as any)?.response?.data?.error || error.message, variant: "destructive" });
       },
     });
   };
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
-    values: {
-      fullName: profile?.fullName || "",
-      mobile: profile?.mobile || "",
-    },
+    values: { fullName: profile?.fullName || "", mobile: profile?.mobile || "" },
   });
 
   const onSubmit = (values: z.infer<typeof profileSchema>) => {
     updateProfileMutation.mutate({ data: values }, {
-      onSuccess: () => {
-        toast({ title: "Profile updated successfully" });
-        refetch();
-      },
-      onError: (error) => {
-        toast({ title: "Failed to update profile", description: error.message, variant: "destructive" });
-      }
+      onSuccess: () => { toast({ title: "Profile updated successfully" }); refetch(); },
+      onError: (error) => { toast({ title: "Failed to update profile", description: error.message, variant: "destructive" }); }
     });
   };
 
@@ -229,7 +409,6 @@ export default function Profile() {
       toast({ title: "Invalid file type", description: "Only JPG, PNG, and WEBP are supported.", variant: "destructive" });
       return;
     }
-
     if (file.size > 10 * 1024 * 1024) {
       toast({ title: "File too large", description: "Please select an image under 10 MB.", variant: "destructive" });
       return;
@@ -238,28 +417,16 @@ export default function Profile() {
     setIsUploading(true);
     try {
       const compressed = await compressImage(file);
-
       const { uploadUrl, b2Key } = await getUploadUrlMutation.mutateAsync({
         data: { fileName: `profile_${profile.id}.jpg`, fileSizeBytes: compressed.size }
       });
-
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: compressed,
-        headers: { "Content-Type": "image/jpeg" }
-      });
-
-      // Persist b2Key to user profile
+      await fetch(uploadUrl, { method: "PUT", body: compressed, headers: { "Content-Type": "image/jpeg" } });
       const token = localStorage.getItem("edtech_token");
       await fetch("/api/profile", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ photoB2Key: b2Key }),
       });
-
       toast({ title: "Photo updated successfully" });
       refetch();
     } catch {
@@ -272,6 +439,8 @@ export default function Profile() {
 
   if (isLoading) return <div className="p-8">Loading profile…</div>;
   if (!profile) return <div className="p-8 text-destructive">Profile not found</div>;
+
+  const isSuperAdmin = profile.role === "super_admin";
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-8 pb-24 md:pb-8">
@@ -298,13 +467,7 @@ export default function Profile() {
                 >
                   <Camera className="w-4 h-4" />
                 </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handlePhotoUpload}
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                />
+                <input type="file" ref={fileInputRef} onChange={handlePhotoUpload} accept="image/jpeg,image/png,image/webp" className="hidden" />
               </div>
               {isUploading && <p className="text-xs text-muted-foreground mb-2">Uploading…</p>}
               {profile.photoUrl && (
@@ -319,16 +482,13 @@ export default function Profile() {
               )}
               <h2 className="text-xl font-bold">{profile.fullName}</h2>
               <div className="text-muted-foreground text-sm mt-1 capitalize">{profile.role.replace('_', ' ')}</div>
-
               <div className="flex flex-wrap gap-2 justify-center mt-4">
                 {profile.emailVerified && (
                   <Badge variant="outline" className="bg-success/10 text-success border-success/20">
                     <ShieldCheck className="w-3 h-3 mr-1" /> Verified
                   </Badge>
                 )}
-                <Badge variant="outline" className="capitalize">
-                  {profile.status.replace('_', ' ')}
-                </Badge>
+                <Badge variant="outline" className="capitalize">{profile.status.replace('_', ' ')}</Badge>
               </div>
             </CardContent>
           </Card>
@@ -360,8 +520,22 @@ export default function Profile() {
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Security</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <ChangePasswordModal />
+              <ChangeEmailModal currentEmail={profile.email} />
+            </CardContent>
+          </Card>
+
+          <Card className="border-card-border border-destructive/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-destructive">Danger Zone</CardTitle>
+              <CardDescription>Permanent actions — cannot be undone.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DeleteAccountModal isSuperAdmin={isSuperAdmin} />
+              {isSuperAdmin && (
+                <p className="text-xs text-muted-foreground mt-2">Super admins cannot self-delete. Transfer ownership to another admin first.</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -375,33 +549,21 @@ export default function Profile() {
             <CardContent>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="fullName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="mobile"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mobile Number</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground">Format: +91 followed by 10 digits</p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormField control={form.control} name="fullName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="mobile" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mobile Number</FormLabel>
+                      <FormControl><Input {...field} /></FormControl>
+                      <p className="text-xs text-muted-foreground">Format: +91 followed by 10 digits</p>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                   <Button type="submit" disabled={updateProfileMutation.isPending}>
                     {updateProfileMutation.isPending ? "Saving…" : "Save Changes"}
                   </Button>

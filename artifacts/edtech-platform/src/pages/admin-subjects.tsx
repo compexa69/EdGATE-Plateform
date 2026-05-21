@@ -3,13 +3,13 @@ import {
   useListChapters, useCreateChapter, useUpdateChapter, useDeleteChapter,
   useListTopics, useCreateTopic, useUpdateTopic, useDeleteTopic,
 } from "@workspace/api-client-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Edit, Trash, BookOpen, Layers, List, ChevronRight,
-  ChevronLeft, FileText, Link2, Save, X, Check,
+  Link2, Upload, FileSpreadsheet, CheckCircle,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,141 @@ interface TopicForm { name: string; description: string; order: number; telegram
 const emptySubjectForm: SubjectForm = { name: "", description: "", order: 0 };
 const emptyChapterForm: ChapterForm = { name: "", description: "", order: 0 };
 const emptyTopicForm: TopicForm = { name: "", description: "", order: 0, telegramChatId: "", telegramMessageId: "" };
+
+function parseSyllabusCsv(text: string): Array<{ subject_name: string; chapter_name: string; topic_name: string; topic_order?: number }> {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const idxSubject = headers.indexOf("subject_name");
+  const idxChapter = headers.indexOf("chapter_name");
+  const idxTopic = headers.indexOf("topic_name");
+  const idxOrder = headers.indexOf("topic_order");
+  if (idxSubject === -1 || idxChapter === -1 || idxTopic === -1) return [];
+  return lines.slice(1).map((line) => {
+    const cols = line.split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
+    return {
+      subject_name: cols[idxSubject] ?? "",
+      chapter_name: cols[idxChapter] ?? "",
+      topic_name: cols[idxTopic] ?? "",
+      topic_order: idxOrder !== -1 && cols[idxOrder] ? Number(cols[idxOrder]) : undefined,
+    };
+  }).filter((r) => r.subject_name && r.chapter_name && r.topic_name);
+}
+
+function SyllabusImportDialog() {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<ReturnType<typeof parseSyllabusCsv>>([]);
+  const [result, setResult] = useState<{ subjects: number; chapters: number; topics: number } | null>(null);
+  const [isPending, setIsPending] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const parsed = parseSyllabusCsv(ev.target?.result as string ?? "");
+      setRows(parsed);
+      setResult(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (!rows.length) return;
+    setIsPending(true);
+    try {
+      const token = localStorage.getItem("edtech_token") ?? "";
+      const res = await fetch("/api/admin/import-syllabus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rows }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data.error || "Import failed", variant: "destructive" }); return; }
+      setResult(data.created);
+      toast({ title: "Syllabus imported!", description: `${data.created.subjects} subjects, ${data.created.chapters} chapters, ${data.created.topics} topics created.` });
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const handleClose = (v: boolean) => {
+    setOpen(v);
+    if (!v) { setRows([]); setResult(null); if (fileRef.current) fileRef.current.value = ""; }
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
+        <FileSpreadsheet className="w-3.5 h-3.5" /> Import CSV
+      </Button>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-primary" /> Import Syllabus from CSV
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="p-3 rounded-lg bg-muted/30 border border-border text-xs text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">Required CSV columns:</p>
+              <code className="block font-mono">subject_name, chapter_name, topic_name, topic_order</code>
+              <p><code className="font-mono">topic_order</code> is optional. Existing subjects/chapters/topics are skipped (no duplicates).</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>CSV File</Label>
+              <div className="flex gap-2">
+                <Input type="file" accept=".csv,text/csv" ref={fileRef} onChange={handleFile} className="flex-1" />
+              </div>
+            </div>
+
+            {rows.length > 0 && !result && (
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+                <p className="font-medium text-primary">{rows.length} rows parsed</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Preview (first 3):</p>
+                <ul className="mt-1 space-y-0.5 text-xs font-mono">
+                  {rows.slice(0, 3).map((r, i) => (
+                    <li key={i} className="truncate text-muted-foreground">{r.subject_name} → {r.chapter_name} → {r.topic_name}</li>
+                  ))}
+                  {rows.length > 3 && <li className="text-muted-foreground">…and {rows.length - 3} more</li>}
+                </ul>
+              </div>
+            )}
+
+            {result && (
+              <div className="p-3 rounded-lg bg-success/10 border border-success/20 text-sm flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-success">Import complete</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Created: {result.subjects} subject{result.subjects !== 1 ? "s" : ""}, {result.chapters} chapter{result.chapters !== 1 ? "s" : ""}, {result.topics} topic{result.topics !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => handleClose(false)}>
+                {result ? "Close" : "Cancel"}
+              </Button>
+              {!result && (
+                <Button className="flex-1 gap-1.5" onClick={handleImport} disabled={rows.length === 0 || isPending}>
+                  <Upload className="w-4 h-4" />
+                  {isPending ? "Importing…" : `Import ${rows.length} Rows`}
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 function TopicsPanel({ chapterId, chapterName }: { chapterId: string; chapterName: string }) {
   const { data: topics, isLoading, refetch } = useListTopics(chapterId, { query: { enabled: !!chapterId, queryKey: ["topics", chapterId] } as any });
@@ -85,10 +220,7 @@ function TopicsPanel({ chapterId, chapterName }: { chapterId: string; chapterNam
   const handleDelete = (id: string) => {
     if (!confirm("Delete this topic? This cannot be undone.")) return;
     deleteTopic.mutate({ topicId: id }, {
-      onSuccess: () => {
-        toast({ title: "Topic deleted" });
-        refetch();
-      },
+      onSuccess: () => { toast({ title: "Topic deleted" }); refetch(); },
       onError: () => toast({ title: "Failed to delete topic", variant: "destructive" }),
     });
   };
@@ -119,7 +251,17 @@ function TopicsPanel({ chapterId, chapterName }: { chapterId: string; chapterNam
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               {topic.telegramChatId && (
                 <Badge variant="outline" className="text-xs gap-1 h-5">
-                  <Link2 className="w-2.5 h-2.5" /> Telegram linked
+                  <Link2 className="w-2.5 h-2.5" /> Telegram
+                </Badge>
+              )}
+              {(topic as any).telegramUrl && (
+                <Badge variant="outline" className="text-xs gap-1 h-5">
+                  <Link2 className="w-2.5 h-2.5" /> TG URL
+                </Badge>
+              )}
+              {(topic as any).youtubeUrl && (
+                <Badge variant="outline" className="text-xs gap-1 h-5 border-red-500/30 text-red-400">
+                  ▶ YouTube
                 </Badge>
               )}
               <Badge variant="outline" className="text-xs h-5">Order: {topic.order}</Badge>
@@ -233,11 +375,7 @@ function ChaptersPanel({ subjectId, subjectName, onDrillIntoTopics }: {
       chapterId: editChapter.id,
       data: { name: editChapter.name, description: editChapter.description || undefined, order: editChapter.order }
     }, {
-      onSuccess: () => {
-        toast({ title: "Chapter updated" });
-        setEditChapter(null);
-        refetch();
-      },
+      onSuccess: () => { toast({ title: "Chapter updated" }); setEditChapter(null); refetch(); },
       onError: () => toast({ title: "Failed to update chapter", variant: "destructive" }),
     });
   };
@@ -245,10 +383,7 @@ function ChaptersPanel({ subjectId, subjectName, onDrillIntoTopics }: {
   const handleDelete = (id: string) => {
     if (!confirm("Delete this chapter and all its topics? This cannot be undone.")) return;
     deleteChapter.mutate({ chapterId: id }, {
-      onSuccess: () => {
-        toast({ title: "Chapter deleted" });
-        refetch();
-      },
+      onSuccess: () => { toast({ title: "Chapter deleted" }); refetch(); },
       onError: () => toast({ title: "Failed to delete chapter", variant: "destructive" }),
     });
   };
@@ -379,11 +514,7 @@ export default function AdminSubjects() {
   const handleUpdate = () => {
     if (!editSubject) return;
     updateSubject.mutate({ subjectId: editSubject.id, data: { name: editSubject.name, description: editSubject.description, order: editSubject.order } }, {
-      onSuccess: () => {
-        toast({ title: "Subject updated" });
-        setEditSubject(null);
-        refetch();
-      },
+      onSuccess: () => { toast({ title: "Subject updated" }); setEditSubject(null); refetch(); },
       onError: () => toast({ title: "Failed to update subject", variant: "destructive" }),
     });
   };
@@ -391,10 +522,7 @@ export default function AdminSubjects() {
   const handleDelete = (id: string) => {
     if (!confirm("Delete this subject and all its chapters/topics? This cannot be undone.")) return;
     deleteSubject.mutate({ subjectId: id }, {
-      onSuccess: () => {
-        toast({ title: "Subject deleted" });
-        refetch();
-      },
+      onSuccess: () => { toast({ title: "Subject deleted" }); refetch(); },
       onError: () => toast({ title: "Failed to delete subject", variant: "destructive" }),
     });
   };
@@ -417,11 +545,14 @@ export default function AdminSubjects() {
           <h1 className="text-3xl font-bold tracking-tight">Content Hierarchy</h1>
           <p className="text-muted-foreground mt-1">Manage subjects, chapters, and topics.</p>
         </div>
-        {view === "subjects" && (
-          <Button onClick={() => { setForm(emptySubjectForm); setIsCreateOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Add Subject
-          </Button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <SyllabusImportDialog />
+          {view === "subjects" && (
+            <Button onClick={() => { setForm(emptySubjectForm); setIsCreateOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" /> Add Subject
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Breadcrumb Navigation */}
@@ -515,11 +646,7 @@ export default function AdminSubjects() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ChaptersPanel
-              subjectId={selectedSubject.id}
-              subjectName={selectedSubject.name}
-              onDrillIntoTopics={drillToTopics}
-            />
+            <ChaptersPanel subjectId={selectedSubject.id} subjectName={selectedSubject.name} onDrillIntoTopics={drillToTopics} />
           </CardContent>
         </Card>
       )}
