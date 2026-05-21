@@ -84,6 +84,7 @@ export * from './resendVerificationInput';
 export * from './roleUpdate';
 export * from './roleUpdateRole';
 export * from './storageQuota';
+export * from './studyHeatmapEntry';
 export * from './studyTask';
 export * from './studyTaskInput';
 export * from './studyTaskSource';

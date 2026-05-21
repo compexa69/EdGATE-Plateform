@@ -1336,6 +1336,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/PerformancePoint"
 
+  /dashboard/study-heatmap:
+    get:
+      operationId: getStudyHeatmap
+      tags: [dashboard]
+      summary: Get per-topic study activity by calendar day
+      responses:
+        "200":
+          description: Study heatmap data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudyHeatmapEntry"
+
   # Admin
   /admin/users:
     get:
@@ -2947,6 +2962,25 @@ components:
           nullable: true
       required:
         - date
+
+    StudyHeatmapEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        count:
+          type: integer
+          description: Number of distinct topics touched on this day
+        topics:
+          type: array
+          items:
+            type: string
+          description: Names of topics studied on this day
+      required:
+        - date
+        - count
+        - topics
 
     # Admin
     AdminUser:

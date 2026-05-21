@@ -76,6 +76,7 @@ import type {
   ResendVerificationInput,
   RoleUpdate,
   StorageQuota,
+  StudyHeatmapEntry,
   StudyTask,
   StudyTaskInput,
   StudyTaskUpdate,
@@ -5185,6 +5186,83 @@ export function useGetPerformanceTrend<TData = Awaited<ReturnType<typeof getPerf
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPerformanceTrendQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetStudyHeatmapUrl = () => {
+
+
+
+
+  return `/api/dashboard/study-heatmap`
+}
+
+/**
+ * @summary Get per-topic study activity by calendar day
+ */
+export const getStudyHeatmap = async ( options?: RequestInit): Promise<StudyHeatmapEntry[]> => {
+
+  return customFetch<StudyHeatmapEntry[]>(getGetStudyHeatmapUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudyHeatmapQueryKey = () => {
+    return [
+    `/api/dashboard/study-heatmap`
+    ] as const;
+    }
+
+
+export const getGetStudyHeatmapQueryOptions = <TData = Awaited<ReturnType<typeof getStudyHeatmap>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudyHeatmap>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudyHeatmapQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudyHeatmap>>> = ({ signal }) => getStudyHeatmap({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudyHeatmap>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudyHeatmapQueryResult = NonNullable<Awaited<ReturnType<typeof getStudyHeatmap>>>
+export type GetStudyHeatmapQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get per-topic study activity by calendar day
+ */
+
+export function useGetStudyHeatmap<TData = Awaited<ReturnType<typeof getStudyHeatmap>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudyHeatmap>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudyHeatmapQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

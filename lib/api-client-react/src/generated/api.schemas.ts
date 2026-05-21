@@ -775,6 +775,14 @@ export interface PerformancePoint {
   externalExamName?: string | null;
 }
 
+export interface StudyHeatmapEntry {
+  date: string;
+  /** Number of distinct topics touched on this day */
+  count: number;
+  /** Names of topics studied on this day */
+  topics: string[];
+}
+
 export type AdminUserRole = typeof AdminUserRole[keyof typeof AdminUserRole];
 
 

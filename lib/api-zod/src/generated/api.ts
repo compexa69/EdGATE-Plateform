@@ -1343,6 +1343,17 @@ export const GetPerformanceTrendResponse = zod.array(GetPerformanceTrendResponse
 
 
 /**
+ * @summary Get per-topic study activity by calendar day
+ */
+export const GetStudyHeatmapResponseItem = zod.object({
+  "date": zod.coerce.date(),
+  "count": zod.number().describe('Number of distinct topics touched on this day'),
+  "topics": zod.array(zod.string()).describe('Names of topics studied on this day')
+})
+export const GetStudyHeatmapResponse = zod.array(GetStudyHeatmapResponseItem)
+
+
+/**
  * @summary List all users (admin only)
  */
 export const ListUsersQueryParams = zod.object({

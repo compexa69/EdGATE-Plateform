@@ -4,7 +4,7 @@ import {
   topicProgressTable, examResultsTable, examsTable, pomodoroSessionsTable,
   studyTasksTable, externalTestsTable,
 } from "@workspace/db";
-import { eq, and, gte, inArray } from "drizzle-orm";
+import { eq, and, gte, inArray, desc } from "drizzle-orm";
 import { requireApproved } from "../lib/auth";
 import { formatUser } from "./auth";
 
@@ -336,6 +336,47 @@ router.get("/progress/subject/:subjectId", requireApproved, async (req, res): Pr
     totalTopics,
     weakTopics: weakTopicDetails.map((w) => w.topicName),
   });
+});
+
+router.get("/dashboard/study-heatmap", requireApproved, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+
+  const progressRecords = await db
+    .select({
+      topicId: topicProgressTable.topicId,
+      topicName: topicsTable.name,
+      updatedAt: topicProgressTable.updatedAt,
+      createdAt: topicProgressTable.createdAt,
+    })
+    .from(topicProgressTable)
+    .innerJoin(topicsTable, eq(topicsTable.id, topicProgressTable.topicId))
+    .where(eq(topicProgressTable.userId, userId))
+    .orderBy(desc(topicProgressTable.updatedAt));
+
+  const activityMap = new Map<string, Set<string>>();
+
+  for (const r of progressRecords) {
+    const updatedDate = r.updatedAt.toISOString().split("T")[0];
+    const createdDate = r.createdAt.toISOString().split("T")[0];
+
+    if (!activityMap.has(updatedDate)) activityMap.set(updatedDate, new Set());
+    activityMap.get(updatedDate)!.add(r.topicName);
+
+    if (createdDate !== updatedDate) {
+      if (!activityMap.has(createdDate)) activityMap.set(createdDate, new Set());
+      activityMap.get(createdDate)!.add(r.topicName);
+    }
+  }
+
+  const heatmap = Array.from(activityMap.entries())
+    .map(([date, topics]) => ({
+      date,
+      count: topics.size,
+      topics: Array.from(topics),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  res.json(heatmap);
 });
 
 export default router;
