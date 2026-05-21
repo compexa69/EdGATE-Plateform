@@ -321,6 +321,12 @@ router.post("/attempts/:attemptId/answer", requireApproved, async (req, res): Pr
   const parsed = SaveAnswerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const [attemptOwner] = await db.select({ userId: examAttemptsTable.userId, status: examAttemptsTable.status })
+    .from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
+  if (!attemptOwner) { res.status(404).json({ error: "Attempt not found" }); return; }
+  if (attemptOwner.userId !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (attemptOwner.status === "submitted") { res.status(409).json({ error: "Exam already submitted" }); return; }
+
   const [existing] = await db.select().from(attemptAnswersTable)
     .where(and(
       eq(attemptAnswersTable.attemptId, params.data.attemptId),
@@ -355,6 +361,38 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
 
   const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
+
+  // ── Ownership check ───────────────────────────────────────────────────────
+  if (attempt.userId !== req.user!.id) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  // ── Idempotency: reject already-submitted attempts ────────────────────────
+  if (attempt.status === "submitted") {
+    res.status(409).json({ error: "This exam has already been submitted." });
+    return;
+  }
+
+  // ── Server-side timer validation (SRS C-13) ───────────────────────────────
+  // Calculate how much time has actually elapsed since the last resume/start.
+  const GRACE_SECONDS = 60; // 60s network grace period
+  const lastActiveAt = attempt.resumedAt ?? attempt.startTime;
+  const elapsedSinceResume = Math.floor((Date.now() - lastActiveAt.getTime()) / 1000);
+  const serverRemainingSeconds = attempt.remainingSeconds - elapsedSinceResume;
+
+  if (serverRemainingSeconds < -GRACE_SECONDS) {
+    // Time truly expired server-side — still accept but strip any answers
+    // saved after the deadline by using only what was persisted to DB.
+    await db.update(examAttemptsTable)
+      .set({ status: "submitted", endTime: new Date() })
+      .where(eq(examAttemptsTable.id, attempt.id));
+    res.status(400).json({
+      error: "Exam time has expired. Your saved answers have been auto-submitted.",
+      code: "EXAM_TIME_EXPIRED",
+    });
+    return;
+  }
 
   const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, attempt.examId));
   const examQs = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, exam.id));

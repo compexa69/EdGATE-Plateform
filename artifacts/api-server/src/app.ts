@@ -48,6 +48,19 @@ const passwordLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many password change attempts. Please try again later." },
 });
+
+const resendVerificationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many resend attempts. Please wait an hour before requesting another verification email." },
+  keyGenerator: (req) => {
+    const body = req.body as { email?: string };
+    return `resend_${(body?.email ?? "unknown").toLowerCase()}`;
+  },
+  validate: { xForwardedForHeader: false },
+});
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(
@@ -76,6 +89,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(globalLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/change-password", passwordLimiter);
+app.use("/api/auth/resend-verification", resendVerificationLimiter);
 app.use("/api/notes/upload-url", uploadLimiter);
 app.use("/api/profile/upload-url", uploadLimiter);
 

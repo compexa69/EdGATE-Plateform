@@ -63,10 +63,20 @@ router.post("/questions", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
+  let qrCodeSvg: string | null = null;
+  if (parsed.data.videoUrl) {
+    try {
+      qrCodeSvg = await generateQrSvg(parsed.data.videoUrl);
+    } catch (err) {
+      logger.warn({ err }, "Failed to generate QR code SVG on question create");
+    }
+  }
+
   const [q] = await db.insert(questionsTable).values({
     id: nanoid(),
     ...parsed.data,
     correctOption: String(parsed.data.correctOption),
+    qrCodeSvg,
   }).returning();
 
   res.status(201).json(formatQuestion(q));
@@ -129,6 +139,7 @@ router.post(
       const difficultyRaw = row["difficulty"]?.trim().toLowerCase();
       const topicId = row["topic_id"]?.trim() || null;
       const textSolution = row["text_solution"]?.trim() || null;
+      const videoUrl = row["video_url"]?.trim() || null;
 
       if (!text) {
         results.push({ row: rowNum, status: "failed", error: "Missing question text" });
@@ -160,6 +171,10 @@ router.post(
         : "medium";
 
       try {
+        let importQrSvg: string | null = null;
+        if (videoUrl) {
+          try { importQrSvg = await generateQrSvg(videoUrl); } catch {}
+        }
         await db.insert(questionsTable).values({
           id: nanoid(),
           text,
@@ -169,6 +184,8 @@ router.post(
           difficulty,
           topicId: topicId || null,
           textSolution: textSolution || null,
+          videoUrl: videoUrl || null,
+          qrCodeSvg: importQrSvg,
         });
         results.push({ row: rowNum, status: "imported", question: text.slice(0, 60) });
         importedCount++;
