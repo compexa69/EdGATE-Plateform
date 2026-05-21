@@ -286,12 +286,14 @@ router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<v
     }
   }
 
+  const now = new Date();
   const [attempt] = await db.insert(examAttemptsTable).values({
     id: nanoid(),
     userId: req.user!.id,
     examId: exam.id,
     status: "in_progress",
-    startTime: new Date(),
+    startTime: now,
+    resumedAt: now,
     remainingSeconds: exam.durationMinutes * 60,
     pauseCount: 0,
   }).returning();
@@ -527,7 +529,7 @@ router.post("/attempts/:attemptId/resume", requireApproved, async (req, res): Pr
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
   await db.update(examAttemptsTable)
-    .set({ status: "in_progress" })
+    .set({ status: "in_progress", resumedAt: new Date() })
     .where(eq(examAttemptsTable.id, attempt.id));
 
   const examQs = await db.select().from(examQuestionsTable)

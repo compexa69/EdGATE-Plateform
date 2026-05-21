@@ -15,6 +15,7 @@ export const examAttemptsTable = pgTable("exam_attempts", {
   endTime: timestamp("end_time", { withTimezone: true }),
   pauseCount: integer("pause_count").notNull().default(0),
   remainingSeconds: integer("remaining_seconds").notNull().default(3600),
+  resumedAt: timestamp("resumed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

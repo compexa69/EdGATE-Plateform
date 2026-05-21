@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { sweepExpiredAttempts } from "./lib/exam-auto-submit";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  const SWEEP_INTERVAL_MS = 60 * 1000;
+  setInterval(() => { sweepExpiredAttempts(); }, SWEEP_INTERVAL_MS);
+  logger.info({ intervalMs: SWEEP_INTERVAL_MS }, "Exam auto-submit sweep scheduled");
 });
