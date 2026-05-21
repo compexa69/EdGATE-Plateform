@@ -833,6 +833,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PauseExamInput"
       responses:
         "200":
           description: Paused
@@ -1614,6 +1620,15 @@ paths:
 
 components:
   schemas:
+    PauseExamInput:
+      type: object
+      required: [remainingSeconds]
+      properties:
+        remainingSeconds:
+          type: integer
+          minimum: 0
+          description: Client-side remaining seconds at the moment of pause
+
     HealthStatus:
       type: object
       properties:

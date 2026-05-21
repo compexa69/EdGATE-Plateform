@@ -5,6 +5,14 @@
  * EdTech Study Platform API
  * OpenAPI spec version: 0.1.0
  */
+export interface PauseExamInput {
+  /**
+     * Client-side remaining seconds at the moment of pause
+     * @minimum 0
+     */
+  remainingSeconds: number;
+}
+
 export interface HealthStatus {
   status: string;
 }

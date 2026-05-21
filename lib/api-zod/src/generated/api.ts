@@ -837,6 +837,14 @@ export const PauseExamParams = zod.object({
   "attemptId": zod.coerce.string()
 })
 
+export const pauseExamBodyRemainingSecondsMin = 0;
+
+
+
+export const PauseExamBody = zod.object({
+  "remainingSeconds": zod.number().min(pauseExamBodyRemainingSecondsMin).describe('Client-side remaining seconds at the moment of pause')
+})
+
 export const PauseExamResponse = zod.object({
   "success": zod.boolean(),
   "message": zod.string()

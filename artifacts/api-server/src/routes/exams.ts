@@ -16,6 +16,7 @@ import {
   SubmitExamParams,
   SubmitExamBody,
   PauseExamParams,
+  PauseExamBody,
   ResumeExamParams,
   GetResultParams,
 } from "@workspace/api-zod";
@@ -501,11 +502,18 @@ router.post("/attempts/:attemptId/pause", requireApproved, async (req, res): Pro
   const params = PauseExamParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
+  const body = PauseExamBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
   const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
   await db.update(examAttemptsTable)
-    .set({ status: "paused", pauseCount: attempt.pauseCount + 1 })
+    .set({
+      status: "paused",
+      pauseCount: attempt.pauseCount + 1,
+      remainingSeconds: body.data.remainingSeconds,
+    })
     .where(eq(examAttemptsTable.id, attempt.id));
 
   res.json({ success: true, message: "Exam paused" });

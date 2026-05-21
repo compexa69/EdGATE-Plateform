@@ -185,7 +185,7 @@ export default function ExamInterface() {
   const handlePause = () => {
     handleSaveCurrentAnswer();
     if (!attemptId) return;
-    pauseExamMutation.mutate({ attemptId }, {
+    pauseExamMutation.mutate({ attemptId, data: { remainingSeconds: timeLeft ?? 0 } }, {
       onSuccess: () => setIsPaused(true)
     });
   };

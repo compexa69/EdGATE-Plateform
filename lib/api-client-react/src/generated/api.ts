@@ -59,6 +59,7 @@ import type {
   LoginInput,
   MessageResponse,
   Note,
+  PauseExamInput,
   PerformancePoint,
   PomodoroSession,
   PomodoroSessionInput,
@@ -3123,14 +3124,16 @@ export const getPauseExamUrl = (attemptId: string,) => {
 /**
  * @summary Pause exam attempt
  */
-export const pauseExam = async (attemptId: string, options?: RequestInit): Promise<MessageResponse> => {
+export const pauseExam = async (attemptId: string,
+    pauseExamInput: PauseExamInput, options?: RequestInit): Promise<MessageResponse> => {
 
   return customFetch<MessageResponse>(getPauseExamUrl(attemptId),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pauseExamInput,)
   }
 );}
 
@@ -3138,8 +3141,8 @@ export const pauseExam = async (attemptId: string, options?: RequestInit): Promi
 
 
 export const getPauseExamMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseExam>>, TError,{attemptId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof pauseExam>>, TError,{attemptId: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseExam>>, TError,{attemptId: string;data: BodyType<PauseExamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pauseExam>>, TError,{attemptId: string;data: BodyType<PauseExamInput>}, TContext> => {
 
 const mutationKey = ['pauseExam'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -3151,10 +3154,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pauseExam>>, {attemptId: string}> = (props) => {
-          const {attemptId} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pauseExam>>, {attemptId: string;data: BodyType<PauseExamInput>}> = (props) => {
+          const {attemptId,data} = props ?? {};
 
-          return  pauseExam(attemptId,requestOptions)
+          return  pauseExam(attemptId,data,requestOptions)
         }
 
 
@@ -3165,18 +3168,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PauseExamMutationResult = NonNullable<Awaited<ReturnType<typeof pauseExam>>>
-
+    export type PauseExamMutationBody = BodyType<PauseExamInput>
     export type PauseExamMutationError = ErrorType<unknown>
 
     /**
  * @summary Pause exam attempt
  */
 export const usePauseExam = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseExam>>, TError,{attemptId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseExam>>, TError,{attemptId: string;data: BodyType<PauseExamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof pauseExam>>,
         TError,
-        {attemptId: string},
+        {attemptId: string;data: BodyType<PauseExamInput>},
         TContext
       > => {
       return useMutation(getPauseExamMutationOptions(options));

@@ -62,6 +62,7 @@ export * from './loginInput';
 export * from './logQrScan201';
 export * from './messageResponse';
 export * from './note';
+export * from './pauseExamInput';
 export * from './performancePoint';
 export * from './pomodoroSession';
 export * from './pomodoroSessionInput';
