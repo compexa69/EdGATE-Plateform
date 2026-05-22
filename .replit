@@ -73,6 +73,8 @@ externalPort = 8081
 [userenv.shared]
 FROM_EMAIL = "delivered@resend.dev"
 PORT = "8080"
+VAPID_PUBLIC_KEY = "BJdYLaC4k610lnqnrdyag1mCyUXHisKB1clu2oEa4kW2GEX-HMOKOgspH22-crnDb_QyNuMeDpeHvTtTXX0gdsA"
+VAPID_SUBJECT = "mailto:admin@edtech-platform.com"
 
 [nix]
 channel = "stable-25_05"
