@@ -34,6 +34,7 @@ function formatQuestion(q: typeof questionsTable.$inferSelect) {
     id: q.id, text: q.text, options: q.options,
     correctOption: parseInt(q.correctOption, 10),
     marks: q.marks, topicId: q.topicId ?? null,
+    imageUrl: q.imageUrl ?? null,
     textSolution: q.textSolution ?? null,
     videoUrl: q.videoUrl ?? null, qrCodeSvg: q.qrCodeSvg ?? null,
     difficulty: q.difficulty,

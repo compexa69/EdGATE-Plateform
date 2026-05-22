@@ -2505,6 +2505,8 @@ components:
           type: integer
         textSolution:
           type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
         videoUrl:
           type: ["string", "null"]
         qrCodeSvg:
@@ -2555,6 +2557,8 @@ components:
           type: number
         topicId:
           type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
         textSolution:
           type: ["string", "null"]
         videoUrl:
@@ -2586,6 +2590,8 @@ components:
           type: number
         topicId:
           type: string
+        imageUrl:
+          type: string
         textSolution:
           type: string
         videoUrl:
@@ -2614,6 +2620,8 @@ components:
         marks:
           type: number
         topicId:
+          type: string
+        imageUrl:
           type: string
         textSolution:
           type: string

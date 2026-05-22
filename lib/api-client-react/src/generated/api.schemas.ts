@@ -444,6 +444,8 @@ export interface Question {
   /** @nullable */
   topicId?: string | null;
   /** @nullable */
+  imageUrl?: string | null;
+  /** @nullable */
   textSolution?: string | null;
   /** @nullable */
   videoUrl?: string | null;
@@ -520,6 +522,8 @@ export interface QuestionResult {
   /** @nullable */
   textSolution?: string | null;
   /** @nullable */
+  imageUrl?: string | null;
+  /** @nullable */
   videoUrl?: string | null;
   /** @nullable */
   qrCodeSvg?: string | null;
@@ -581,6 +585,7 @@ export interface QuestionInput {
   correctOption: number;
   marks: number;
   topicId?: string;
+  imageUrl?: string;
   textSolution?: string;
   videoUrl?: string;
   difficulty: QuestionInputDifficulty;
@@ -601,6 +606,7 @@ export interface QuestionUpdate {
   correctOption?: number;
   marks?: number;
   topicId?: string;
+  imageUrl?: string;
   textSolution?: string;
   videoUrl?: string;
   difficulty?: QuestionUpdateDifficulty;

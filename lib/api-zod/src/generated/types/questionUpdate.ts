@@ -13,6 +13,7 @@ export interface QuestionUpdate {
   correctOption?: number;
   marks?: number;
   topicId?: string;
+  imageUrl?: string;
   textSolution?: string;
   videoUrl?: string;
   difficulty?: QuestionUpdateDifficulty;

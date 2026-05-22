@@ -153,7 +153,8 @@ export default function AdminQuestions() {
     option1: "", option2: "", option3: "", option4: "",
     correctOption: "0",
     marks: "4",
-    difficulty: "medium" as "easy" | "medium" | "hard"
+    difficulty: "medium" as "easy" | "medium" | "hard",
+    imageUrl: "",
   });
 
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
@@ -226,13 +227,14 @@ export default function AdminQuestions() {
         options: [newQ.option1, newQ.option2, newQ.option3, newQ.option4],
         correctOption: parseInt(newQ.correctOption),
         marks: parseInt(newQ.marks),
-        difficulty: newQ.difficulty
+        difficulty: newQ.difficulty,
+        ...(newQ.imageUrl.trim() ? { imageUrl: newQ.imageUrl.trim() } : {}),
       }
     }, {
       onSuccess: () => {
         toast({ title: "Question added" });
         setIsCreateOpen(false);
-        setNewQ({ text: "", option1: "", option2: "", option3: "", option4: "", correctOption: "0", marks: "4", difficulty: "medium" });
+        setNewQ({ text: "", option1: "", option2: "", option3: "", option4: "", correctOption: "0", marks: "4", difficulty: "medium", imageUrl: "" });
         refetch();
       }
     });
@@ -661,6 +663,18 @@ export default function AdminQuestions() {
                       />
                     </div>
                   ))}
+                </div>
+                <div className="space-y-2">
+                  <Label>Diagram / Image URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input
+                    placeholder="https://example.com/diagram.png"
+                    value={newQ.imageUrl}
+                    onChange={e => setNewQ({ ...newQ, imageUrl: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Paste a direct URL to an image or diagram shown above the question.</p>
+                  {newQ.imageUrl.trim() && (
+                    <img src={newQ.imageUrl.trim()} alt="Preview" className="mt-2 max-h-40 rounded border border-border object-contain" />
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">

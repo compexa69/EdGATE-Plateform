@@ -17,6 +17,8 @@ export interface Question {
   /** @nullable */
   topicId?: string | null;
   /** @nullable */
+  imageUrl?: string | null;
+  /** @nullable */
   textSolution?: string | null;
   /** @nullable */
   videoUrl?: string | null;

@@ -12,6 +12,7 @@ export const questionsTable = pgTable("questions", {
   options: text("options").array().notNull(),
   correctOption: text("correct_option").notNull(),
   marks: real("marks").notNull().default(4),
+  imageUrl: text("image_url"),
   textSolution: text("text_solution"),
   videoUrl: text("video_url"),
   qrCodeSvg: text("qr_code_svg"),

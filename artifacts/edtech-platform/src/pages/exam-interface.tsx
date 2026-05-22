@@ -23,6 +23,7 @@ export default function ExamInterface() {
   const [maxPauses, setMaxPauses] = useState(2);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(Date.now());
+  const fsViolationCountRef = useRef(0);
 
   const { data: exam, isLoading: examLoading } = useGetExam(examId);
   const startExamMutation = useStartExam();
@@ -37,6 +38,10 @@ export default function ExamInterface() {
         onSuccess: (attempt) => {
           setAttemptId(attempt.id);
           setTimeLeft(attempt.remainingSeconds);
+          // G-05: Enter fullscreen on exam start (SRS §3.4)
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
           const initialAnswers: any = {};
           exam.questions.forEach(q => {
             const existing = attempt.answers.find((a: any) => a.questionId === q.id);
@@ -103,6 +108,35 @@ export default function ExamInterface() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [exam, isPaused, toast]);
+
+  // ─── Fullscreen enforcement (SRS §3.4 / G-05) ────────────────────────────
+  useEffect(() => {
+    if (!attemptId || isPaused) return;
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        fsViolationCountRef.current++;
+        if (fsViolationCountRef.current >= 3) {
+          toast({
+            title: "Exam Auto-Submitted",
+            description: "You exited fullscreen 3 times. Your exam has been submitted.",
+            variant: "destructive",
+            duration: 8000,
+          });
+          handleSubmit();
+        } else {
+          toast({
+            title: `Fullscreen required — Warning ${fsViolationCountRef.current}/3`,
+            description: "Please stay in fullscreen. Exam auto-submits after 3 exits.",
+            variant: "destructive",
+            duration: 5000,
+          });
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      }
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, [attemptId, isPaused, toast, handleSubmit]);
   // ─────────────────────────────────────────────────────────────────────────
 
   const formatTime = (seconds: number) => {
@@ -373,9 +407,19 @@ export default function ExamInterface() {
                   </div>
                 </div>
                 
-                <div className="prose prose-invert max-w-none mb-8 text-lg leading-relaxed">
+                <div className="prose prose-invert max-w-none mb-6 text-lg leading-relaxed">
                   <MathText block>{currentQ.text}</MathText>
                 </div>
+
+                {(currentQ as any).imageUrl && (
+                  <div className="mb-6 flex justify-center">
+                    <img
+                      src={(currentQ as any).imageUrl}
+                      alt="Question diagram"
+                      className="max-w-full max-h-96 rounded-lg border border-border object-contain bg-white/5"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   {currentQ.options.map((option, idx) => (

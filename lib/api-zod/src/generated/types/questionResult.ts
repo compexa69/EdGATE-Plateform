@@ -18,6 +18,8 @@ export interface QuestionResult {
   /** @nullable */
   textSolution?: string | null;
   /** @nullable */
+  imageUrl?: string | null;
+  /** @nullable */
   videoUrl?: string | null;
   /** @nullable */
   qrCodeSvg?: string | null;

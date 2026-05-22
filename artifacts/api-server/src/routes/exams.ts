@@ -116,6 +116,7 @@ function formatQuestion(q: typeof questionsTable.$inferSelect, showAnswer = fals
     correctOption: showAnswer ? parseInt(q.correctOption, 10) : null,
     marks: q.marks,
     topicId: q.topicId ?? null,
+    imageUrl: q.imageUrl ?? null,
     textSolution: showAnswer ? (q.textSolution ?? null) : null,
     videoUrl: showAnswer ? (q.videoUrl ?? null) : null,
     qrCodeSvg: showAnswer ? (q.qrCodeSvg ?? null) : null,
@@ -454,6 +455,7 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
       isCorrect, marksAwarded,
       timeSpentSeconds: answer?.timeSpentSeconds ?? 0,
       textSolution: q.textSolution ?? null,
+      imageUrl: q.imageUrl ?? null,
       videoUrl: q.videoUrl ?? null,
       qrCodeSvg: q.qrCodeSvg ?? null,
     };
@@ -669,7 +671,10 @@ router.get("/results/:resultId", requireApproved, async (req, res): Promise<void
       selectedOption: selected, correctOption: correctOpt,
       isCorrect, marksAwarded,
       timeSpentSeconds: answer?.timeSpentSeconds ?? 0,
-      textSolution: q.textSolution ?? null, videoUrl: q.videoUrl ?? null, qrCodeSvg: q.qrCodeSvg ?? null,
+      textSolution: q.textSolution ?? null,
+      imageUrl: q.imageUrl ?? null,
+      videoUrl: q.videoUrl ?? null,
+      qrCodeSvg: q.qrCodeSvg ?? null,
     };
   });
 

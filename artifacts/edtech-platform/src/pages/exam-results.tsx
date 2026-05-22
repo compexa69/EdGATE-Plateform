@@ -286,6 +286,16 @@ export default function ExamResults() {
                     </div>
                   </div>
 
+                  {(q as any).imageUrl && (
+                    <div className="mt-4 flex justify-center">
+                      <img
+                        src={(q as any).imageUrl}
+                        alt="Question diagram"
+                        className="max-w-full max-h-64 rounded-lg border border-border object-contain bg-white/5"
+                      />
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 bg-muted/30 p-4 rounded-lg">
                     <div>
                       <div className="text-sm text-muted-foreground mb-1">Your Answer</div>
