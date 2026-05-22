@@ -26,6 +26,7 @@ import {
   sendWelcomeEmail,
   sendEmailChangeVerification,
 } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -88,13 +89,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }).returning();
 
   if (!isFirstUser) {
-    try {
-      await sendVerificationEmail(email, verifyToken);
-    } catch (err) {
-      await db.delete(usersTable).where(eq(usersTable.id, user.id));
-      res.status(503).json({ error: "Failed to send verification email. Please try again shortly." });
-      return;
-    }
+    sendVerificationEmail(email, verifyToken).catch((err) => {
+      logger.error({ err, email }, "Failed to send verification email during registration");
+    });
     sendWelcomeEmail(email, fullName).catch(() => {});
   }
 
