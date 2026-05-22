@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, examsTable, examAttemptsTable, examQuestionsTable, questionsTable,
   attemptAnswersTable, examResultsTable, topicProgressTable,
-  chaptersTable, topicsTable, subjectsTable,
+  chaptersTable, topicsTable, subjectsTable, systemConfigTable,
 } from "@workspace/db";
 import { eq, and, inArray, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -463,7 +463,25 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
 
   const maxScore = questions.reduce((s, q) => s + q.marks, 0);
   const accuracy = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
-  const passed = exam.passingScore ? score >= exam.passingScore : score > 0;
+
+  // Determine pass threshold: use exam-level override first, else fall back to
+  // the admin-configurable system_config percentage (SRS FR-GATE-01).
+  let passingThreshold = exam.passingScore ?? null;
+  if (passingThreshold === null && maxScore > 0) {
+    const configKey =
+      exam.type === "lecture_quiz" ? "lecture_quiz_passing_score" :
+      exam.type === "topic_test" ? "topic_test_passing_score" :
+      exam.type === "chapter_test" ? "chapter_test_passing_score" :
+      null;
+    if (configKey) {
+      const [cfgRow] = await db.select({ value: systemConfigTable.value })
+        .from(systemConfigTable)
+        .where(eq(systemConfigTable.key, configKey));
+      const pct = cfgRow ? parseInt(cfgRow.value, 10) : 60;
+      passingThreshold = Math.round((pct / 100) * maxScore);
+    }
+  }
+  const passed = passingThreshold !== null ? score >= passingThreshold : score > 0;
 
   const [result] = await db.insert(examResultsTable).values({
     id: nanoid(),

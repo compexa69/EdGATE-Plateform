@@ -22,6 +22,7 @@ const DEFAULT_CONFIG: Record<string, { value: string; description: string }> = {
   topic_test_passing_score: { value: "60", description: "Minimum % to pass a Topic Test" },
   chapter_test_passing_score: { value: "60", description: "Minimum % to pass a Chapter Test" },
   max_quiz_attempts: { value: "3", description: "Max attempts allowed per quiz before cooldown" },
+  max_exam_pauses: { value: "2", description: "Max pauses allowed per exam attempt" },
   low_ctr_threshold: { value: "10", description: "CTR % below which a topic lecture is flagged" },
 };
 
