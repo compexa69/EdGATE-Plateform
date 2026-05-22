@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useListNotes, useDeleteNote, useGetDownloadUrl } from "@workspace/api-client-react";
+import { useListNotes, useDeleteNote, useGetDownloadUrl, useGetNoteAnnotations, useSaveNoteAnnotations } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,20 +24,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const ANNOT_KEY = (noteId: string) => `edtech_annotations_${noteId}`;
-
-function getAnnotations(noteId: string): string {
-  try { return localStorage.getItem(ANNOT_KEY(noteId)) ?? ""; } catch { return ""; }
-}
-
-function saveAnnotations(noteId: string, text: string) {
-  try { localStorage.setItem(ANNOT_KEY(noteId), text); } catch {}
-}
-
 export default function Notes() {
   const { data: notes, isLoading, refetch } = useListNotes();
   const deleteNote = useDeleteNote();
   const getDownloadUrl = useGetDownloadUrl();
+  const saveAnnotationsMutation = useSaveNoteAnnotations();
   const { toast } = useToast();
 
   const [previewState, setPreviewState] = useState<{ url: string; name: string } | null>(null);
@@ -45,22 +36,39 @@ export default function Notes() {
   const [annotOpen, setAnnotOpen] = useState<string | null>(null);
   const [annotText, setAnnotText] = useState("");
 
+  const { data: annotData, isLoading: annotLoading } = useGetNoteAnnotations(
+    annotOpen ?? "",
+    { query: { enabled: !!annotOpen, queryKey: ["note-annotations", annotOpen] } as any }
+  );
+
+  useEffect(() => {
+    if (annotData !== undefined) {
+      setAnnotText(annotData.annotations ?? "");
+    }
+  }, [annotData]);
+
   const filteredNotes = (notes ?? []).filter((note) =>
     note.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (note.chapterName ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const openAnnotations = (noteId: string) => {
-    setAnnotText(getAnnotations(noteId));
+    setAnnotText("");
     setAnnotOpen(noteId);
   };
 
   const handleSaveAnnotations = () => {
-    if (annotOpen) {
-      saveAnnotations(annotOpen, annotText);
-      toast({ title: "Annotations saved", description: "Your notes have been saved locally." });
-      setAnnotOpen(null);
-    }
+    if (!annotOpen) return;
+    saveAnnotationsMutation.mutate({ noteId: annotOpen, data: { annotations: annotText } }, {
+      onSuccess: () => {
+        toast({ title: "Annotations saved", description: "Your notes have been saved securely." });
+        refetch();
+        setAnnotOpen(null);
+      },
+      onError: () => {
+        toast({ title: "Save failed", description: "Could not save your annotations.", variant: "destructive" });
+      },
+    });
   };
 
   const handleDownload = async (noteId: string, fileName: string) => {
@@ -161,7 +169,7 @@ export default function Notes() {
       ) : (
         <div className="space-y-3">
           {filteredNotes.map((note) => {
-            const hasAnnotations = !!getAnnotations(note.id);
+            const hasAnnotations = !!(note as any).hasAnnotations;
             return (
               <Card key={note.id} className="border-card-border hover:border-primary/30 transition-colors">
                 <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -285,18 +293,22 @@ export default function Notes() {
           </DialogHeader>
           <div className="space-y-3 pt-1">
             <p className="text-xs text-muted-foreground">
-              Write your own notes, highlights, or page references for this PDF. Saved locally in your browser.
+              Write your own notes, highlights, or page references for this PDF. Saved to your account.
             </p>
-            <textarea
-              className="w-full h-48 px-3 py-2 text-sm bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
-              placeholder="e.g. p.12 — Key formula: F = ma&#10;p.34 — Important concept for JEE…"
-              value={annotText}
-              onChange={(e) => setAnnotText(e.target.value)}
-            />
+            {annotLoading ? (
+              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Loading…</div>
+            ) : (
+              <textarea
+                className="w-full h-48 px-3 py-2 text-sm bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                placeholder="e.g. p.12 — Key formula: F = ma&#10;p.34 — Important concept for JEE…"
+                value={annotText}
+                onChange={(e) => setAnnotText(e.target.value)}
+              />
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setAnnotOpen(null)}>Cancel</Button>
-              <Button size="sm" onClick={handleSaveAnnotations} className="gap-1.5">
-                <Save className="w-4 h-4" /> Save Annotations
+              <Button size="sm" onClick={handleSaveAnnotations} disabled={saveAnnotationsMutation.isPending || annotLoading} className="gap-1.5">
+                <Save className="w-4 h-4" /> {saveAnnotationsMutation.isPending ? "Saving…" : "Save Annotations"}
               </Button>
             </div>
           </div>

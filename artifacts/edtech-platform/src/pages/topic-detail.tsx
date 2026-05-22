@@ -56,7 +56,7 @@ export default function TopicDetail() {
   if (topicLoading) return <div className="p-8">Loading topic...</div>;
   if (!topic) return <div className="p-8 text-destructive">Topic not found</div>;
 
-  const notesUnlocked = !!chapter?.chapterTestUnlocked && topic.topicTestPassed;
+  const notesUnlocked = !!chapter?.notesUploadUnlocked && topic.topicTestPassed;
 
   const telegramUrl = (topic as any).telegramUrl as string | null;
   const youtubeUrl = (topic as any).youtubeUrl as string | null;

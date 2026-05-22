@@ -263,6 +263,8 @@ export interface TopicInput {
   order?: number;
   telegramChatId?: string;
   telegramMessageId?: string;
+  telegramUrl?: string;
+  youtubeUrl?: string;
 }
 
 export interface TopicUpdate {
@@ -271,6 +273,8 @@ export interface TopicUpdate {
   order?: number;
   telegramChatId?: string;
   telegramMessageId?: string;
+  telegramUrl?: string;
+  youtubeUrl?: string;
 }
 
 export type TopicDetailGateStatus = typeof TopicDetailGateStatus[keyof typeof TopicDetailGateStatus];

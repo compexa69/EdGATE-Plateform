@@ -12,4 +12,6 @@ export interface TopicUpdate {
   order?: number;
   telegramChatId?: string;
   telegramMessageId?: string;
+  telegramUrl?: string;
+  youtubeUrl?: string;
 }

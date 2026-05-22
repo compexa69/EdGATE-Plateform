@@ -65,6 +65,7 @@ router.get("/notes", requireApproved, async (req, res): Promise<void> => {
       chapterName: ch?.name ?? "Unknown", fileName: n.fileName,
       fileSizeBytes: n.fileSizeBytes, b2Key: n.b2Key,
       uploadedAt: n.uploadedAt.toISOString(),
+      hasAnnotations: !!(n.annotations && n.annotations.trim().length > 0),
     };
   }));
 

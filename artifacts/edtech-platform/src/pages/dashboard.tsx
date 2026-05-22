@@ -1,4 +1,4 @@
-import { useGetDashboardSummary, useGetWeakTopics, useGetPerformanceTrend, useListTasks, useGetStudyHeatmap } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetWeakTopics, useGetPerformanceTrend, useListTasks, useGetStudyHeatmap, useGetProgressSummary } from "@workspace/api-client-react";
 import { Flame, Target, Trophy, CheckCircle, BookOpen, AlertCircle, ListTodo } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -209,6 +209,7 @@ export default function Dashboard() {
   const { data: performanceTrend } = useGetPerformanceTrend();
   const { data: tasks } = useListTasks();
   const { data: heatmapData = [] } = useGetStudyHeatmap();
+  const { data: progressSummary } = useGetProgressSummary();
 
   if (summaryLoading) {
     return <div className="p-8 text-muted-foreground">Loading dashboard...</div>;
@@ -420,6 +421,54 @@ export default function Dashboard() {
         </div>
 
         <div className="space-y-8">
+          {/* Mastery Breakdown */}
+          {progressSummary && (
+            <Card className="border-card-border bg-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Trophy className="w-5 h-5 text-accent" /> Mastery Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-muted-foreground">Overall</span>
+                    <span className="font-semibold text-foreground">{progressSummary.overallPercent}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${progressSummary.overallPercent}%` }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 pt-1">
+                  <div className="flex flex-col items-center p-2.5 rounded-lg bg-background border border-border text-center">
+                    <span className="text-lg font-bold text-foreground">{progressSummary.completedSubjects}</span>
+                    <span className="text-xs text-muted-foreground">/ {progressSummary.totalSubjects}</span>
+                    <span className="text-xs text-muted-foreground mt-0.5">Subjects</span>
+                  </div>
+                  <div className="flex flex-col items-center p-2.5 rounded-lg bg-background border border-border text-center">
+                    <span className="text-lg font-bold text-foreground">{progressSummary.completedChapters}</span>
+                    <span className="text-xs text-muted-foreground">/ {progressSummary.totalChapters}</span>
+                    <span className="text-xs text-muted-foreground mt-0.5">Chapters</span>
+                  </div>
+                  <div className="flex flex-col items-center p-2.5 rounded-lg bg-background border border-border text-center">
+                    <span className="text-lg font-bold text-foreground">{progressSummary.completedTopics}</span>
+                    <span className="text-xs text-muted-foreground">/ {progressSummary.totalTopics}</span>
+                    <span className="text-xs text-muted-foreground mt-0.5">Topics</span>
+                  </div>
+                </div>
+                {progressSummary.nextAction && (
+                  <div className="text-xs text-muted-foreground pt-1 border-t border-border">
+                    <span className="font-medium text-foreground">Next: </span>{progressSummary.nextAction}
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border">
+                  <span>🔥 {progressSummary.focusStreakDays} day streak</span>
+                  <span>{progressSummary.totalFocusMinutesToday} min today</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Today's Tasks */}
           <Card className="border-card-border bg-card">
             <CardHeader className="flex flex-row items-center justify-between">

@@ -21,11 +21,11 @@ type View = "subjects" | "chapters" | "topics";
 
 interface SubjectForm { name: string; description: string; order: number; }
 interface ChapterForm { name: string; description: string; order: number; }
-interface TopicForm { name: string; description: string; order: number; telegramChatId: string; telegramMessageId: string; }
+interface TopicForm { name: string; description: string; order: number; telegramChatId: string; telegramMessageId: string; telegramUrl: string; youtubeUrl: string; }
 
 const emptySubjectForm: SubjectForm = { name: "", description: "", order: 0 };
 const emptyChapterForm: ChapterForm = { name: "", description: "", order: 0 };
-const emptyTopicForm: TopicForm = { name: "", description: "", order: 0, telegramChatId: "", telegramMessageId: "" };
+const emptyTopicForm: TopicForm = { name: "", description: "", order: 0, telegramChatId: "", telegramMessageId: "", telegramUrl: "", youtubeUrl: "" };
 
 function parseSyllabusCsv(text: string): Array<{ subject_name: string; chapter_name: string; topic_name: string; topic_order?: number }> {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
@@ -184,6 +184,8 @@ function TopicsPanel({ chapterId, chapterName }: { chapterId: string; chapterNam
         order: form.order,
         telegramChatId: form.telegramChatId || undefined,
         telegramMessageId: form.telegramMessageId || undefined,
+        telegramUrl: form.telegramUrl || undefined,
+        youtubeUrl: form.youtubeUrl || undefined,
       }
     }, {
       onSuccess: () => {
@@ -206,6 +208,8 @@ function TopicsPanel({ chapterId, chapterName }: { chapterId: string; chapterNam
         order: editTopic.order,
         telegramChatId: editTopic.telegramChatId || undefined,
         telegramMessageId: editTopic.telegramMessageId || undefined,
+        telegramUrl: editTopic.telegramUrl || undefined,
+        youtubeUrl: editTopic.youtubeUrl || undefined,
       }
     }, {
       onSuccess: () => {
@@ -272,6 +276,8 @@ function TopicsPanel({ chapterId, chapterName }: { chapterId: string; chapterNam
               id: topic.id, name: topic.name, description: topic.description ?? "",
               order: topic.order, telegramChatId: topic.telegramChatId ?? "",
               telegramMessageId: topic.telegramMessageId ?? "",
+              telegramUrl: (topic as any).telegramUrl ?? "",
+              youtubeUrl: (topic as any).youtubeUrl ?? "",
             })}>
               <Edit className="w-3.5 h-3.5" />
             </Button>
@@ -331,6 +337,19 @@ function TopicFormFields({ form, setForm }: { form: TopicForm; setForm: (f: Part
         <div className="space-y-1.5">
           <Label className="text-xs">Message ID</Label>
           <Input value={form.telegramMessageId} onChange={e => setForm({ telegramMessageId: e.target.value })} placeholder="Message ID of the lecture video" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Direct Telegram URL (optional)</Label>
+          <Input value={form.telegramUrl} onChange={e => setForm({ telegramUrl: e.target.value })} placeholder="https://t.me/c/..." />
+        </div>
+      </div>
+      <div className="border border-border/50 rounded-lg p-3 space-y-2 bg-muted/20">
+        <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mb-2">
+          <Link2 className="w-3.5 h-3.5" /> YouTube Lecture Link (optional)
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">YouTube URL</Label>
+          <Input value={form.youtubeUrl} onChange={e => setForm({ youtubeUrl: e.target.value })} placeholder="https://youtube.com/watch?v=..." />
         </div>
       </div>
     </div>

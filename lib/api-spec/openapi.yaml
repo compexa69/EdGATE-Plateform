@@ -2089,6 +2089,10 @@ components:
           type: string
         telegramMessageId:
           type: string
+        telegramUrl:
+          type: string
+        youtubeUrl:
+          type: string
       required:
         - name
 
@@ -2104,6 +2108,10 @@ components:
         telegramChatId:
           type: string
         telegramMessageId:
+          type: string
+        telegramUrl:
+          type: string
+        youtubeUrl:
           type: string
 
     TopicDetail:

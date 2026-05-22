@@ -439,7 +439,9 @@ export const CreateTopicBody = zod.object({
   "description": zod.string().optional(),
   "order": zod.number().optional(),
   "telegramChatId": zod.string().optional(),
-  "telegramMessageId": zod.string().optional()
+  "telegramMessageId": zod.string().optional(),
+  "telegramUrl": zod.string().optional(),
+  "youtubeUrl": zod.string().optional()
 })
 
 
@@ -497,7 +499,9 @@ export const UpdateTopicBody = zod.object({
   "description": zod.string().optional(),
   "order": zod.number().optional(),
   "telegramChatId": zod.string().optional(),
-  "telegramMessageId": zod.string().optional()
+  "telegramMessageId": zod.string().optional(),
+  "telegramUrl": zod.string().optional(),
+  "youtubeUrl": zod.string().optional()
 })
 
 export const UpdateTopicResponse = zod.object({
