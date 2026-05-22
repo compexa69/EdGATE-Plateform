@@ -5,6 +5,7 @@ import { Home, BookOpen, User, LogOut, Settings, Trophy, CalendarDays, FolderOpe
 import { PomodoroWidget } from "@/components/pomodoro";
 import { useThemeMode } from "@/App";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { subscribeToTable } from "@/lib/supabase";
 
 interface AppNotification {
   id: string;
@@ -15,16 +16,24 @@ interface AppNotification {
   createdAt: string;
 }
 
+function getAuthToken(): string | null {
+  return typeof window !== "undefined" ? localStorage.getItem("edtech_token") : null;
+}
+
 async function fetchNotifications(): Promise<AppNotification[]> {
-  const res = await fetch("/api/notifications", { credentials: "include" });
+  const token = getAuthToken();
+  const res = await fetch("/api/notifications", {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) return [];
   return res.json();
 }
 
 async function markAllRead(): Promise<void> {
+  const token = getAuthToken();
   await fetch("/api/notifications/read-all", {
     method: "POST",
-    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 }
 
@@ -32,12 +41,26 @@ function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: notifications = [] } = useQuery<AppNotification[]>({
     queryKey: ["notifications"],
     queryFn: fetchNotifications,
-    refetchInterval: 30_000,
+    refetchInterval: 5 * 60_000,
+    enabled: !!user,
   });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsub = subscribeToTable<Record<string, unknown>>(
+      "notifications",
+      `user_id=eq.${user.id}`,
+      () => {
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      },
+    );
+    return unsub;
+  }, [user?.id, queryClient]);
 
   const markAllMutation = useMutation({
     mutationFn: markAllRead,

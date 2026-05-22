@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn(
     "[supabase] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is not set. " +
-    "Real-time features will be unavailable.",
+      "Real-time features will be unavailable.",
   );
 }
 
@@ -33,61 +33,42 @@ export const supabase = createClient(SUPABASE_URL ?? "", SUPABASE_ANON_KEY ?? ""
 });
 
 /**
- * Subscribe to real-time INSERT events on a table.
+ * Subscribe to real-time INSERT events on a Supabase table.
  *
- * @param table   Supabase table name
- * @param filter  Optional column=eq.value filter (e.g. "user_id=eq.abc123")
- * @param onEvent Callback fired on each incoming row
- * @returns Cleanup function — call it to unsubscribe
+ * @param table    Supabase table name (e.g. "notifications")
+ * @param filter   Optional postgREST filter string (e.g. "user_id=eq.abc123")
+ * @param onInsert Callback fired with the newly inserted row
+ * @returns        Cleanup function — call it to unsubscribe (use as useEffect return)
  *
- * Example:
- *   const unsub = subscribeToTable("notifications", `user_id=eq.${userId}`, (row) => {
- *     setNotifications((prev) => [row, ...prev]);
- *   });
- *   return unsub; // in useEffect cleanup
+ * @example
+ *   useEffect(() => {
+ *     return subscribeToTable("notifications", `user_id=eq.${userId}`, (row) => {
+ *       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+ *     });
+ *   }, [userId]);
  */
 export function subscribeToTable<T extends Record<string, unknown>>(
   table: string,
   filter: string | null,
-  onEvent: (row: T) => void,
+  onInsert: (row: T) => void,
 ): () => void {
-  const channelName = filter ? `${table}:${filter}` : table;
+  const channelName = filter ? `rt:${table}:${filter}` : `rt:${table}`;
 
   const channel = supabase
     .channel(channelName)
     .on(
-      "postgres_changes" as Parameters<typeof channel.on>[0],
+      "postgres_changes",
       {
         event: "INSERT",
         schema: "public",
         table,
         ...(filter ? { filter } : {}),
       },
-      (payload: { new: T }) => onEvent(payload.new),
+      (payload) => onInsert(payload.new as T),
     )
     .subscribe();
 
   return () => {
-    supabase.removeChannel(channel);
+    void supabase.removeChannel(channel);
   };
-}
-
-/**
- * React hook helper — subscribe to real-time row inserts on a table.
- *
- * Example:
- *   useRealtimeTable<Notification>(
- *     "notifications",
- *     `user_id=eq.${user.id}`,
- *     (row) => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
- *   );
- */
-export function useRealtimeSubscription<T extends Record<string, unknown>>(
-  table: string,
-  filter: string | null,
-  onEvent: (row: T) => void,
-): void {
-  // This is intentionally not a React hook to avoid circular imports.
-  // Import and call subscribeToTable directly inside a useEffect instead.
-  void table; void filter; void onEvent;
 }
