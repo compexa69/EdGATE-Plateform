@@ -1,5 +1,5 @@
 import { useGetProfile, useUpdateProfile, useGetProfileUploadUrl, useChangePassword, useRemoveProfilePhoto } from "@workspace/api-client-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,10 +10,143 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, ShieldCheck, Mail, Phone, Calendar, KeyRound, Eye, EyeOff, Trash2, AtSign, AlertTriangle } from "lucide-react";
+import { Camera, ShieldCheck, Mail, Phone, Calendar, KeyRound, Eye, EyeOff, Trash2, AtSign, AlertTriangle, Bell, BellOff, BellRing } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import { subscribeToPush, unsubscribeFromPush, getCurrentSubscription, isPushSupported } from "@/lib/push-manager";
+
+// ── M-05: Notification Preferences (SRS FR-NOT-02) ─────────────────────────────
+function NotificationPreferencesCard() {
+  const { toast } = useToast();
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [isPushLoading, setIsPushLoading] = useState(false);
+  const [prefDailyPlan, setPrefDailyPlan] = useState(() => {
+    try { return localStorage.getItem("edtech_notif_daily_plan") !== "false"; } catch { return true; }
+  });
+  const [prefStreak, setPrefStreak] = useState(() => {
+    try { return localStorage.getItem("edtech_notif_streak") !== "false"; } catch { return true; }
+  });
+
+  useEffect(() => {
+    getCurrentSubscription().then((sub) => setPushEnabled(!!sub));
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem("edtech_notif_daily_plan", String(prefDailyPlan)); } catch {}
+  }, [prefDailyPlan]);
+
+  useEffect(() => {
+    try { localStorage.setItem("edtech_notif_streak", String(prefStreak)); } catch {}
+  }, [prefStreak]);
+
+  const handleTogglePush = async () => {
+    setIsPushLoading(true);
+    try {
+      if (pushEnabled) {
+        await unsubscribeFromPush();
+        const token = localStorage.getItem("edtech_token");
+        const sub = await getCurrentSubscription();
+        if (sub) {
+          await fetch("/api/notifications/subscribe", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          });
+        }
+        setPushEnabled(false);
+        toast({ title: "Push notifications disabled" });
+      } else {
+        const sub = await subscribeToPush();
+        if (!sub) {
+          toast({ title: "Could not enable push", description: "Please allow notifications in your browser settings.", variant: "destructive" });
+          return;
+        }
+        const token = localStorage.getItem("edtech_token");
+        await fetch("/api/notifications/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ subscription: sub.toJSON() }),
+        });
+        setPushEnabled(true);
+        toast({ title: "Push notifications enabled!", description: "You'll receive study reminders even when the app is in the background." });
+      }
+    } catch {
+      toast({ title: "Error updating notification settings", variant: "destructive" });
+    } finally {
+      setIsPushLoading(false);
+    }
+  };
+
+  return (
+    <Card className="border-card-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <BellRing className="w-5 h-5 text-primary" />
+          Notification Preferences
+        </CardTitle>
+        <CardDescription>Choose which reminders and alerts you receive.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted/30 border border-border">
+          <div className="flex items-start gap-3">
+            {pushEnabled
+              ? <Bell className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+              : <BellOff className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
+            }
+            <div>
+              <p className="text-sm font-medium text-foreground">Browser Push Notifications</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {!isPushSupported()
+                  ? "Not supported in this browser."
+                  : pushEnabled
+                    ? "Enabled — you'll receive alerts even when the app is closed."
+                    : "Enable to receive study reminders in your browser."}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant={pushEnabled ? "outline" : "default"}
+            onClick={handleTogglePush}
+            disabled={isPushLoading || !isPushSupported()}
+            className="shrink-0"
+          >
+            {isPushLoading ? "…" : pushEnabled ? "Disable" : "Enable"}
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Daily Plan Reminders</p>
+              <p className="text-xs text-muted-foreground">Morning alert when your daily study plan is generated.</p>
+            </div>
+            <Switch
+              checked={prefDailyPlan}
+              onCheckedChange={setPrefDailyPlan}
+              disabled={!pushEnabled}
+              aria-label="Daily plan reminders"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Streak Reminders</p>
+              <p className="text-xs text-muted-foreground">Alert before your daily Pomodoro streak is about to break.</p>
+            </div>
+            <Switch
+              checked={prefStreak}
+              onCheckedChange={setPrefStreak}
+              disabled={!pushEnabled}
+              aria-label="Streak reminders"
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 async function compressImage(file: File, maxSidePx = 512, quality = 0.82): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -573,6 +706,8 @@ export default function Profile() {
           </Card>
         </div>
       </div>
+
+      <NotificationPreferencesCard />
     </div>
   );
 }

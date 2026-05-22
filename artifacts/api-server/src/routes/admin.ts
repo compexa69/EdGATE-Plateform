@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { timingSafeEqual } from "crypto";
 import { db, usersTable, subjectsTable, chaptersTable, topicsTable, questionsTable, examResultsTable, examAttemptsTable, attemptAnswersTable, notesTable, topicProgressTable, systemConfigTable, auditLogsTable, qrScanLogsTable, examsTable } from "@workspace/db";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -530,6 +531,46 @@ router.post("/admin/import-syllabus", requireAdmin, async (req, res): Promise<vo
   await logAudit(req.user!.id, null, "import_syllabus", `Imported ${created.subjects} subjects, ${created.chapters} chapters, ${created.topics} topics`);
 
   res.json({ success: true, created });
+});
+
+// M-07 — Emergency Super-Admin Recovery (SRS FR-BOOT-03)
+router.post("/admin/emergency-recovery", async (req, res): Promise<void> => {
+  const recoverySecret = process.env.RECOVERY_SECRET;
+  if (!recoverySecret) {
+    res.status(503).json({ error: "Emergency recovery is not configured on this server." });
+    return;
+  }
+  const { userId, secret } = req.body as { userId?: string; secret?: string };
+  if (!userId || typeof userId !== "string") {
+    res.status(400).json({ error: "userId is required." });
+    return;
+  }
+  if (!secret || typeof secret !== "string") {
+    res.status(400).json({ error: "secret is required." });
+    return;
+  }
+  let valid = false;
+  try {
+    valid =
+      secret.length === recoverySecret.length &&
+      timingSafeEqual(Buffer.from(secret, "utf8"), Buffer.from(recoverySecret, "utf8"));
+  } catch {
+    valid = false;
+  }
+  if (!valid) {
+    res.status(403).json({ error: "Invalid recovery secret." });
+    return;
+  }
+  const [updated] = await db
+    .update(usersTable)
+    .set({ role: "super_admin", status: "approved" })
+    .where(eq(usersTable.id, userId))
+    .returning({ id: usersTable.id, email: usersTable.email });
+  if (!updated) {
+    res.status(404).json({ error: "User not found." });
+    return;
+  }
+  res.json({ success: true, message: `User ${updated.email} has been promoted to super_admin.` });
 });
 
 export default router;

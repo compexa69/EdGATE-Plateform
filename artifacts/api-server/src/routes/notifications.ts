@@ -3,6 +3,15 @@ import { db, notificationsTable, usersTable, pushSubscriptionsTable } from "@wor
 import { eq, and, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { requireApproved, requireAdmin } from "../lib/auth";
+import webPush from "web-push";
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY ?? "";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY ?? "";
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:admin@edtech-platform.com";
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 const router: IRouter = Router();
 
@@ -119,6 +128,11 @@ router.post("/admin/notifications/broadcast", requireAdmin, async (req, res): Pr
   res.json({ success: true, sent: users.length });
 });
 
+// GET /api/notifications/vapid-public-key — returns VAPID public key for client push subscription
+router.get("/notifications/vapid-public-key", requireApproved, (_req, res): void => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY || null });
+});
+
 export async function createNotification(
   userId: string,
   type: string,
@@ -133,6 +147,49 @@ export async function createNotification(
     message,
     isRead: false,
   });
+  // Fire-and-forget web push delivery
+  if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+    sendPushNotification(userId, title, message).catch(() => {});
+  }
+}
+
+export async function sendPushNotification(
+  userId: string,
+  title: string,
+  body: string,
+  url = "/",
+): Promise<void> {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+
+  const subs = await db
+    .select()
+    .from(pushSubscriptionsTable)
+    .where(eq(pushSubscriptionsTable.userId, userId));
+
+  const payload = JSON.stringify({ title, body, url, tag: `edtech-${Date.now()}` });
+
+  await Promise.allSettled(
+    subs.map(async (sub) => {
+      try {
+        await webPush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh ?? "",
+              auth: sub.auth ?? "",
+            },
+          },
+          payload,
+        );
+      } catch (err: any) {
+        if (err?.statusCode === 410 || err?.statusCode === 404) {
+          await db
+            .delete(pushSubscriptionsTable)
+            .where(eq(pushSubscriptionsTable.endpoint, sub.endpoint));
+        }
+      }
+    }),
+  );
 }
 
 export default router;
