@@ -16,10 +16,12 @@ import leaderboardRouter from "./leaderboard";
 import externalTestsRouter from "./external-tests";
 import notificationsRouter from "./notifications";
 import qrScansRouter from "./qr-scans";
+import seedRouter from "./seed";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(seedRouter);
 router.use(authRouter);
 router.use(profileRouter);
 router.use(subjectsRouter);
