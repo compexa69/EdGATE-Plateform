@@ -113,6 +113,38 @@ export async function sendStorageAlertEmail(to: string, usedGB: number, limitGB:
   await sendEmail(to, `[ACTION REQUIRED] B2 Storage at ${percentUsed}% - EdTech Platform`, html);
 }
 
+export async function sendNewQuizEmail(
+  to: string,
+  name: string,
+  examTitle: string,
+  examType: string,
+): Promise<void> {
+  const typeLabels: Record<string, string> = {
+    lecture_quiz: "Lecture Quiz",
+    dpp: "DPP (Daily Practice Paper)",
+    pyq: "PYQ (Previous Year Questions)",
+    topic_test: "Topic Test",
+    chapter_test: "Chapter Test",
+    subject_test: "Subject Test",
+    grand_test: "Grand Test",
+  };
+  const typeLabel = typeLabels[examType] ?? examType;
+  const html = `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0F172A;color:#E2E8F0;padding:32px;border-radius:12px">
+      <h2 style="color:#6366F1">New Quiz Available 🚀</h2>
+      <p>Hi ${name},</p>
+      <p>A new <strong style="color:#E2E8F0">${typeLabel}</strong> has just been added to your study platform:</p>
+      <div style="background:#1E293B;border-radius:8px;padding:16px 20px;margin:20px 0;border-left:4px solid #6366F1">
+        <p style="margin:0;font-size:18px;font-weight:bold;color:#E2E8F0">${examTitle}</p>
+        <p style="margin:8px 0 0;font-size:13px;color:#94A3B8">${typeLabel}</p>
+      </div>
+      <p>Log in to your dashboard to attempt it and keep your streak going!</p>
+      <p style="color:#64748B;font-size:13px;margin-top:24px">Keep pushing — JEE / NEET / GATE success comes one quiz at a time.</p>
+    </div>
+  `;
+  await sendEmail(to, `New Quiz: ${examTitle} — EdTech Study Platform`, html);
+}
+
 export async function sendEmailChangeVerification(to: string, newEmail: string, token: string): Promise<void> {
   const html = `
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0F172A;color:#E2E8F0;padding:32px;border-radius:12px">

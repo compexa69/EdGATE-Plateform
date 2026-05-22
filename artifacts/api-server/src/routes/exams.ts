@@ -21,8 +21,9 @@ import {
   GetResultParams,
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
-import { systemConfigTable } from "@workspace/db";
+import { systemConfigTable, usersTable } from "@workspace/db";
 import { createNotification } from "./notifications";
+import { sendNewQuizEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -178,6 +179,33 @@ router.post("/exams", requireAdmin, async (req, res): Promise<void> => {
     passingScore: exam.passingScore ?? null, negativeMarking: exam.negativeMarking,
     isUnlocked: true, hasAttempted: false, lastScore: null, createdAt: exam.createdAt.toISOString(),
   });
+
+  // Fire-and-forget: notify all approved students about the new quiz (skip drill exams)
+  if (exam.type !== "drill") {
+    setImmediate(async () => {
+      try {
+        const approvedUsers = await db
+          .select({ id: usersTable.id, email: usersTable.email, fullName: usersTable.fullName })
+          .from(usersTable)
+          .where(eq(usersTable.status, "approved"));
+
+        await Promise.allSettled(
+          approvedUsers.map(async (user) => {
+            await createNotification(
+              user.id,
+              "new_quiz",
+              `New quiz available: ${exam.title}`,
+            );
+            await sendNewQuizEmail(user.email, user.fullName, exam.title, exam.type);
+          }),
+        );
+      } catch (err) {
+        // Non-fatal — exam was created successfully
+        const { logger } = await import("../lib/logger");
+        logger.error({ err, examId: exam.id }, "Failed to send new-quiz notifications");
+      }
+    });
+  }
 });
 
 router.delete("/exams/:examId", requireAdmin, async (req, res): Promise<void> => {
