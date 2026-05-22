@@ -1,16 +1,22 @@
-import { useListSubjects } from "@workspace/api-client-react";
-import { Link } from "wouter";
+import { useListSubjects, useListExams } from "@workspace/api-client-react";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Lock, BookOpen, CheckCircle } from "lucide-react";
+import { Lock, BookOpen, CheckCircle, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default function Subjects() {
   const { data: subjects, isLoading } = useListSubjects();
+  const { data: grandTests } = useListExams({ type: "grand_test" });
+  const [, setLocation] = useLocation();
 
   if (isLoading) {
     return <div className="p-8">Loading subjects...</div>;
   }
+
+  const grandTest = grandTests?.[0];
+  const grandTestUnlocked = grandTest?.isUnlocked ?? false;
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 pb-24 md:pb-8">
@@ -68,6 +74,49 @@ export default function Subjects() {
           );
         })}
       </div>
+
+      {/* Grand Test Entry Point (SRS H-05) */}
+      <Card className={`border-card-border mt-4 ${
+        grandTestUnlocked
+          ? "border-warning/50 shadow-[0_0_24px_-6px_rgba(234,179,8,0.25)]"
+          : "opacity-60 grayscale"
+      }`}>
+        <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+              grandTestUnlocked ? "bg-warning/20" : "bg-muted"
+            }`}>
+              {grandTestUnlocked
+                ? <Trophy className="w-7 h-7 text-warning" />
+                : <Lock className="w-7 h-7 text-muted-foreground" />
+              }
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold">Grand Test</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {grandTestUnlocked
+                  ? grandTest?.id
+                    ? "All subject tests passed. The ultimate challenge awaits."
+                    : "Unlocked — no grand test assigned yet. Ask your admin to create one."
+                  : "Pass every Subject Test across all subjects to unlock the Grand Test."}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="lg"
+            className="border-warning text-warning hover:bg-warning/10 shrink-0"
+            variant="outline"
+            disabled={!grandTestUnlocked || !grandTest?.id}
+            onClick={() => {
+              if (grandTest?.id) setLocation(`/exam/${grandTest.id}`);
+            }}
+          >
+            {grandTestUnlocked
+              ? grandTest?.id ? "Start Grand Test" : "No Exam Assigned"
+              : "Pass all Subject Tests to unlock"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

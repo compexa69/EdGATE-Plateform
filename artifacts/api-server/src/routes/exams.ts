@@ -4,7 +4,7 @@ import {
   attemptAnswersTable, examResultsTable, topicProgressTable,
   chaptersTable, topicsTable, subjectsTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListExamsQueryParams,
@@ -532,12 +532,21 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
     accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
   }));
 
+  // ── Percentile calculation (SRS M-06) ────────────────────────────────────
+  const allPeerResults = await db
+    .select({ score: examResultsTable.score })
+    .from(examResultsTable)
+    .where(eq(examResultsTable.examId, exam.id));
+  const peerTotal = allPeerResults.length;
+  const atOrBelow = allPeerResults.filter((r) => r.score <= result.score).length;
+  const percentile = peerTotal > 0 ? Math.round((atOrBelow / peerTotal) * 100) : 100;
+
   res.json({
     id: result.id, examId: exam.id, examTitle: exam.title, examType: exam.type,
     score: result.score, maxScore: result.maxScore, accuracy: result.accuracy,
     totalQuestions: result.totalQuestions, correctAnswers: result.correctAnswers,
     incorrectAnswers: result.incorrectAnswers, skippedAnswers: result.skippedAnswers,
-    timeTakenSeconds: result.timeTakenSeconds, percentile: null,
+    timeTakenSeconds: result.timeTakenSeconds, percentile,
     passed: result.passed,
     questionWise,
     topicWise,
@@ -559,6 +568,22 @@ async function updateTopicProgress(userId: string, topicId: string, field: strin
     });
   }
 }
+
+// ── Server-side timer sync (SRS H-01) ─────────────────────────────────────────
+// Client polls this every 60 s and corrects local timer if drift > 5 s.
+router.get("/attempts/:attemptId/sync-time", requireApproved, async (req, res): Promise<void> => {
+  const attemptId = String(req.params.attemptId);
+  const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, attemptId));
+  if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
+  if (attempt.userId !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (attempt.status !== "in_progress") { res.status(409).json({ error: "Exam is not in progress" }); return; }
+
+  const lastActiveAt = attempt.resumedAt ?? attempt.startTime;
+  const elapsedSinceResume = Math.floor((Date.now() - lastActiveAt.getTime()) / 1000);
+  const remainingSeconds = Math.max(0, attempt.remainingSeconds - elapsedSinceResume);
+
+  res.json({ remainingSeconds, serverTime: Date.now() });
+});
 
 router.post("/attempts/:attemptId/pause", requireApproved, async (req, res): Promise<void> => {
   const params = PauseExamParams.safeParse(req.params);
@@ -701,12 +726,21 @@ router.get("/results/:resultId", requireApproved, async (req, res): Promise<void
     accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
   }));
 
+  // ── Percentile calculation for GET result (SRS M-06) ─────────────────────
+  const allPeerResultsGet = await db
+    .select({ score: examResultsTable.score })
+    .from(examResultsTable)
+    .where(eq(examResultsTable.examId, result.examId));
+  const peerTotalGet = allPeerResultsGet.length;
+  const atOrBelowGet = allPeerResultsGet.filter((r) => r.score <= result.score).length;
+  const percentileGet = peerTotalGet > 0 ? Math.round((atOrBelowGet / peerTotalGet) * 100) : 100;
+
   res.json({
     id: result.id, examId: result.examId, examTitle: exam.title, examType: exam.type,
     score: result.score, maxScore: result.maxScore, accuracy: result.accuracy,
     totalQuestions: result.totalQuestions, correctAnswers: result.correctAnswers,
     incorrectAnswers: result.incorrectAnswers, skippedAnswers: result.skippedAnswers,
-    timeTakenSeconds: result.timeTakenSeconds, percentile: null,
+    timeTakenSeconds: result.timeTakenSeconds, percentile: percentileGet,
     passed: result.passed, questionWise, topicWise,
     submittedAt: result.submittedAt.toISOString(),
   });

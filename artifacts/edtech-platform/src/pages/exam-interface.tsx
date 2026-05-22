@@ -86,6 +86,33 @@ export default function ExamInterface() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // ─── Server-side timer sync (SRS H-01) — poll every 60 s ────────────────
+  useEffect(() => {
+    if (!attemptId || isPaused) return;
+    const SYNC_INTERVAL_MS = 60_000;
+    const DRIFT_THRESHOLD_S = 5;
+
+    const sync = async () => {
+      try {
+        const token = localStorage.getItem("edtech_token");
+        const res = await fetch(`/api/attempts/${attemptId}/sync-time`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const data: { remainingSeconds: number } = await res.json();
+        setTimeLeft((prev) => {
+          if (prev === null) return prev;
+          const drift = Math.abs(prev - data.remainingSeconds);
+          return drift > DRIFT_THRESHOLD_S ? data.remainingSeconds : prev;
+        });
+      } catch {}
+    };
+
+    const id = setInterval(sync, SYNC_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [attemptId, isPaused]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   // ─── Tab-switch / visibility detection (SRS NFR-SEC-05) ──────────────────
   useEffect(() => {
     if (!exam || isPaused) return;

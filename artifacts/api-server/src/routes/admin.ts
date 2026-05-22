@@ -428,6 +428,33 @@ router.get("/admin/live-attempts", requireAdmin, async (req, res): Promise<void>
   })));
 });
 
+// ── Emergency Recovery: force-submit a stuck in_progress attempt ─────────────
+router.post("/admin/attempts/:attemptId/force-submit", requireAdmin, async (req, res): Promise<void> => {
+  const attemptId = String(req.params.attemptId);
+  if (!attemptId) { res.status(400).json({ error: "attemptId is required" }); return; }
+
+  const [attempt] = await db.select().from(examAttemptsTable)
+    .where(eq(examAttemptsTable.id, attemptId));
+  if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
+  if (attempt.status === "submitted") {
+    res.status(409).json({ error: "Attempt is already submitted" });
+    return;
+  }
+
+  await db.update(examAttemptsTable)
+    .set({ status: "submitted", endTime: new Date(), remainingSeconds: 0 })
+    .where(eq(examAttemptsTable.id, attemptId));
+
+  await createNotification(
+    attempt.userId,
+    "exam_reminder",
+    "Exam Submitted by Admin",
+    "An administrator has submitted your in-progress exam attempt on your behalf.",
+  );
+
+  res.json({ success: true, attemptId, message: "Attempt force-submitted successfully" });
+});
+
 router.post("/admin/import-syllabus", requireAdmin, async (req, res): Promise<void> => {
   const { rows } = req.body as { rows?: Array<{ subject_name: string; chapter_name: string; topic_name: string; topic_order?: number }> };
 
