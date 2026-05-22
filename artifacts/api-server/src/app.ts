@@ -72,7 +72,7 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-// 5 reset emails per hour per IP — prevents email-flooding abuse
+// 5 reset emails per hour — keyed by email address to prevent email-flooding abuse
 const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
@@ -81,7 +81,7 @@ const forgotPasswordLimiter = rateLimit({
   message: { error: "Too many password reset requests. Please try again in an hour." },
   keyGenerator: (req) => {
     const body = req.body as { email?: string };
-    return `forgot_${(body?.email ?? req.ip ?? "unknown").toLowerCase()}`;
+    return `forgot_${(body?.email ?? "unknown").toLowerCase()}`;
   },
   validate: { xForwardedForHeader: false },
 });
@@ -112,6 +112,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(globalLimiter);
 app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/login", loginLimiter);
+app.use("/api/auth/forgot-password", forgotPasswordLimiter);
 app.use("/api/auth/change-password", passwordLimiter);
 app.use("/api/auth/resend-verification", resendVerificationLimiter);
 app.use("/api/notes/upload-url", uploadLimiter);

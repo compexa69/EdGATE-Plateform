@@ -8,13 +8,17 @@ const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME ?? "edtech-notes";
 // B2_ENDPOINT must match your bucket's region, e.g. https://s3.us-west-004.backblazeb2.com
 const B2_ENDPOINT = process.env.B2_ENDPOINT ?? "https://s3.us-east-005.backblazeb2.com";
 
+// Extract region slug from endpoint URL (e.g. "us-east-005" from "https://s3.us-east-005.backblazeb2.com")
+const B2_REGION = B2_ENDPOINT.replace("https://s3.", "").replace(".backblazeb2.com", "").split("/")[0] ?? "us-east-005";
+
 const s3Client = new S3Client({
   endpoint: B2_ENDPOINT,
-  region: "us-east-005",
+  region: B2_REGION,
   credentials: {
     accessKeyId: B2_APPLICATION_KEY_ID,
     secretAccessKey: B2_APPLICATION_KEY,
   },
+  forcePathStyle: true,
 });
 
 export async function getUploadSignedUrl(key: string, contentType: string): Promise<string> {
