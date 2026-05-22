@@ -16,3 +16,4 @@ export * from "./audit_logs";
 export * from "./qr_scan_logs";
 export * from "./inline_notes";
 export * from "./push_subscriptions";
+export * from "./revoked_tokens";

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Pause, Play, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Clock, Pause, Play, AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MathText } from "@/components/math-text";
 
@@ -358,6 +358,7 @@ export default function ExamInterface() {
   if (examLoading) return <div className="min-h-screen flex items-center justify-center">Loading exam...</div>;
   if (!exam) return <div className="min-h-screen flex items-center justify-center text-destructive">Exam not found</div>;
 
+  const isDrillMode = exam.type === "drill";
   const currentQ = exam.questions[currentQuestionIndex];
   const currentAns = answers[currentQ?.id] || { selectedOption: null, isMarkedForReview: false };
 
@@ -382,15 +383,29 @@ export default function ExamInterface() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6 shrink-0 z-10 sticky top-0">
-        <div className="font-bold text-lg hidden sm:block truncate max-w-sm">{exam.title}</div>
-        <div className={`flex items-center gap-2 font-mono text-xl font-bold px-4 py-1.5 rounded-md ${
-          isDangerTime ? 'bg-destructive/20 text-destructive' : 
-          isWarningTime ? 'bg-warning/20 text-warning' : 'bg-muted text-foreground'
-        }`}>
-          <Clock className="w-5 h-5" />
-          {timeLeft !== null ? formatTime(timeLeft) : "--:--:--"}
+      <header className={`h-16 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6 shrink-0 z-10 sticky top-0 ${isDrillMode ? 'border-b-2 border-b-amber-500/50' : ''}`}>
+        <div className="font-bold text-lg hidden sm:block truncate max-w-sm flex items-center gap-2">
+          {isDrillMode && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 mr-2 shrink-0">
+              <RefreshCw className="w-3 h-3" /> Drill Mode
+            </span>
+          )}
+          {exam.title}
         </div>
+        {isDrillMode ? (
+          <div className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <RefreshCw className="w-4 h-4" />
+            <span>Wrong-answer retry</span>
+          </div>
+        ) : (
+          <div className={`flex items-center gap-2 font-mono text-xl font-bold px-4 py-1.5 rounded-md ${
+            isDangerTime ? 'bg-destructive/20 text-destructive' :
+            isWarningTime ? 'bg-warning/20 text-warning' : 'bg-muted text-foreground'
+          }`}>
+            <Clock className="w-5 h-5" />
+            {timeLeft !== null ? formatTime(timeLeft) : "--:--:--"}
+          </div>
+        )}
         <div className="flex items-center gap-2 sm:gap-4">
           <Button
             variant="outline"

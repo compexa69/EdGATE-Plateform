@@ -12,6 +12,7 @@ export const notesTable = pgTable("notes", {
   fileSizeBytes: integer("file_size_bytes").notNull(),
   b2Key: text("b2_key").notNull(),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  annotations: text("annotations"),
 });
 
 export const insertNoteSchema = createInsertSchema(notesTable).omit({ id: true, uploadedAt: true });

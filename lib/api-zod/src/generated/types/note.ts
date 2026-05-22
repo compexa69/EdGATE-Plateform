@@ -15,4 +15,5 @@ export interface Note {
   fileSizeBytes: number;
   b2Key: string;
   uploadedAt: Date;
+  annotations?: string | null;
 }

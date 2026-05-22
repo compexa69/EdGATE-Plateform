@@ -504,7 +504,9 @@ function DeleteAccountModal({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 }
 
 export default function Profile() {
-  const { data: profile, isLoading, refetch } = useGetProfile();
+  const { data: profile, isLoading, refetch } = useGetProfile({
+    query: { staleTime: 10 * 60 * 1000, refetchOnWindowFocus: true },
+  });
   const updateProfileMutation = useUpdateProfile();
   const getUploadUrlMutation = useGetProfileUploadUrl();
   const removePhotoMutation = useRemoveProfilePhoto();

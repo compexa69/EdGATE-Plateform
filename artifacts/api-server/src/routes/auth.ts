@@ -16,6 +16,8 @@ import {
   hashPassword,
   comparePassword,
   requireAuth,
+  revokeToken,
+  verifyToken,
   getUserById,
 } from "../lib/auth";
 import {
@@ -148,7 +150,15 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   res.json({ user: formatUser(user), token });
 });
 
-router.post("/auth/logout", async (_req, res): Promise<void> => {
+router.post("/auth/logout", async (req, res): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const decoded = verifyToken(token);
+    if (decoded?.exp) {
+      await revokeToken(token, new Date(decoded.exp * 1000));
+    }
+  }
   res.json({ success: true, message: "Logged out" });
 });
 
@@ -286,21 +296,20 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.passwordResetToken, token));
-  if (!user) {
+  const hash = await hashPassword(newPassword);
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ passwordHash: hash, passwordResetToken: null, passwordResetExpiry: null })
+    .where(
+      eq(usersTable.passwordResetToken, token),
+    )
+    .returning({ id: usersTable.id, passwordResetExpiry: usersTable.passwordResetExpiry });
+
+  if (!updated) {
     res.status(400).json({ error: "Invalid or expired reset code" });
     return;
   }
-
-  if (user.passwordResetExpiry && user.passwordResetExpiry < new Date()) {
-    res.status(400).json({ error: "Reset code has expired. Please request a new one." });
-    return;
-  }
-
-  const hash = await hashPassword(newPassword);
-  await db.update(usersTable)
-    .set({ passwordHash: hash, passwordResetToken: null, passwordResetExpiry: null })
-    .where(eq(usersTable.id, user.id));
 
   res.json({ success: true, message: "Password reset successfully" });
 });

@@ -1016,6 +1016,52 @@ paths:
         "204":
           description: Deleted
 
+  /notes/{noteId}/annotations:
+    get:
+      operationId: getNoteAnnotations
+      tags: [notes]
+      summary: Get server-side annotations for a note
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Note annotations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteAnnotations"
+        "404":
+          description: Note not found
+    put:
+      operationId: saveNoteAnnotations
+      tags: [notes]
+      summary: Save server-side annotations for a note
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteAnnotationsInput"
+      responses:
+        "200":
+          description: Saved annotations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteAnnotations"
+        "404":
+          description: Note not found
+
   /notes/inline/{topicId}:
     get:
       operationId: getInlineNote
@@ -2652,6 +2698,9 @@ components:
         uploadedAt:
           type: string
           format: date-time
+        annotations:
+          type: string
+          nullable: true
       required:
         - id
         - userId
@@ -2661,6 +2710,29 @@ components:
         - fileSizeBytes
         - b2Key
         - uploadedAt
+
+    NoteAnnotations:
+      type: object
+      properties:
+        noteId:
+          type: string
+        annotations:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - noteId
+        - updatedAt
+
+    NoteAnnotationsInput:
+      type: object
+      properties:
+        annotations:
+          type: string
+      required:
+        - annotations
 
     # B2
     UploadUrlInput:

@@ -2,6 +2,8 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { sweepExpiredAttempts } from "./lib/exam-auto-submit";
 import { runStorageMonitor } from "./lib/storage-monitor";
+import { db, revokedTokensTable } from "@workspace/db";
+import { lt } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -36,6 +38,17 @@ app.listen(port, (err) => {
     setInterval(() => { runStorageMonitor(); }, STORAGE_CHECK_INTERVAL_MS);
   }, 30_000);
   logger.info({ intervalHours: 6 }, "Storage monitor scheduled");
+
+  // ── Revoked token cleanup — runs every hour ───────────────────────────────
+  const REVOKED_TOKEN_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      await db.delete(revokedTokensTable).where(lt(revokedTokensTable.expiresAt, new Date()));
+    } catch (cleanupErr) {
+      logger.warn({ err: cleanupErr }, "Failed to clean up expired revoked tokens");
+    }
+  }, REVOKED_TOKEN_CLEANUP_INTERVAL_MS);
+  logger.info("Revoked token cleanup scheduled (hourly)");
 
   // ── Daily cron: auto-task generation at 00:00 UTC (SRS FR-PLAN-01 / M-01) ─
   function scheduleDailyCron() {

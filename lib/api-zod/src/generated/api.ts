@@ -1052,7 +1052,8 @@ export const ListNotesResponseItem = zod.object({
   "fileName": zod.string(),
   "fileSizeBytes": zod.number(),
   "b2Key": zod.string(),
-  "uploadedAt": zod.coerce.date()
+  "uploadedAt": zod.coerce.date(),
+  "annotations": zod.string().nullish()
 })
 export const ListNotesResponse = zod.array(ListNotesResponseItem)
 
@@ -1062,6 +1063,38 @@ export const ListNotesResponse = zod.array(ListNotesResponseItem)
  */
 export const DeleteNoteParams = zod.object({
   "noteId": zod.coerce.string()
+})
+
+
+/**
+ * @summary Get server-side annotations for a note
+ */
+export const GetNoteAnnotationsParams = zod.object({
+  "noteId": zod.coerce.string()
+})
+
+export const GetNoteAnnotationsResponse = zod.object({
+  "noteId": zod.string(),
+  "annotations": zod.string().nullish(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Save server-side annotations for a note
+ */
+export const SaveNoteAnnotationsParams = zod.object({
+  "noteId": zod.coerce.string()
+})
+
+export const SaveNoteAnnotationsBody = zod.object({
+  "annotations": zod.string()
+})
+
+export const SaveNoteAnnotationsResponse = zod.object({
+  "noteId": zod.string(),
+  "annotations": zod.string().nullish(),
+  "updatedAt": zod.coerce.date()
 })
 
 

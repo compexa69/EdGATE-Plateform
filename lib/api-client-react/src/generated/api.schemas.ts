@@ -621,6 +621,17 @@ export interface Note {
   fileSizeBytes: number;
   b2Key: string;
   uploadedAt: string;
+  annotations?: string | null;
+}
+
+export interface NoteAnnotations {
+  noteId: string;
+  annotations?: string | null;
+  updatedAt: string;
+}
+
+export interface NoteAnnotationsInput {
+  annotations: string;
 }
 
 export interface UploadUrlInput {

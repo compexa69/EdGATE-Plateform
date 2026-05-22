@@ -71,6 +71,37 @@ router.get("/notes", requireApproved, async (req, res): Promise<void> => {
   res.json(result);
 });
 
+router.get("/notes/:noteId/annotations", requireApproved, async (req, res): Promise<void> => {
+  const noteId = String(req.params.noteId);
+  const [note] = await db.select().from(notesTable)
+    .where(and(eq(notesTable.id, noteId), eq(notesTable.userId, req.user!.id)));
+  if (!note) {
+    res.status(404).json({ error: "Note not found" });
+    return;
+  }
+  res.json({ noteId, annotations: note.annotations ?? null, updatedAt: note.uploadedAt.toISOString() });
+});
+
+router.put("/notes/:noteId/annotations", requireApproved, async (req, res): Promise<void> => {
+  const noteId = String(req.params.noteId);
+  const { annotations } = req.body as { annotations?: string };
+  if (typeof annotations !== "string") {
+    res.status(400).json({ error: "annotations (string) is required" });
+    return;
+  }
+  const [note] = await db.select().from(notesTable)
+    .where(and(eq(notesTable.id, noteId), eq(notesTable.userId, req.user!.id)));
+  if (!note) {
+    res.status(404).json({ error: "Note not found" });
+    return;
+  }
+  const [updated] = await db.update(notesTable)
+    .set({ annotations })
+    .where(eq(notesTable.id, noteId))
+    .returning();
+  res.json({ noteId, annotations: updated.annotations ?? null, updatedAt: updated.uploadedAt.toISOString() });
+});
+
 router.delete("/notes/:noteId", requireApproved, async (req, res): Promise<void> => {
   const params = DeleteNoteParams.safeParse(req.params);
   if (!params.success) {

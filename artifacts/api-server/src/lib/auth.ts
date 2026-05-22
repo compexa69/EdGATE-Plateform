@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import { createHash } from "crypto";
 import { type Request, type Response, type NextFunction } from "express";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, revokedTokensTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-me";
@@ -18,12 +19,33 @@ export function signToken(user: AuthUser): string {
   return jwt.sign(user, JWT_SECRET, { expiresIn: "30d" });
 }
 
-export function verifyToken(token: string): AuthUser | null {
+export function verifyToken(token: string): (AuthUser & { iat?: number; exp?: number }) | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as AuthUser;
+    return jwt.verify(token, JWT_SECRET) as AuthUser & { iat?: number; exp?: number };
   } catch {
     return null;
   }
+}
+
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function revokeToken(token: string, expiresAt: Date): Promise<void> {
+  const tokenHash = hashToken(token);
+  await db
+    .insert(revokedTokensTable)
+    .values({ tokenHash, expiresAt })
+    .onConflictDoNothing();
+}
+
+export async function isTokenRevoked(token: string): Promise<boolean> {
+  const tokenHash = hashToken(token);
+  const [row] = await db
+    .select({ tokenHash: revokedTokensTable.tokenHash })
+    .from(revokedTokensTable)
+    .where(eq(revokedTokensTable.tokenHash, tokenHash));
+  return !!row;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -34,7 +56,7 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Unauthorized" });
@@ -44,6 +66,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   const user = verifyToken(token);
   if (!user) {
     res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+  const revoked = await isTokenRevoked(token);
+  if (revoked) {
+    res.status(401).json({ error: "Token has been revoked" });
     return;
   }
   req.user = user;

@@ -59,6 +59,8 @@ import type {
   LoginInput,
   MessageResponse,
   Note,
+  NoteAnnotations,
+  NoteAnnotationsInput,
   PauseExamInput,
   PerformancePoint,
   PomodoroSession,
@@ -3858,6 +3860,155 @@ export const useDeleteNote = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteNoteMutationOptions(options));
+    }
+
+export const getGetNoteAnnotationsUrl = (noteId: string,) => {
+
+
+
+
+  return `/api/notes/${noteId}/annotations`
+}
+
+/**
+ * @summary Get server-side annotations for a note
+ */
+export const getNoteAnnotations = async (noteId: string, options?: RequestInit): Promise<NoteAnnotations> => {
+
+  return customFetch<NoteAnnotations>(getGetNoteAnnotationsUrl(noteId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNoteAnnotationsQueryKey = (noteId: string,) => {
+    return [
+    `/api/notes/${noteId}/annotations`
+    ] as const;
+    }
+
+
+export const getGetNoteAnnotationsQueryOptions = <TData = Awaited<ReturnType<typeof getNoteAnnotations>>, TError = ErrorType<void>>(noteId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNoteAnnotations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNoteAnnotationsQueryKey(noteId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNoteAnnotations>>> = ({ signal }) => getNoteAnnotations(noteId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(noteId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNoteAnnotations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNoteAnnotationsQueryResult = NonNullable<Awaited<ReturnType<typeof getNoteAnnotations>>>
+export type GetNoteAnnotationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get server-side annotations for a note
+ */
+
+export function useGetNoteAnnotations<TData = Awaited<ReturnType<typeof getNoteAnnotations>>, TError = ErrorType<void>>(
+ noteId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNoteAnnotations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNoteAnnotationsQueryOptions(noteId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSaveNoteAnnotationsUrl = (noteId: string,) => {
+
+
+
+
+  return `/api/notes/${noteId}/annotations`
+}
+
+/**
+ * @summary Save server-side annotations for a note
+ */
+export const saveNoteAnnotations = async (noteId: string,
+    noteAnnotationsInput: NoteAnnotationsInput, options?: RequestInit): Promise<NoteAnnotations> => {
+
+  return customFetch<NoteAnnotations>(getSaveNoteAnnotationsUrl(noteId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      noteAnnotationsInput,)
+  }
+);}
+
+
+
+
+export const getSaveNoteAnnotationsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveNoteAnnotations>>, TError,{noteId: string;data: BodyType<NoteAnnotationsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveNoteAnnotations>>, TError,{noteId: string;data: BodyType<NoteAnnotationsInput>}, TContext> => {
+
+const mutationKey = ['saveNoteAnnotations'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveNoteAnnotations>>, {noteId: string;data: BodyType<NoteAnnotationsInput>}> = (props) => {
+          const {noteId,data} = props ?? {};
+
+          return  saveNoteAnnotations(noteId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveNoteAnnotationsMutationResult = NonNullable<Awaited<ReturnType<typeof saveNoteAnnotations>>>
+    export type SaveNoteAnnotationsMutationBody = BodyType<NoteAnnotationsInput>
+    export type SaveNoteAnnotationsMutationError = ErrorType<void>
+
+    /**
+ * @summary Save server-side annotations for a note
+ */
+export const useSaveNoteAnnotations = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveNoteAnnotations>>, TError,{noteId: string;data: BodyType<NoteAnnotationsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveNoteAnnotations>>,
+        TError,
+        {noteId: string;data: BodyType<NoteAnnotationsInput>},
+        TContext
+      > => {
+      return useMutation(getSaveNoteAnnotationsMutationOptions(options));
     }
 
 export const getGetInlineNoteUrl = (topicId: string,) => {
