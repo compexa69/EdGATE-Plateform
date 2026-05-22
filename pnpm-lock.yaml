@@ -287,6 +287,9 @@ importers:
       '@sentry/react':
         specifier: ^10.53.1
         version: 10.53.1(react@19.1.0)
+      '@supabase/supabase-js':
+        specifier: ^2.106.1
+        version: 2.106.1
       katex:
         specifier: ^0.16.47
         version: 0.16.47

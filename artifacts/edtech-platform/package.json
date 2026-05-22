@@ -79,6 +79,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@sentry/react": "^10.53.1",
+    "@supabase/supabase-js": "^2.106.1",
     "katex": "^0.16.47"
   }
 }
