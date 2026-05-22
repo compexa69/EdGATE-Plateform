@@ -61,6 +61,30 @@ const resendVerificationLimiter = rateLimit({
   },
   validate: { xForwardedForHeader: false },
 });
+
+// 20 attempts per 15 min — blocks credential-stuffing while allowing legitimate users
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts from this IP. Please try again in 15 minutes." },
+  skipSuccessfulRequests: true,
+});
+
+// 5 reset emails per hour per IP — prevents email-flooding abuse
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many password reset requests. Please try again in an hour." },
+  keyGenerator: (req) => {
+    const body = req.body as { email?: string };
+    return `forgot_${(body?.email ?? req.ip ?? "unknown").toLowerCase()}`;
+  },
+  validate: { xForwardedForHeader: false },
+});
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(

@@ -2,11 +2,11 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "./logger";
 
-const B2_ACCOUNT_ID = process.env.B2_ACCOUNT_ID ?? "";
 const B2_APPLICATION_KEY_ID = process.env.B2_APPLICATION_KEY_ID ?? "";
 const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY ?? "";
 const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME ?? "edtech-notes";
-const B2_ENDPOINT = `https://s3.us-east-005.backblazeb2.com`;
+// B2_ENDPOINT must match your bucket's region, e.g. https://s3.us-west-004.backblazeb2.com
+const B2_ENDPOINT = process.env.B2_ENDPOINT ?? "https://s3.us-east-005.backblazeb2.com";
 
 const s3Client = new S3Client({
   endpoint: B2_ENDPOINT,
