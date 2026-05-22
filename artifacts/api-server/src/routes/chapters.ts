@@ -1,6 +1,4 @@
 import { Router, type IRouter } from "express";
-import { db, chaptersTable, topicsTable, topicProgressTable, examsTable, examResultsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListChaptersParams,
@@ -12,36 +10,47 @@ import {
   DeleteChapterParams,
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
-async function buildChapterResponse(ch: typeof chaptersTable.$inferSelect, userId: string) {
-  const topics = await db.select().from(topicsTable).where(eq(topicsTable.chapterId, ch.id));
+async function buildChapterResponse(ch: Record<string, any>, userId: string) {
+  const { data: topics } = await supabase.from("topics").select("id").eq("chapter_id", ch.id);
   let completedTopics = 0;
-  for (const t of topics) {
-    const [prog] = await db.select().from(topicProgressTable)
-      .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, userId)));
-    if (prog?.topicTestPassed) completedTopics++;
+  for (const t of topics ?? []) {
+    const { data: prog } = await supabase.from("topic_progress")
+      .select("topic_test_passed")
+      .eq("topic_id", t.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (prog?.topic_test_passed) completedTopics++;
   }
-  const progressPercent = topics.length > 0 ? Math.round((completedTopics / topics.length) * 100) : 0;
-  const allComplete = topics.length > 0 && completedTopics === topics.length;
+  const totalTopics = topics?.length ?? 0;
+  const progressPercent = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
+  const allComplete = totalTopics > 0 && completedTopics === totalTopics;
 
-  const [chapterExam] = await db.select().from(examsTable)
-    .where(and(eq(examsTable.chapterId, ch.id), eq(examsTable.type, "chapter_test")));
+  const { data: chapterExam } = await supabase.from("exams")
+    .select("id")
+    .eq("chapter_id", ch.id)
+    .eq("type", "chapter_test")
+    .maybeSingle();
   let chapterTestAttempted = false;
   if (chapterExam) {
-    const [result] = await db.select().from(examResultsTable)
-      .where(and(eq(examResultsTable.examId, chapterExam.id), eq(examResultsTable.userId, userId)));
+    const { data: result } = await supabase.from("exam_results")
+      .select("id")
+      .eq("exam_id", chapterExam.id)
+      .eq("user_id", userId)
+      .maybeSingle();
     chapterTestAttempted = !!result;
   }
 
   return {
     id: ch.id,
-    subjectId: ch.subjectId,
+    subjectId: ch.subject_id,
     name: ch.name,
     description: ch.description ?? null,
     order: ch.order,
-    totalTopics: topics.length,
+    totalTopics,
     completedTopics,
     progressPercent,
     gateStatus: allComplete ? "completed" : "unlocked",
@@ -57,11 +66,12 @@ router.get("/subjects/:subjectId/chapters", requireApproved, async (req, res): P
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const chapters = await db.select().from(chaptersTable)
-    .where(eq(chaptersTable.subjectId, params.data.subjectId))
-    .orderBy(chaptersTable.order);
+  const { data: chapters } = await supabase.from("chapters")
+    .select("*")
+    .eq("subject_id", params.data.subjectId)
+    .order("order");
 
-  const result = await Promise.all(chapters.map((ch) => buildChapterResponse(ch, req.user!.id)));
+  const result = await Promise.all((chapters ?? []).map((ch) => buildChapterResponse(ch, req.user!.id)));
   res.json(result);
 });
 
@@ -77,14 +87,16 @@ router.post("/subjects/:subjectId/chapters", requireAdmin, async (req, res): Pro
     return;
   }
 
-  const [chapter] = await db.insert(chaptersTable).values({
+  const { data: chapter } = await supabase.from("chapters").insert({
     id: nanoid(),
-    subjectId: params.data.subjectId,
-    ...parsed.data,
-  }).returning();
+    subject_id: params.data.subjectId,
+    name: parsed.data.name,
+    description: (parsed.data as any).description ?? null,
+    order: parsed.data.order,
+  }).select().single();
 
   res.status(201).json({
-    id: chapter.id, subjectId: chapter.subjectId, name: chapter.name,
+    id: chapter.id, subjectId: chapter.subject_id, name: chapter.name,
     description: chapter.description ?? null, order: chapter.order,
     totalTopics: 0, completedTopics: 0, progressPercent: 0,
     gateStatus: "unlocked", chapterTestUnlocked: false, notesUploadUnlocked: false,
@@ -98,31 +110,32 @@ router.get("/chapters/:chapterId", requireApproved, async (req, res): Promise<vo
     return;
   }
 
-  const [chapter] = await db.select().from(chaptersTable).where(eq(chaptersTable.id, params.data.chapterId));
+  const { data: chapter } = await supabase.from("chapters").select("*").eq("id", params.data.chapterId).maybeSingle();
   if (!chapter) {
     res.status(404).json({ error: "Chapter not found" });
     return;
   }
 
-  const topics = await db.select().from(topicsTable)
-    .where(eq(topicsTable.chapterId, chapter.id))
-    .orderBy(topicsTable.order);
+  const { data: topics } = await supabase.from("topics").select("*").eq("chapter_id", chapter.id).order("order");
 
-  const topicsWithProgress = await Promise.all(topics.map(async (t) => {
-    const [prog] = await db.select().from(topicProgressTable)
-      .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, req.user!.id)));
+  const topicsWithProgress = await Promise.all((topics ?? []).map(async (t) => {
+    const { data: prog } = await supabase.from("topic_progress")
+      .select("*")
+      .eq("topic_id", t.id)
+      .eq("user_id", req.user!.id)
+      .maybeSingle();
     return {
-      id: t.id, chapterId: t.chapterId, name: t.name,
+      id: t.id, chapterId: t.chapter_id, name: t.name,
       description: t.description ?? null, order: t.order,
-      telegramChatId: t.telegramChatId ?? null,
-      telegramMessageId: t.telegramMessageId ?? null,
-      lectureQuizPassed: prog?.lectureQuizPassed ?? false,
-      dppCompleted: prog?.dppCompleted ?? false,
-      pyqCompleted: prog?.pyqCompleted ?? false,
-      topicTestPassed: prog?.topicTestPassed ?? false,
-      isComplete: prog?.topicTestPassed ?? false,
-      gateStatus: prog?.topicTestPassed ? "completed" : "unlocked",
-      lectureClickCount: prog?.lectureClickCount ?? 0,
+      telegramChatId: t.telegram_chat_id ?? null,
+      telegramMessageId: t.telegram_message_id ?? null,
+      lectureQuizPassed: prog?.lecture_quiz_passed ?? false,
+      dppCompleted: prog?.dpp_completed ?? false,
+      pyqCompleted: prog?.pyq_completed ?? false,
+      topicTestPassed: prog?.topic_test_passed ?? false,
+      isComplete: prog?.topic_test_passed ?? false,
+      gateStatus: prog?.topic_test_passed ? "completed" : "unlocked",
+      lectureClickCount: prog?.lecture_click_count ?? 0,
     };
   }));
 
@@ -142,10 +155,16 @@ router.patch("/chapters/:chapterId", requireAdmin, async (req, res): Promise<voi
     return;
   }
 
-  const [chapter] = await db.update(chaptersTable)
-    .set(parsed.data)
-    .where(eq(chaptersTable.id, params.data.chapterId))
-    .returning();
+  const updates: Record<string, any> = {};
+  if ((parsed.data as any).name != null) updates.name = (parsed.data as any).name;
+  if ((parsed.data as any).description != null) updates.description = (parsed.data as any).description;
+  if ((parsed.data as any).order != null) updates.order = (parsed.data as any).order;
+
+  const { data: chapter } = await supabase.from("chapters")
+    .update(updates)
+    .eq("id", params.data.chapterId)
+    .select()
+    .maybeSingle();
 
   if (!chapter) {
     res.status(404).json({ error: "Chapter not found" });
@@ -153,7 +172,7 @@ router.patch("/chapters/:chapterId", requireAdmin, async (req, res): Promise<voi
   }
 
   res.json({
-    id: chapter.id, subjectId: chapter.subjectId, name: chapter.name,
+    id: chapter.id, subjectId: chapter.subject_id, name: chapter.name,
     description: chapter.description ?? null, order: chapter.order,
     totalTopics: 0, completedTopics: 0, progressPercent: 0,
     gateStatus: "unlocked", chapterTestUnlocked: false, chapterTestExamId: null, notesUploadUnlocked: false,
@@ -167,7 +186,7 @@ router.delete("/chapters/:chapterId", requireAdmin, async (req, res): Promise<vo
     return;
   }
 
-  await db.delete(chaptersTable).where(eq(chaptersTable.id, params.data.chapterId));
+  await supabase.from("chapters").delete().eq("id", params.data.chapterId);
   res.sendStatus(204);
 });
 

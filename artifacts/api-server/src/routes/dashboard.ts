@@ -1,32 +1,25 @@
 import { Router, type IRouter } from "express";
-import {
-  db, usersTable, subjectsTable, chaptersTable, topicsTable,
-  topicProgressTable, examResultsTable, examsTable, pomodoroSessionsTable,
-  studyTasksTable, externalTestsTable,
-} from "@workspace/db";
-import { eq, and, gte, inArray, desc } from "drizzle-orm";
 import { requireApproved } from "../lib/auth";
 import { formatUser } from "./auth";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
 async function computeWeakTopics(userId: string, filterTopicIds?: Set<string>) {
-  const results = await db.select().from(examResultsTable)
-    .where(eq(examResultsTable.userId, userId));
-  if (results.length === 0) return [];
+  const { data: results } = await supabase.from("exam_results").select("*").eq("user_id", userId);
+  if (!results || results.length === 0) return [];
 
-  const examIds = [...new Set(results.map((r) => r.examId))];
-  const exams = await db.select().from(examsTable)
-    .where(inArray(examsTable.id, examIds));
+  const examIds = [...new Set(results.map((r) => r.exam_id))];
+  const { data: exams } = await supabase.from("exams").select("id, topic_id").in("id", examIds);
 
   const topicAccuracies = new Map<string, number[]>();
   for (const r of results) {
-    const exam = exams.find((e) => e.id === r.examId);
-    if (!exam?.topicId) continue;
-    if (filterTopicIds && !filterTopicIds.has(exam.topicId)) continue;
-    const arr = topicAccuracies.get(exam.topicId) ?? [];
+    const ex = (exams ?? []).find((e) => e.id === r.exam_id);
+    if (!ex?.topic_id) continue;
+    if (filterTopicIds && !filterTopicIds.has(ex.topic_id)) continue;
+    const arr = topicAccuracies.get(ex.topic_id) ?? [];
     arr.push(r.accuracy);
-    topicAccuracies.set(exam.topicId, arr);
+    topicAccuracies.set(ex.topic_id, arr);
   }
 
   const weakTopicIds = Array.from(topicAccuracies.entries())
@@ -35,22 +28,19 @@ async function computeWeakTopics(userId: string, filterTopicIds?: Set<string>) {
 
   if (weakTopicIds.length === 0) return [];
 
-  const topics = await db.select().from(topicsTable)
-    .where(inArray(topicsTable.id, weakTopicIds));
-  const chapterIds = [...new Set(topics.map((t) => t.chapterId))];
-  const chapters = await db.select().from(chaptersTable)
-    .where(inArray(chaptersTable.id, chapterIds));
-  const subjectIds = [...new Set(chapters.map((c) => c.subjectId))];
-  const subjects = await db.select().from(subjectsTable)
-    .where(inArray(subjectsTable.id, subjectIds));
+  const { data: topics } = await supabase.from("topics").select("id, name, chapter_id").in("id", weakTopicIds);
+  const chapterIds = [...new Set((topics ?? []).map((t) => t.chapter_id))];
+  const { data: chapters } = await supabase.from("chapters").select("id, name, subject_id").in("id", chapterIds);
+  const subjectIds = [...new Set((chapters ?? []).map((c) => c.subject_id))];
+  const { data: subjects } = await supabase.from("subjects").select("id, name").in("id", subjectIds);
 
-  const chapterMap = new Map(chapters.map((c) => [c.id, c]));
-  const subjectMap = new Map(subjects.map((s) => [s.id, s]));
+  const chapterMap = new Map((chapters ?? []).map((c) => [c.id, c]));
+  const subjectMap = new Map((subjects ?? []).map((s) => [s.id, s]));
 
-  return topics.map((t) => {
+  return (topics ?? []).map((t) => {
     const accs = topicAccuracies.get(t.id) ?? [];
-    const chapter = chapterMap.get(t.chapterId);
-    const subject = chapter ? subjectMap.get(chapter.subjectId) : undefined;
+    const chapter = chapterMap.get(t.chapter_id);
+    const subject = chapter ? subjectMap.get(chapter.subject_id) : undefined;
     return {
       topicId: t.id,
       topicName: t.name,
@@ -66,30 +56,31 @@ async function computeNextAction(userId: string): Promise<{
   nextAction: string | null;
   nextActionTarget: string | null;
 }> {
-  const subjects = await db.select().from(subjectsTable).orderBy(subjectsTable.order);
-  for (const s of subjects) {
-    const chapters = await db.select().from(chaptersTable)
-      .where(eq(chaptersTable.subjectId, s.id)).orderBy(chaptersTable.order);
-    for (const ch of chapters) {
-      const topics = await db.select().from(topicsTable)
-        .where(eq(topicsTable.chapterId, ch.id)).orderBy(topicsTable.order);
-      for (const t of topics) {
-        const [prog] = await db.select().from(topicProgressTable)
-          .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, userId)));
+  const { data: subjects } = await supabase.from("subjects").select("id").order("order");
+  for (const s of subjects ?? []) {
+    const { data: chapters } = await supabase.from("chapters").select("id").eq("subject_id", s.id).order("order");
+    for (const ch of chapters ?? []) {
+      const { data: topics } = await supabase.from("topics").select("id, name").eq("chapter_id", ch.id).order("order");
+      for (const t of topics ?? []) {
+        const { data: prog } = await supabase.from("topic_progress")
+          .select("*")
+          .eq("topic_id", t.id)
+          .eq("user_id", userId)
+          .maybeSingle();
         const target = `/topics/${t.id}`;
-        if (!prog || prog.lectureClickCount === 0) {
+        if (!prog || prog.lecture_click_count === 0) {
           return { nextAction: `Watch Lecture: ${t.name}`, nextActionTarget: target };
         }
-        if (!prog.lectureQuizPassed) {
+        if (!prog.lecture_quiz_passed) {
           return { nextAction: `Complete Lecture Quiz: ${t.name}`, nextActionTarget: target };
         }
-        if (!prog.dppCompleted) {
+        if (!prog.dpp_completed) {
           return { nextAction: `Complete DPP: ${t.name}`, nextActionTarget: target };
         }
-        if (!prog.pyqCompleted) {
+        if (!prog.pyq_completed) {
           return { nextAction: `Complete PYQs: ${t.name}`, nextActionTarget: target };
         }
-        if (!prog.topicTestPassed) {
+        if (!prog.topic_test_passed) {
           return { nextAction: `Take Topic Test: ${t.name}`, nextActionTarget: target };
         }
       }
@@ -99,21 +90,24 @@ async function computeNextAction(userId: string): Promise<{
 }
 
 router.get("/dashboard/summary", requireApproved, async (req, res): Promise<void> => {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.id));
+  const { data: user } = await supabase.from("users").select("*").eq("id", req.user!.id).maybeSingle();
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const pomSessions = await db.select().from(pomodoroSessionsTable)
-    .where(and(eq(pomodoroSessionsTable.userId, req.user!.id), gte(pomodoroSessionsTable.startTime, today)));
+  const { data: pomSessions } = await supabase.from("pomodoro_sessions")
+    .select("duration_seconds")
+    .eq("user_id", req.user!.id)
+    .gte("start_time", today.toISOString());
   const todayFocusMinutes = Math.round(
-    pomSessions.reduce((sum, s) => sum + s.durationSeconds, 0) / 60
+    (pomSessions ?? []).reduce((sum, s) => sum + s.duration_seconds, 0) / 60
   );
 
-  const allSessions = await db.select().from(pomodoroSessionsTable)
-    .where(eq(pomodoroSessionsTable.userId, req.user!.id));
-  const uniqueDays = new Set(allSessions.map((s) => s.startTime.toDateString()));
+  const { data: allSessions } = await supabase.from("pomodoro_sessions")
+    .select("start_time")
+    .eq("user_id", req.user!.id);
+  const uniqueDays = new Set((allSessions ?? []).map((s) => new Date(s.start_time).toDateString()));
   const dayList = Array.from(uniqueDays).sort().reverse();
   let streak = 0;
   const checkDate = new Date(today);
@@ -124,22 +118,25 @@ router.get("/dashboard/summary", requireApproved, async (req, res): Promise<void
     } else break;
   }
 
-  const subjects = await db.select().from(subjectsTable);
+  const { data: subjects } = await supabase.from("subjects").select("id");
   let completedSubjects = 0;
   let totalTopics = 0;
   let completedTopics = 0;
 
-  for (const s of subjects) {
-    const chapters = await db.select().from(chaptersTable).where(eq(chaptersTable.subjectId, s.id));
-    let subjectComplete = chapters.length > 0;
-    for (const ch of chapters) {
-      const topics = await db.select().from(topicsTable).where(eq(topicsTable.chapterId, ch.id));
-      totalTopics += topics.length;
-      let chapterComplete = topics.length > 0;
-      for (const t of topics) {
-        const [prog] = await db.select().from(topicProgressTable)
-          .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, req.user!.id)));
-        if (prog?.topicTestPassed) completedTopics++;
+  for (const s of subjects ?? []) {
+    const { data: chapters } = await supabase.from("chapters").select("id").eq("subject_id", s.id);
+    let subjectComplete = (chapters?.length ?? 0) > 0;
+    for (const ch of chapters ?? []) {
+      const { data: topics } = await supabase.from("topics").select("id").eq("chapter_id", ch.id);
+      totalTopics += topics?.length ?? 0;
+      let chapterComplete = (topics?.length ?? 0) > 0;
+      for (const t of topics ?? []) {
+        const { data: prog } = await supabase.from("topic_progress")
+          .select("topic_test_passed")
+          .eq("topic_id", t.id)
+          .eq("user_id", req.user!.id)
+          .maybeSingle();
+        if (prog?.topic_test_passed) completedTopics++;
         else chapterComplete = false;
       }
       if (!chapterComplete) subjectComplete = false;
@@ -149,26 +146,26 @@ router.get("/dashboard/summary", requireApproved, async (req, res): Promise<void
 
   const overallProgressPercent = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
 
-  const recentResults = await db.select().from(examResultsTable)
-    .where(eq(examResultsTable.userId, req.user!.id));
+  const { data: recentResults } = await supabase.from("exam_results")
+    .select("*")
+    .eq("user_id", req.user!.id);
 
-  const recentFormatted = await Promise.all(recentResults.slice(-5).map(async (r) => {
-    const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, r.examId));
+  const recentFormatted = await Promise.all((recentResults ?? []).slice(-5).map(async (r) => {
+    const { data: ex } = await supabase.from("exams").select("title, type").eq("id", r.exam_id).maybeSingle();
     return {
-      id: r.id, examId: r.examId, examTitle: exam?.title ?? "Unknown",
-      examType: exam?.type ?? "grand_test",
-      score: r.score, maxScore: r.maxScore, accuracy: r.accuracy,
-      passed: r.passed, submittedAt: r.submittedAt.toISOString(),
+      id: r.id, examId: r.exam_id, examTitle: ex?.title ?? "Unknown",
+      examType: ex?.type ?? "grand_test",
+      score: r.score, maxScore: r.max_score, accuracy: r.accuracy,
+      passed: r.passed, submittedAt: r.submitted_at,
     };
   }));
 
   const today2 = new Date().toISOString().split("T")[0];
-  const pendingTasksArr = await db.select().from(studyTasksTable)
-    .where(and(
-      eq(studyTasksTable.userId, req.user!.id),
-      eq(studyTasksTable.scheduledDate, today2),
-      eq(studyTasksTable.status, "pending")
-    ));
+  const { data: pendingTasksArr } = await supabase.from("study_tasks")
+    .select("id")
+    .eq("user_id", req.user!.id)
+    .eq("scheduled_date", today2)
+    .eq("status", "pending");
 
   const { nextAction, nextActionTarget } = await computeNextAction(req.user!.id);
 
@@ -179,10 +176,10 @@ router.get("/dashboard/summary", requireApproved, async (req, res): Promise<void
     focusGoalMinutes: 120,
     overallProgressPercent,
     completedSubjects,
-    totalSubjects: subjects.length,
+    totalSubjects: subjects?.length ?? 0,
     nextAction,
     nextActionTarget,
-    pendingTasks: pendingTasksArr.length,
+    pendingTasks: pendingTasksArr?.length ?? 0,
     recentResults: recentFormatted,
   });
 });
@@ -193,14 +190,14 @@ router.get("/dashboard/weak-topics", requireApproved, async (req, res): Promise<
 });
 
 router.get("/dashboard/performance-trend", requireApproved, async (req, res): Promise<void> => {
-  const [internalResults, externalResults] = await Promise.all([
-    db.select().from(examResultsTable).where(eq(examResultsTable.userId, req.user!.id)),
-    db.select().from(externalTestsTable).where(eq(externalTestsTable.userId, req.user!.id)),
+  const [{ data: internalResults }, { data: externalResults }] = await Promise.all([
+    supabase.from("exam_results").select("*").eq("user_id", req.user!.id),
+    supabase.from("external_tests").select("*").eq("user_id", req.user!.id),
   ]);
 
   const byDate = new Map<string, { total: number; count: number }>();
-  for (const r of internalResults) {
-    const date = r.submittedAt.toISOString().split("T")[0];
+  for (const r of internalResults ?? []) {
+    const date = new Date(r.submitted_at).toISOString().split("T")[0];
     const existing = byDate.get(date) ?? { total: 0, count: 0 };
     existing.total += r.accuracy;
     existing.count++;
@@ -208,13 +205,13 @@ router.get("/dashboard/performance-trend", requireApproved, async (req, res): Pr
   }
 
   const externalByDate = new Map<string, { score: number; maxScore: number; examName: string }>();
-  for (const e of externalResults) {
-    const date = e.attemptedAt.toISOString().split("T")[0];
+  for (const e of externalResults ?? []) {
+    const date = new Date(e.attempted_at).toISOString().split("T")[0];
     if (!externalByDate.has(date)) {
       externalByDate.set(date, {
         score: e.score,
-        maxScore: e.maxScore,
-        examName: e.examName,
+        maxScore: e.max_score,
+        examName: e.exam_name,
       });
     }
   }
@@ -238,28 +235,31 @@ router.get("/dashboard/performance-trend", requireApproved, async (req, res): Pr
 });
 
 router.get("/progress/summary", requireApproved, async (req, res): Promise<void> => {
-  const subjects = await db.select().from(subjectsTable);
-  let totalSubjects = subjects.length;
+  const { data: subjects } = await supabase.from("subjects").select("id");
+  let totalSubjects = subjects?.length ?? 0;
   let completedSubjects = 0;
   let totalChapters = 0;
   let completedChapters = 0;
   let totalTopics = 0;
   let completedTopics = 0;
 
-  for (const s of subjects) {
-    const chapters = await db.select().from(chaptersTable).where(eq(chaptersTable.subjectId, s.id));
-    totalChapters += chapters.length;
-    let subjectDone = chapters.length > 0;
+  for (const s of subjects ?? []) {
+    const { data: chapters } = await supabase.from("chapters").select("id").eq("subject_id", s.id);
+    totalChapters += chapters?.length ?? 0;
+    let subjectDone = (chapters?.length ?? 0) > 0;
 
-    for (const ch of chapters) {
-      const topics = await db.select().from(topicsTable).where(eq(topicsTable.chapterId, ch.id));
-      totalTopics += topics.length;
-      let chapterDone = topics.length > 0;
+    for (const ch of chapters ?? []) {
+      const { data: topics } = await supabase.from("topics").select("id").eq("chapter_id", ch.id);
+      totalTopics += topics?.length ?? 0;
+      let chapterDone = (topics?.length ?? 0) > 0;
 
-      for (const t of topics) {
-        const [prog] = await db.select().from(topicProgressTable)
-          .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, req.user!.id)));
-        if (prog?.topicTestPassed) completedTopics++;
+      for (const t of topics ?? []) {
+        const { data: prog } = await supabase.from("topic_progress")
+          .select("topic_test_passed")
+          .eq("topic_id", t.id)
+          .eq("user_id", req.user!.id)
+          .maybeSingle();
+        if (prog?.topic_test_passed) completedTopics++;
         else chapterDone = false;
       }
 
@@ -272,15 +272,18 @@ router.get("/progress/summary", requireApproved, async (req, res): Promise<void>
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const pomSessions = await db.select().from(pomodoroSessionsTable)
-    .where(and(eq(pomodoroSessionsTable.userId, req.user!.id), gte(pomodoroSessionsTable.startTime, today)));
+  const { data: pomSessions } = await supabase.from("pomodoro_sessions")
+    .select("duration_seconds")
+    .eq("user_id", req.user!.id)
+    .gte("start_time", today.toISOString());
   const totalFocusMinutesToday = Math.round(
-    pomSessions.reduce((sum, s) => sum + s.durationSeconds, 0) / 60
+    (pomSessions ?? []).reduce((sum, s) => sum + s.duration_seconds, 0) / 60
   );
 
-  const allSessions = await db.select().from(pomodoroSessionsTable)
-    .where(eq(pomodoroSessionsTable.userId, req.user!.id));
-  const uniqueDays = new Set(allSessions.map((s) => s.startTime.toDateString()));
+  const { data: allSessions } = await supabase.from("pomodoro_sessions")
+    .select("start_time")
+    .eq("user_id", req.user!.id);
+  const uniqueDays = new Set((allSessions ?? []).map((s) => new Date(s.start_time).toDateString()));
   const dayList = Array.from(uniqueDays).sort().reverse();
   let focusStreakDays = 0;
   const checkDate = new Date(today);
@@ -305,24 +308,27 @@ router.get("/progress/summary", requireApproved, async (req, res): Promise<void>
 });
 
 router.get("/progress/subject/:subjectId", requireApproved, async (req, res): Promise<void> => {
-  const subjectId = Array.isArray(req.params.subjectId) ? req.params.subjectId[0] : req.params.subjectId;
+  const subjectId = String(req.params.subjectId);
 
-  const [subject] = await db.select().from(subjectsTable).where(eq(subjectsTable.id, subjectId));
+  const { data: subject } = await supabase.from("subjects").select("*").eq("id", subjectId).maybeSingle();
   if (!subject) { res.status(404).json({ error: "Subject not found" }); return; }
 
-  const chapters = await db.select().from(chaptersTable).where(eq(chaptersTable.subjectId, subjectId));
+  const { data: chapters } = await supabase.from("chapters").select("id").eq("subject_id", subjectId);
   let totalTopics = 0;
   let completedTopics = 0;
   const subjectTopicIds = new Set<string>();
 
-  for (const ch of chapters) {
-    const topics = await db.select().from(topicsTable).where(eq(topicsTable.chapterId, ch.id));
-    totalTopics += topics.length;
-    for (const t of topics) {
+  for (const ch of chapters ?? []) {
+    const { data: topics } = await supabase.from("topics").select("id").eq("chapter_id", ch.id);
+    totalTopics += topics?.length ?? 0;
+    for (const t of topics ?? []) {
       subjectTopicIds.add(t.id);
-      const [prog] = await db.select().from(topicProgressTable)
-        .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, req.user!.id)));
-      if (prog?.topicTestPassed) completedTopics++;
+      const { data: prog } = await supabase.from("topic_progress")
+        .select("topic_test_passed")
+        .eq("topic_id", t.id)
+        .eq("user_id", req.user!.id)
+        .maybeSingle();
+      if (prog?.topic_test_passed) completedTopics++;
     }
   }
 
@@ -341,30 +347,24 @@ router.get("/progress/subject/:subjectId", requireApproved, async (req, res): Pr
 router.get("/dashboard/study-heatmap", requireApproved, async (req, res): Promise<void> => {
   const userId = req.user!.id;
 
-  const progressRecords = await db
-    .select({
-      topicId: topicProgressTable.topicId,
-      topicName: topicsTable.name,
-      updatedAt: topicProgressTable.updatedAt,
-      createdAt: topicProgressTable.createdAt,
-    })
-    .from(topicProgressTable)
-    .innerJoin(topicsTable, eq(topicsTable.id, topicProgressTable.topicId))
-    .where(eq(topicProgressTable.userId, userId))
-    .orderBy(desc(topicProgressTable.updatedAt));
+  const { data: progressRecords } = await supabase.from("topic_progress")
+    .select("topic_id, updated_at, created_at, topics(name)")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
 
   const activityMap = new Map<string, Set<string>>();
 
-  for (const r of progressRecords) {
-    const updatedDate = r.updatedAt.toISOString().split("T")[0];
-    const createdDate = r.createdAt.toISOString().split("T")[0];
+  for (const r of progressRecords ?? []) {
+    const topicName = (r.topics as any)?.name ?? "Unknown";
+    const updatedDate = new Date(r.updated_at).toISOString().split("T")[0];
+    const createdDate = new Date(r.created_at).toISOString().split("T")[0];
 
     if (!activityMap.has(updatedDate)) activityMap.set(updatedDate, new Set());
-    activityMap.get(updatedDate)!.add(r.topicName);
+    activityMap.get(updatedDate)!.add(topicName);
 
     if (createdDate !== updatedDate) {
       if (!activityMap.has(createdDate)) activityMap.set(createdDate, new Set());
-      activityMap.get(createdDate)!.add(r.topicName);
+      activityMap.get(createdDate)!.add(topicName);
     }
   }
 

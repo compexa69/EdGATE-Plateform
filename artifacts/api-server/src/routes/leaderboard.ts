@@ -1,15 +1,12 @@
 import { Router, type IRouter } from "express";
-import {
-  db, usersTable, topicProgressTable, examResultsTable, pomodoroSessionsTable,
-} from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { requireApproved } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
-function calcStreak(sessions: { startTime: Date }[]): number {
+function calcStreak(sessions: { start_time: string }[]): number {
   if (sessions.length === 0) return 0;
-  const days = new Set(sessions.map((s) => s.startTime.toDateString()));
+  const days = new Set(sessions.map((s) => new Date(s.start_time).toDateString()));
   const sorted = Array.from(days)
     .map((d) => new Date(d))
     .sort((a, b) => b.getTime() - a.getTime());
@@ -34,27 +31,24 @@ function calcStreak(sessions: { startTime: Date }[]): number {
 router.get("/leaderboard", requireApproved, async (req, res): Promise<void> => {
   const currentUserId = req.user!.id;
 
-  const users = await db.select().from(usersTable).where(eq(usersTable.status, "approved"));
+  const { data: users } = await supabase.from("users").select("*").eq("status", "approved");
 
   const entries = await Promise.all(
-    users.map(async (u) => {
-      const progress = await db.select().from(topicProgressTable)
-        .where(eq(topicProgressTable.userId, u.id));
-      const topicsCompleted = progress.filter((p) => p.topicTestPassed).length;
+    (users ?? []).map(async (u) => {
+      const { data: progress } = await supabase.from("topic_progress").select("*").eq("user_id", u.id);
+      const topicsCompleted = (progress ?? []).filter((p) => p.topic_test_passed).length;
 
-      const results = await db.select().from(examResultsTable)
-        .where(eq(examResultsTable.userId, u.id));
-      const avgAccuracy = results.length > 0
+      const { data: results } = await supabase.from("exam_results").select("*").eq("user_id", u.id);
+      const avgAccuracy = results && results.length > 0
         ? results.reduce((sum, r) => sum + r.accuracy, 0) / results.length
         : 0;
-      const examsAttempted = results.length;
-      const examsPassed = results.filter((r) => r.passed).length;
+      const examsAttempted = results?.length ?? 0;
+      const examsPassed = (results ?? []).filter((r) => r.passed).length;
 
-      const sessions = await db.select().from(pomodoroSessionsTable)
-        .where(eq(pomodoroSessionsTable.userId, u.id));
-      const streakDays = calcStreak(sessions);
+      const { data: sessions } = await supabase.from("pomodoro_sessions").select("start_time, duration_seconds").eq("user_id", u.id);
+      const streakDays = calcStreak(sessions ?? []);
       const totalFocusMinutes = Math.round(
-        sessions.reduce((sum, s) => sum + s.durationSeconds, 0) / 60,
+        (sessions ?? []).reduce((sum, s) => sum + s.duration_seconds, 0) / 60,
       );
 
       const score = Math.round(
@@ -66,8 +60,8 @@ router.get("/leaderboard", requireApproved, async (req, res): Promise<void> => {
 
       return {
         userId: u.id,
-        fullName: u.fullName,
-        photoB2Key: u.photoB2Key ?? null,
+        fullName: u.full_name,
+        photoB2Key: u.photo_b2_key ?? null,
         topicsCompleted,
         avgAccuracy: Math.round(avgAccuracy * 10) / 10,
         streakDays,

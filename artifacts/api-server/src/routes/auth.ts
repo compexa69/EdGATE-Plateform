@@ -1,7 +1,5 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "crypto";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   RegisterBody,
@@ -27,22 +25,23 @@ import {
   sendEmailChangeVerification,
 } from "../lib/email";
 import { logger } from "../lib/logger";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
-function formatUser(user: typeof usersTable.$inferSelect) {
+function formatUser(user: Record<string, any>) {
   return {
     id: user.id,
-    fullName: user.fullName,
+    fullName: user.full_name,
     email: user.email,
     mobile: user.mobile,
     mobileMasked: user.mobile.replace(/(\+91\s?)(\d{2})\d{6}(\d{2})/, "$1$2******$3"),
     role: user.role,
     status: user.status,
-    emailVerified: user.emailVerified,
+    emailVerified: user.email_verified,
     isApproved: user.status === "approved",
     photoUrl: null as string | null,
-    createdAt: user.createdAt?.toISOString() ?? new Date().toISOString(),
+    createdAt: user.created_at ?? new Date().toISOString(),
   };
 }
 
@@ -62,31 +61,36 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const { data: existing } = await supabase.from("users").select("id").eq("email", email).maybeSingle();
   if (existing) {
     res.status(400).json({ error: "Email already registered" });
     return;
   }
 
-  const count = await db.select().from(usersTable);
-  const isFirstUser = count.length === 0;
+  const { count } = await supabase.from("users").select("*", { count: "exact", head: true });
+  const isFirstUser = (count ?? 0) === 0;
 
   const passwordHash = await hashPassword(password);
   const verifyToken = randomBytes(3).toString("hex").toUpperCase();
-  const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  const [user] = await db.insert(usersTable).values({
+  const { data: user, error } = await supabase.from("users").insert({
     id: nanoid(),
-    fullName,
+    full_name: fullName,
     email,
     mobile,
-    passwordHash,
+    password_hash: passwordHash,
     role: isFirstUser ? "super_admin" : "student",
     status: isFirstUser ? "approved" : "pending_approval",
-    emailVerified: isFirstUser,
-    emailVerifyToken: isFirstUser ? null : verifyToken,
-    emailVerifyExpiry: isFirstUser ? null : verifyExpiry,
-  }).returning();
+    email_verified: isFirstUser,
+    email_verify_token: isFirstUser ? null : verifyToken,
+    email_verify_expiry: isFirstUser ? null : verifyExpiry,
+  }).select().single();
+
+  if (error || !user) {
+    res.status(500).json({ error: "Failed to create user" });
+    return;
+  }
 
   if (!isFirstUser) {
     sendVerificationEmail(email, verifyToken).catch((err) => {
@@ -114,24 +118,24 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const { email, password } = parsed.data;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const { data: user } = await supabase.from("users").select("*").eq("email", email).maybeSingle();
   if (!user) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
-  if (user.deletedAt) {
+  if (user.deleted_at) {
     res.status(403).json({ error: "This account has been deleted" });
     return;
   }
 
-  const valid = await comparePassword(password, user.passwordHash);
+  const valid = await comparePassword(password, user.password_hash);
   if (!valid) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
-  if (!user.emailVerified) {
+  if (!user.email_verified) {
     res.status(403).json({ error: "Please verify your email before logging in" });
     return;
   }
@@ -141,7 +145,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+  await supabase.from("users").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, status: user.status });
   res.json({ user: formatUser(user), token });
@@ -167,20 +171,20 @@ router.post("/auth/verify-email", async (req, res): Promise<void> => {
   }
 
   const { token } = parsed.data;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.emailVerifyToken, token));
+  const { data: user } = await supabase.from("users").select("*").eq("email_verify_token", token).maybeSingle();
   if (!user) {
     res.status(400).json({ error: "Invalid or expired token" });
     return;
   }
 
-  if (user.emailVerifyExpiry && user.emailVerifyExpiry < new Date()) {
+  if (user.email_verify_expiry && new Date(user.email_verify_expiry) < new Date()) {
     res.status(400).json({ error: "Token expired" });
     return;
   }
 
-  await db.update(usersTable)
-    .set({ emailVerified: true, emailVerifyToken: null, emailVerifyExpiry: null })
-    .where(eq(usersTable.id, user.id));
+  await supabase.from("users")
+    .update({ email_verified: true, email_verify_token: null, email_verify_expiry: null })
+    .eq("id", user.id);
 
   res.json({ success: true, message: "Email verified successfully" });
 });
@@ -192,18 +196,18 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, parsed.data.email));
-  if (!user || user.emailVerified) {
+  const { data: user } = await supabase.from("users").select("*").eq("email", parsed.data.email).maybeSingle();
+  if (!user || user.email_verified) {
     res.json({ success: true, message: "If that email is registered and unverified, a new code was sent" });
     return;
   }
 
   const verifyToken = randomBytes(3).toString("hex").toUpperCase();
-  const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  await db.update(usersTable)
-    .set({ emailVerifyToken: verifyToken, emailVerifyExpiry: verifyExpiry })
-    .where(eq(usersTable.id, user.id));
+  await supabase.from("users")
+    .update({ email_verify_token: verifyToken, email_verify_expiry: verifyExpiry })
+    .eq("id", user.id);
 
   await sendVerificationEmail(user.email, verifyToken);
   res.json({ success: true, message: "Verification email sent" });
@@ -222,13 +226,13 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
     return;
   }
 
-  const valid = await comparePassword(parsed.data.currentPassword, user.passwordHash);
+  const valid = await comparePassword(parsed.data.currentPassword, user.password_hash);
   if (!valid) {
     res.status(400).json({ error: "Current password is incorrect" });
     return;
   }
 
-  const isSamePassword = await comparePassword(parsed.data.newPassword, user.passwordHash);
+  const isSamePassword = await comparePassword(parsed.data.newPassword, user.password_hash);
   if (isSamePassword) {
     res.status(400).json({ error: "New password cannot be the same as your current password" });
     return;
@@ -243,7 +247,7 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
   }
 
   const hash = await hashPassword(parsed.data.newPassword);
-  await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, user.id));
+  await supabase.from("users").update({ password_hash: hash }).eq("id", user.id);
 
   res.json({ success: true, message: "Password changed successfully" });
 });
@@ -255,13 +259,13 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, parsed.data.email));
+  const { data: user } = await supabase.from("users").select("*").eq("email", parsed.data.email).maybeSingle();
   if (user) {
     const resetToken = randomBytes(3).toString("hex").toUpperCase();
-    const resetExpiry = new Date(Date.now() + 60 * 60 * 1000);
-    await db.update(usersTable)
-      .set({ passwordResetToken: resetToken, passwordResetExpiry: resetExpiry })
-      .where(eq(usersTable.id, user.id));
+    const resetExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await supabase.from("users")
+      .update({ password_reset_token: resetToken, password_reset_expiry: resetExpiry })
+      .eq("id", user.id);
     await sendPasswordResetEmail(user.email, resetToken);
   }
 
@@ -295,13 +299,11 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
 
   const hash = await hashPassword(newPassword);
 
-  const [updated] = await db
-    .update(usersTable)
-    .set({ passwordHash: hash, passwordResetToken: null, passwordResetExpiry: null })
-    .where(
-      eq(usersTable.passwordResetToken, token),
-    )
-    .returning({ id: usersTable.id, passwordResetExpiry: usersTable.passwordResetExpiry });
+  const { data: updated } = await supabase.from("users")
+    .update({ password_hash: hash, password_reset_token: null, password_reset_expiry: null })
+    .eq("password_reset_token", token)
+    .select("id")
+    .maybeSingle();
 
   if (!updated) {
     res.status(400).json({ error: "Invalid or expired reset code" });
@@ -329,18 +331,18 @@ router.post("/auth/request-email-change", requireAuth, async (req, res): Promise
     return;
   }
 
-  const [existingWithEmail] = await db.select().from(usersTable).where(eq(usersTable.email, newEmail));
+  const { data: existingWithEmail } = await supabase.from("users").select("id").eq("email", newEmail).maybeSingle();
   if (existingWithEmail) {
     res.status(400).json({ error: "This email is already in use by another account" });
     return;
   }
 
   const token = randomBytes(3).toString("hex").toUpperCase();
-  const expiry = new Date(Date.now() + 60 * 60 * 1000);
+  const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-  await db.update(usersTable)
-    .set({ emailChangeToken: token, emailChangeNewEmail: newEmail, emailChangeExpiry: expiry })
-    .where(eq(usersTable.id, user.id));
+  await supabase.from("users")
+    .update({ email_change_token: token, email_change_new_email: newEmail, email_change_expiry: expiry })
+    .eq("id", user.id);
 
   try {
     await sendEmailChangeVerification(newEmail, newEmail, token);
@@ -365,26 +367,26 @@ router.post("/auth/confirm-email-change", requireAuth, async (req, res): Promise
     return;
   }
 
-  if (!user.emailChangeToken || user.emailChangeToken !== token.toUpperCase()) {
+  if (!user.email_change_token || user.email_change_token !== token.toUpperCase()) {
     res.status(400).json({ error: "Invalid verification code" });
     return;
   }
 
-  if (!user.emailChangeExpiry || user.emailChangeExpiry < new Date()) {
+  if (!user.email_change_expiry || new Date(user.email_change_expiry) < new Date()) {
     res.status(400).json({ error: "Verification code has expired. Please request a new one." });
     return;
   }
 
-  const newEmail = user.emailChangeNewEmail!;
+  const newEmail = user.email_change_new_email!;
 
-  await db.update(usersTable)
-    .set({
+  await supabase.from("users")
+    .update({
       email: newEmail,
-      emailChangeToken: null,
-      emailChangeNewEmail: null,
-      emailChangeExpiry: null,
+      email_change_token: null,
+      email_change_new_email: null,
+      email_change_expiry: null,
     })
-    .where(eq(usersTable.id, user.id));
+    .eq("id", user.id);
 
   res.json({ success: true, message: "Email address updated successfully.", newEmail });
 });

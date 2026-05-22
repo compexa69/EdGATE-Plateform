@@ -1,6 +1,4 @@
 import { Router, type IRouter } from "express";
-import { db, questionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
@@ -14,6 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { supabase } from "../lib/supabase";
 
 async function generateQrSvg(url: string): Promise<string> {
   return QRCode.toString(url, {
@@ -29,14 +28,14 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 
 const VALID_DIFFICULTIES = ["easy", "medium", "hard"] as const;
 
-function formatQuestion(q: typeof questionsTable.$inferSelect) {
+function formatQuestion(q: Record<string, any>) {
   return {
     id: q.id, text: q.text, options: q.options,
-    correctOption: parseInt(q.correctOption, 10),
-    marks: q.marks, topicId: q.topicId ?? null,
-    imageUrl: q.imageUrl ?? null,
-    textSolution: q.textSolution ?? null,
-    videoUrl: q.videoUrl ?? null, qrCodeSvg: q.qrCodeSvg ?? null,
+    correctOption: parseInt(q.correct_option, 10),
+    marks: q.marks, topicId: q.topic_id ?? null,
+    imageUrl: q.image_url ?? null,
+    textSolution: q.text_solution ?? null,
+    videoUrl: q.video_url ?? null, qrCodeSvg: q.qr_code_svg ?? null,
     difficulty: q.difficulty,
   };
 }
@@ -48,13 +47,13 @@ router.get("/questions", requireApproved, async (req, res): Promise<void> => {
     return;
   }
 
-  let query = db.select().from(questionsTable).$dynamic();
+  let query = supabase.from("questions").select("*");
   if (params.data.topicId) {
-    query = query.where(eq(questionsTable.topicId, params.data.topicId));
+    query = query.eq("topic_id", params.data.topicId);
   }
 
-  const questions = await query;
-  res.json(questions.map(formatQuestion));
+  const { data: questions } = await query;
+  res.json((questions ?? []).map(formatQuestion));
 });
 
 router.post("/questions", requireAdmin, async (req, res): Promise<void> => {
@@ -64,21 +63,29 @@ router.post("/questions", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
+  const d = parsed.data as any;
   let qrCodeSvg: string | null = null;
-  if (parsed.data.videoUrl) {
+  if (d.videoUrl) {
     try {
-      qrCodeSvg = await generateQrSvg(parsed.data.videoUrl);
+      qrCodeSvg = await generateQrSvg(d.videoUrl);
     } catch (err) {
       logger.warn({ err }, "Failed to generate QR code SVG on question create");
     }
   }
 
-  const [q] = await db.insert(questionsTable).values({
+  const { data: q } = await supabase.from("questions").insert({
     id: nanoid(),
-    ...parsed.data,
-    correctOption: String(parsed.data.correctOption),
-    qrCodeSvg,
-  }).returning();
+    text: d.text,
+    options: d.options,
+    correct_option: String(d.correctOption),
+    marks: d.marks ?? 4,
+    difficulty: d.difficulty ?? "medium",
+    topic_id: d.topicId ?? null,
+    image_url: d.imageUrl ?? null,
+    text_solution: d.textSolution ?? null,
+    video_url: d.videoUrl ?? null,
+    qr_code_svg: qrCodeSvg,
+  }).select().single();
 
   res.status(201).json(formatQuestion(q));
 });
@@ -176,17 +183,17 @@ router.post(
         if (videoUrl) {
           try { importQrSvg = await generateQrSvg(videoUrl); } catch {}
         }
-        await db.insert(questionsTable).values({
+        await supabase.from("questions").insert({
           id: nanoid(),
           text,
           options: [option1, option2, option3, option4],
-          correctOption: String(correctOption),
+          correct_option: String(correctOption),
           marks,
           difficulty,
-          topicId: topicId || null,
-          textSolution: textSolution || null,
-          videoUrl: videoUrl || null,
-          qrCodeSvg: importQrSvg,
+          topic_id: topicId || null,
+          text_solution: textSolution || null,
+          video_url: videoUrl || null,
+          qr_code_svg: importQrSvg,
         });
         results.push({ row: rowNum, status: "imported", question: text.slice(0, 60) });
         importedCount++;
@@ -213,25 +220,34 @@ router.patch("/questions/:questionId", requireAdmin, async (req, res): Promise<v
     return;
   }
 
-  const updates: Record<string, unknown> = { ...parsed.data };
-  if (parsed.data.correctOption != null) updates.correctOption = String(parsed.data.correctOption);
-
-  // Auto-generate QR code SVG when videoUrl is set or cleared
-  if (parsed.data.videoUrl) {
-    try {
-      updates.qrCodeSvg = await generateQrSvg(parsed.data.videoUrl);
-    } catch (err) {
-      logger.warn({ err }, "Failed to generate QR code SVG");
+  const d = parsed.data as any;
+  const updates: Record<string, unknown> = {};
+  if (d.text != null) updates.text = d.text;
+  if (d.options != null) updates.options = d.options;
+  if (d.correctOption != null) updates.correct_option = String(d.correctOption);
+  if (d.marks != null) updates.marks = d.marks;
+  if (d.difficulty != null) updates.difficulty = d.difficulty;
+  if (d.topicId !== undefined) updates.topic_id = d.topicId;
+  if (d.imageUrl !== undefined) updates.image_url = d.imageUrl;
+  if (d.textSolution !== undefined) updates.text_solution = d.textSolution;
+  if (d.videoUrl !== undefined) {
+    updates.video_url = d.videoUrl;
+    if (d.videoUrl) {
+      try {
+        updates.qr_code_svg = await generateQrSvg(d.videoUrl);
+      } catch (err) {
+        logger.warn({ err }, "Failed to generate QR code SVG");
+      }
+    } else {
+      updates.qr_code_svg = null;
     }
-  } else if ("videoUrl" in parsed.data) {
-    // videoUrl explicitly set to null/empty — clear QR too
-    updates.qrCodeSvg = null;
   }
 
-  const [q] = await db.update(questionsTable)
-    .set(updates)
-    .where(eq(questionsTable.id, params.data.questionId))
-    .returning();
+  const { data: q } = await supabase.from("questions")
+    .update(updates)
+    .eq("id", params.data.questionId)
+    .select()
+    .maybeSingle();
 
   if (!q) {
     res.status(404).json({ error: "Question not found" });
@@ -247,7 +263,7 @@ router.delete("/questions/:questionId", requireAdmin, async (req, res): Promise<
     res.status(400).json({ error: params.error.message });
     return;
   }
-  await db.delete(questionsTable).where(eq(questionsTable.id, params.data.questionId));
+  await supabase.from("questions").delete().eq("id", params.data.questionId);
   res.sendStatus(204);
 });
 

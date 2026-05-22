@@ -1,9 +1,4 @@
 import { Router, type IRouter } from "express";
-import {
-  db, studyTasksTable, topicsTable, chaptersTable, subjectsTable,
-  topicProgressTable, examResultsTable, examsTable,
-} from "@workspace/db";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListTasksQueryParams,
@@ -13,6 +8,7 @@ import {
   DeleteTaskParams,
 } from "@workspace/api-zod";
 import { requireApproved } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
@@ -26,64 +22,61 @@ function addDays(d: Date, n: number): Date {
   return r;
 }
 
-function formatTask(t: typeof studyTasksTable.$inferSelect, topicName?: string, chapterName?: string, subjectName?: string) {
+function formatTask(t: Record<string, any>, topicName?: string, chapterName?: string, subjectName?: string) {
   return {
-    id: t.id, userId: t.userId, title: t.title,
+    id: t.id, userId: t.user_id, title: t.title,
     description: t.description ?? null, status: t.status,
-    source: t.source, topicId: t.topicId ?? null,
+    source: t.source, topicId: t.topic_id ?? null,
     topicName: topicName ?? null,
     chapterName: chapterName ?? null,
     subjectName: subjectName ?? null,
-    isLocked: t.isLocked === "true",
-    sortOrder: t.sortOrder,
-    scheduledDate: t.scheduledDate,
-    createdAt: t.createdAt.toISOString(),
+    isLocked: t.is_locked === "true",
+    sortOrder: t.sort_order,
+    scheduledDate: t.scheduled_date,
+    createdAt: t.created_at,
   };
 }
 
-async function enrichTask(t: typeof studyTasksTable.$inferSelect) {
-  if (!t.topicId) return formatTask(t);
-  const [topic] = await db.select().from(topicsTable).where(eq(topicsTable.id, t.topicId));
+async function enrichTask(t: Record<string, any>) {
+  if (!t.topic_id) return formatTask(t);
+  const { data: topic } = await supabase.from("topics").select("*, chapters(*, subjects(*))").eq("id", t.topic_id).maybeSingle();
   if (!topic) return formatTask(t);
-  const [chapter] = await db.select().from(chaptersTable).where(eq(chaptersTable.id, topic.chapterId));
-  const [subject] = chapter
-    ? await db.select().from(subjectsTable).where(eq(subjectsTable.id, chapter.subjectId))
-    : [undefined];
+  const chapter = (topic as any).chapters;
+  const subject = chapter?.subjects;
   return formatTask(t, topic.name, chapter?.name, subject?.name);
 }
 
-// ── GET /tasks ──────────────────────────────────────────────────────────────
 router.get("/tasks", requireApproved, async (req, res): Promise<void> => {
   const params = ListTasksQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const date = params.data.date ?? toDateStr(new Date());
-  const tasks = await db.select().from(studyTasksTable)
-    .where(and(eq(studyTasksTable.userId, req.user!.id), eq(studyTasksTable.scheduledDate, date)))
-    .orderBy(studyTasksTable.sortOrder);
+  const { data: tasks } = await supabase.from("study_tasks")
+    .select("*")
+    .eq("user_id", req.user!.id)
+    .eq("scheduled_date", date)
+    .order("sort_order");
 
-  res.json(await Promise.all(tasks.map(enrichTask)));
+  res.json(await Promise.all((tasks ?? []).map(enrichTask)));
 });
 
-// ── GET /tasks/range ─────────────────────────────────────────────────────────
 router.get("/tasks/range", requireApproved, async (req, res): Promise<void> => {
   const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
   if (!startDate || !endDate) {
     res.status(400).json({ error: "startDate and endDate are required" });
     return;
   }
-  const tasks = await db.select().from(studyTasksTable)
-    .where(and(
-      eq(studyTasksTable.userId, req.user!.id),
-      gte(studyTasksTable.scheduledDate, startDate),
-      lte(studyTasksTable.scheduledDate, endDate),
-    ))
-    .orderBy(studyTasksTable.scheduledDate, studyTasksTable.sortOrder);
+  const { data: tasks } = await supabase.from("study_tasks")
+    .select("*")
+    .eq("user_id", req.user!.id)
+    .gte("scheduled_date", startDate)
+    .lte("scheduled_date", endDate)
+    .order("scheduled_date")
+    .order("sort_order");
 
-  res.json(await Promise.all(tasks.map(enrichTask)));
+  res.json(await Promise.all((tasks ?? []).map(enrichTask)));
 });
 
-// ── POST /tasks/generate-plan ─────────────────────────────────────────────
 router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<void> => {
   const { examDate, dailyStudyHours = 4, targetScore = 70 } = req.body as {
     examDate: string;
@@ -108,8 +101,8 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
     return;
   }
 
-  // ── 1. Load full curriculum ──────────────────────────────────────────────
-  const subjects = await db.select().from(subjectsTable).orderBy(subjectsTable.order);
+  const { data: subjects } = await supabase.from("subjects").select("id, name").order("order");
+
   type TopicRow = {
     id: string; name: string; order: number; chapterId: string;
     chapterName: string; subjectName: string; globalIndex: number;
@@ -117,13 +110,11 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
   const allTopics: TopicRow[] = [];
   let globalIndex = 0;
 
-  for (const s of subjects) {
-    const chapters = await db.select().from(chaptersTable)
-      .where(eq(chaptersTable.subjectId, s.id)).orderBy(chaptersTable.order);
-    for (const ch of chapters) {
-      const topics = await db.select().from(topicsTable)
-        .where(eq(topicsTable.chapterId, ch.id)).orderBy(topicsTable.order);
-      for (const t of topics) {
+  for (const s of subjects ?? []) {
+    const { data: chapters } = await supabase.from("chapters").select("id, name").eq("subject_id", s.id).order("order");
+    for (const ch of chapters ?? []) {
+      const { data: topics } = await supabase.from("topics").select("id, name, order").eq("chapter_id", ch.id).order("order");
+      for (const t of topics ?? []) {
         allTopics.push({
           id: t.id, name: t.name, order: t.order, chapterId: ch.id,
           chapterName: ch.name, subjectName: s.name, globalIndex: globalIndex++,
@@ -137,29 +128,24 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
     return;
   }
 
-  // ── 2. Load user progress ────────────────────────────────────────────────
-  const progress = await db.select().from(topicProgressTable)
-    .where(eq(topicProgressTable.userId, userId));
-  const progressMap = new Map(progress.map((p) => [p.topicId, p]));
+  const { data: progress } = await supabase.from("topic_progress").select("*").eq("user_id", userId);
+  const progressMap = new Map((progress ?? []).map((p) => [p.topic_id, p]));
 
-  // ── 3. Load exam results to identify weak topics ─────────────────────────
-  const results = await db.select().from(examResultsTable)
-    .where(eq(examResultsTable.userId, userId));
-  const examIds = [...new Set(results.map((r) => r.examId))];
+  const { data: results } = await supabase.from("exam_results").select("*").eq("user_id", userId);
+  const examIds = [...new Set((results ?? []).map((r) => r.exam_id))];
   const exams = examIds.length > 0
-    ? await db.select().from(examsTable).where(inArray(examsTable.id, examIds))
+    ? (await supabase.from("exams").select("id, topic_id").in("id", examIds)).data ?? []
     : [];
   const examByTopicAccuracy = new Map<string, number[]>();
-  for (const r of results) {
-    const exam = exams.find((e) => e.id === r.examId);
-    if (exam?.topicId) {
-      const arr = examByTopicAccuracy.get(exam.topicId) ?? [];
+  for (const r of results ?? []) {
+    const e = exams.find((ex) => ex.id === r.exam_id);
+    if (e?.topic_id) {
+      const arr = examByTopicAccuracy.get(e.topic_id) ?? [];
       arr.push(r.accuracy);
-      examByTopicAccuracy.set(exam.topicId, arr);
+      examByTopicAccuracy.set(e.topic_id, arr);
     }
   }
 
-  // ── 4. Score every topic (higher = more urgent) ──────────────────────────
   type ScoredTopic = TopicRow & { priority: number; tag: string };
   const scored: ScoredTopic[] = allTopics.map((t) => {
     const prog = progressMap.get(t.id);
@@ -171,38 +157,33 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
 
     if (!prog) {
       priority = 60; tag = "unstarted";
-    } else if (prog.topicTestPassed) {
-      // Completed — only include if target score is high (needs revision)
+    } else if (prog.topic_test_passed) {
       priority = targetScore >= 85 ? 25 : 5;
       tag = targetScore >= 85 ? "revision" : "completed";
     } else if (avgAcc !== null && avgAcc < 55) {
       priority = 90; tag = "weak";
-    } else if (prog.lectureQuizPassed && !prog.dppCompleted) {
+    } else if (prog.lecture_quiz_passed && !prog.dpp_completed) {
       priority = 75; tag = "in-progress";
-    } else if (!prog.lectureQuizPassed) {
+    } else if (!prog.lecture_quiz_passed) {
       priority = 65; tag = "unstarted";
     } else {
       priority = 55; tag = "in-progress";
     }
 
-    // Extra boost for weak topics regardless of target
     if (avgAcc !== null && avgAcc < 40) priority = Math.max(priority, 95);
 
     return { ...t, priority, tag };
   });
 
-  // ── 5. Separate weak (for revision block) from general study ─────────────
   const weakTopics = scored.filter((t) => t.tag === "weak" || (t.tag === "revision" && t.priority > 20));
   const studyTopics = scored
     .filter((t) => t.tag !== "completed" || targetScore >= 85)
     .sort((a, b) => b.priority - a.priority || a.globalIndex - b.globalIndex);
 
-  // ── 6. Calculate slot counts ─────────────────────────────────────────────
   const topicsPerDay = Math.max(1, Math.floor(dailyStudyHours / 1.5));
   const revisionDays = daysUntilExam > 14 ? Math.min(7, Math.ceil(daysUntilExam * 0.2)) : 0;
   const studyDays = daysUntilExam - revisionDays;
 
-  // ── 7. Build day-by-day schedule ─────────────────────────────────────────
   type DayPlan = { date: string; tasks: ScoredTopic[] };
   const plan: DayPlan[] = [];
   let topicIdx = 0;
@@ -214,7 +195,6 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
     if (dayTopics.length > 0) plan.push({ date, tasks: dayTopics });
   }
 
-  // ── 8. Revision block in the final days ──────────────────────────────────
   const revWeakTopics = weakTopics.length > 0 ? weakTopics : studyTopics.slice(0, topicsPerDay * revisionDays);
   let revIdx = 0;
   for (let day = 0; day < revisionDays && revIdx < revWeakTopics.length; day++) {
@@ -224,20 +204,16 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
     if (dayTopics.length > 0) plan.push({ date, tasks: dayTopics });
   }
 
-  // ── 9. Wipe existing auto-generated tasks from today onwards ─────────────
-  const existingAuto = await db.select().from(studyTasksTable)
-    .where(and(
-      eq(studyTasksTable.userId, userId),
-      eq(studyTasksTable.source, "auto"),
-      gte(studyTasksTable.scheduledDate, toDateStr(addDays(today, 1))),
-    ));
-  if (existingAuto.length > 0) {
-    await db.delete(studyTasksTable).where(
-      inArray(studyTasksTable.id, existingAuto.map((t) => t.id)),
-    );
+  const { data: existingAuto } = await supabase.from("study_tasks")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("source", "auto")
+    .gte("scheduled_date", toDateStr(addDays(today, 1)));
+
+  if (existingAuto && existingAuto.length > 0) {
+    await supabase.from("study_tasks").delete().in("id", existingAuto.map((t) => t.id));
   }
 
-  // ── 10. Bulk insert new tasks ─────────────────────────────────────────────
   let tasksCreated = 0;
   for (const day of plan) {
     for (let i = 0; i < day.tasks.length; i++) {
@@ -250,16 +226,16 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
         ? `Revise ${t.chapterName} › ${t.name}. Focus on accuracy improvements.`
         : `Study ${t.chapterName} › ${t.name}. Complete lecture → quiz → DPP → PYQ → test.`;
 
-      await db.insert(studyTasksTable).values({
+      await supabase.from("study_tasks").insert({
         id: nanoid(),
-        userId,
+        user_id: userId,
         title,
         description,
-        topicId: t.id,
-        scheduledDate: day.date,
+        topic_id: t.id,
+        scheduled_date: day.date,
         source: "auto",
-        isLocked: "false",
-        sortOrder: i,
+        is_locked: "false",
+        sort_order: i,
       });
       tasksCreated++;
     }
@@ -267,7 +243,7 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
 
   const topicsCovered = new Set(plan.flatMap((d) => d.tasks.map((t) => t.id))).size;
   const totalTopics = allTopics.length;
-  const completedTopics = progress.filter((p) => p.topicTestPassed).length;
+  const completedTopics = (progress ?? []).filter((p) => p.topic_test_passed).length;
 
   res.json({
     tasksCreated,
@@ -284,25 +260,23 @@ router.post("/tasks/generate-plan", requireApproved, async (req, res): Promise<v
   });
 });
 
-// ── POST /tasks ───────────────────────────────────────────────────────────
 router.post("/tasks", requireApproved, async (req, res): Promise<void> => {
   const parsed = CreateTaskBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const today = toDateStr(new Date());
-  const [task] = await db.insert(studyTasksTable).values({
-    id: nanoid(), userId: req.user!.id,
+  const { data: task } = await supabase.from("study_tasks").insert({
+    id: nanoid(), user_id: req.user!.id,
     title: parsed.data.title,
-    description: parsed.data.description,
-    topicId: parsed.data.topicId,
-    scheduledDate: (parsed.data.scheduledDate as string | undefined) ?? today,
-    source: "manual", isLocked: "false", sortOrder: 0,
-  }).returning();
+    description: (parsed.data as any).description,
+    topic_id: (parsed.data as any).topicId,
+    scheduled_date: (parsed.data as any).scheduledDate ?? today,
+    source: "manual", is_locked: "false", sort_order: 0,
+  }).select().single();
 
   res.status(201).json(await enrichTask(task));
 });
 
-// ── PATCH /tasks/:taskId ──────────────────────────────────────────────────
 router.patch("/tasks/:taskId", requireApproved, async (req, res): Promise<void> => {
   const params = UpdateTaskParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -311,24 +285,27 @@ router.patch("/tasks/:taskId", requireApproved, async (req, res): Promise<void> 
 
   const updates: Record<string, unknown> = {};
   if (parsed.data.status != null) updates.status = parsed.data.status;
-  if (parsed.data.sortOrder != null) updates.sortOrder = parsed.data.sortOrder;
+  if (parsed.data.sortOrder != null) updates.sort_order = parsed.data.sortOrder;
   if (parsed.data.title != null) updates.title = parsed.data.title;
 
-  const [task] = await db.update(studyTasksTable)
-    .set(updates)
-    .where(and(eq(studyTasksTable.id, params.data.taskId), eq(studyTasksTable.userId, req.user!.id)))
-    .returning();
+  const { data: task } = await supabase.from("study_tasks")
+    .update(updates)
+    .eq("id", params.data.taskId)
+    .eq("user_id", req.user!.id)
+    .select()
+    .maybeSingle();
 
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
   res.json(await enrichTask(task));
 });
 
-// ── DELETE /tasks/:taskId ─────────────────────────────────────────────────
 router.delete("/tasks/:taskId", requireApproved, async (req, res): Promise<void> => {
   const params = DeleteTaskParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  await db.delete(studyTasksTable)
-    .where(and(eq(studyTasksTable.id, params.data.taskId), eq(studyTasksTable.userId, req.user!.id)));
+  await supabase.from("study_tasks")
+    .delete()
+    .eq("id", params.data.taskId)
+    .eq("user_id", req.user!.id);
   res.sendStatus(204);
 });
 

@@ -1,10 +1,7 @@
 import { Router, type IRouter } from "express";
-import {
-  db, qrScanLogsTable, questionsTable, examsTable, topicsTable,
-} from "@workspace/db";
-import { eq, desc, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { requireApproved } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
@@ -20,73 +17,68 @@ router.post("/qr-scans", requireApproved, async (req, res): Promise<void> => {
     return;
   }
 
-  const [question] = await db.select({ id: questionsTable.id })
-    .from(questionsTable).where(eq(questionsTable.id, questionId));
+  const { data: question } = await supabase.from("questions").select("id").eq("id", questionId).maybeSingle();
   if (!question) {
     res.status(404).json({ error: "Question not found" });
     return;
   }
 
-  const [log] = await db.insert(qrScanLogsTable).values({
+  const { data: log } = await supabase.from("qr_scan_logs").insert({
     id: nanoid(),
-    userId: req.user!.id,
-    questionId,
-    examId: examId ?? null,
-    resultId: resultId ?? null,
-  }).returning();
+    user_id: req.user!.id,
+    question_id: questionId,
+    exam_id: examId ?? null,
+    result_id: resultId ?? null,
+  }).select().single();
 
-  res.status(201).json({ id: log.id, scannedAt: log.scannedAt.toISOString() });
+  res.status(201).json({ id: log.id, scannedAt: log.scanned_at });
 });
 
 router.get("/qr-scans", requireApproved, async (req, res): Promise<void> => {
-  const logs = await db.select().from(qrScanLogsTable)
-    .where(eq(qrScanLogsTable.userId, req.user!.id))
-    .orderBy(desc(qrScanLogsTable.scannedAt))
+  const { data: logs } = await supabase.from("qr_scan_logs")
+    .select("*")
+    .eq("user_id", req.user!.id)
+    .order("scanned_at", { ascending: false })
     .limit(200);
 
-  if (logs.length === 0) {
+  if (!logs || logs.length === 0) {
     res.json([]);
     return;
   }
 
-  const questionIds = [...new Set(logs.map((l) => l.questionId))];
-  const questions = await db.select({
-    id: questionsTable.id,
-    text: questionsTable.text,
-    topicId: questionsTable.topicId,
-    videoUrl: questionsTable.videoUrl,
-  }).from(questionsTable).where(inArray(questionsTable.id, questionIds));
-  const questionMap = new Map(questions.map((q) => [q.id, q]));
+  const questionIds = [...new Set(logs.map((l) => l.question_id))];
+  const { data: questions } = await supabase.from("questions")
+    .select("id, text, topic_id, video_url")
+    .in("id", questionIds);
+  const questionMap = new Map((questions ?? []).map((q) => [q.id, q]));
 
-  const examIds = [...new Set(logs.filter((l) => l.examId).map((l) => l.examId!))];
+  const examIds = [...new Set(logs.filter((l) => l.exam_id).map((l) => l.exam_id!))];
   const exams = examIds.length > 0
-    ? await db.select({ id: examsTable.id, title: examsTable.title })
-        .from(examsTable).where(inArray(examsTable.id, examIds))
+    ? (await supabase.from("exams").select("id, title").in("id", examIds)).data ?? []
     : [];
   const examMap = new Map(exams.map((e) => [e.id, e]));
 
-  const topicIds = [...new Set(questions.filter((q) => q.topicId).map((q) => q.topicId!))];
+  const topicIds = [...new Set((questions ?? []).filter((q) => q.topic_id).map((q) => q.topic_id!))];
   const topics = topicIds.length > 0
-    ? await db.select({ id: topicsTable.id, name: topicsTable.name })
-        .from(topicsTable).where(inArray(topicsTable.id, topicIds))
+    ? (await supabase.from("topics").select("id, name").in("id", topicIds)).data ?? []
     : [];
   const topicMap = new Map(topics.map((t) => [t.id, t]));
 
   res.json(logs.map((log) => {
-    const q = questionMap.get(log.questionId);
-    const exam = log.examId ? examMap.get(log.examId) : null;
-    const topic = q?.topicId ? topicMap.get(q.topicId) : null;
+    const q = questionMap.get(log.question_id);
+    const exam = log.exam_id ? examMap.get(log.exam_id) : null;
+    const topic = q?.topic_id ? topicMap.get(q.topic_id) : null;
     return {
       id: log.id,
-      questionId: log.questionId,
+      questionId: log.question_id,
       questionText: q?.text ?? "Unknown question",
-      videoUrl: q?.videoUrl ?? null,
-      examId: log.examId ?? null,
+      videoUrl: q?.video_url ?? null,
+      examId: log.exam_id ?? null,
       examTitle: exam?.title ?? null,
-      resultId: log.resultId ?? null,
-      topicId: q?.topicId ?? null,
+      resultId: log.result_id ?? null,
+      topicId: q?.topic_id ?? null,
       topicName: topic?.name ?? null,
-      scannedAt: log.scannedAt.toISOString(),
+      scannedAt: log.scanned_at,
     };
   }));
 });

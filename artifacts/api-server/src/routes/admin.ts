@@ -1,7 +1,5 @@
 import { Router, type IRouter } from "express";
 import { timingSafeEqual } from "crypto";
-import { db, usersTable, subjectsTable, chaptersTable, topicsTable, questionsTable, examResultsTable, examAttemptsTable, attemptAnswersTable, notesTable, topicProgressTable, systemConfigTable, auditLogsTable, qrScanLogsTable, examsTable } from "@workspace/db";
-import { eq, sql, desc, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListUsersQueryParams,
@@ -14,6 +12,7 @@ import {
 import { requireAdmin } from "../lib/auth";
 import { sendApprovalEmail } from "../lib/email";
 import { createNotification } from "./notifications";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
@@ -28,17 +27,15 @@ const DEFAULT_CONFIG: Record<string, { value: string; description: string }> = {
 
 async function ensureDefaultConfig() {
   for (const [key, { value, description }] of Object.entries(DEFAULT_CONFIG)) {
-    await db.insert(systemConfigTable)
-      .values({ key, value, description })
-      .onConflictDoNothing();
+    await supabase.from("system_config").upsert({ key, value, description }, { onConflict: "key", ignoreDuplicates: true });
   }
 }
 
 async function logAudit(actorId: string, targetId: string | null, action: string, details?: string) {
-  await db.insert(auditLogsTable).values({
+  await supabase.from("audit_logs").insert({
     id: nanoid(),
-    actorId,
-    targetId,
+    actor_id: actorId,
+    target_id: targetId,
     action,
     details: details ?? null,
   });
@@ -51,16 +48,17 @@ router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
-  let users = await db.select().from(usersTable);
+  let query = supabase.from("users").select("*");
   if (params.data.status) {
-    users = users.filter((u) => u.status === params.data.status);
+    query = query.eq("status", params.data.status);
   }
+  const { data: users } = await query;
 
-  res.json(users.map((u) => ({
-    id: u.id, fullName: u.fullName, email: u.email, mobile: u.mobile,
-    role: u.role, status: u.status, emailVerified: u.emailVerified,
-    createdAt: u.createdAt.toISOString(),
-    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+  res.json((users ?? []).map((u) => ({
+    id: u.id, fullName: u.full_name, email: u.email, mobile: u.mobile,
+    role: u.role, status: u.status, emailVerified: u.email_verified,
+    createdAt: u.created_at,
+    lastLoginAt: u.last_login_at ?? null,
   })));
 });
 
@@ -71,23 +69,24 @@ router.post("/admin/users/:userId/approve", requireAdmin, async (req, res): Prom
     return;
   }
 
-  const [user] = await db.update(usersTable)
-    .set({ status: "approved" })
-    .where(eq(usersTable.id, params.data.userId))
-    .returning();
+  const { data: user } = await supabase.from("users")
+    .update({ status: "approved" })
+    .eq("id", params.data.userId)
+    .select()
+    .maybeSingle();
 
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
 
-  await sendApprovalEmail(user.email, user.fullName);
+  await sendApprovalEmail(user.email, user.full_name);
 
   await createNotification(
     user.id,
     "user_approved",
     "Account Approved!",
-    `Welcome, ${user.fullName}! Your account has been approved. You can now start your study journey.`,
+    `Welcome, ${user.full_name}! Your account has been approved. You can now start your study journey.`,
   );
 
   await logAudit(req.user!.id, user.id, "approve_user", `Approved user ${user.email}`);
@@ -102,10 +101,11 @@ router.post("/admin/users/:userId/suspend", requireAdmin, async (req, res): Prom
     return;
   }
 
-  const [user] = await db.update(usersTable)
-    .set({ status: "suspended" })
-    .where(eq(usersTable.id, params.data.userId))
-    .returning();
+  const { data: user } = await supabase.from("users")
+    .update({ status: "suspended" })
+    .eq("id", params.data.userId)
+    .select()
+    .maybeSingle();
 
   if (!user) {
     res.status(404).json({ error: "User not found" });
@@ -124,7 +124,7 @@ router.post("/admin/users/:userId/ban", requireAdmin, async (req, res): Promise<
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.userId));
+  const { data: user } = await supabase.from("users").select("*").eq("id", params.data.userId).maybeSingle();
 
   if (!user) {
     res.status(404).json({ error: "User not found" });
@@ -136,10 +136,11 @@ router.post("/admin/users/:userId/ban", requireAdmin, async (req, res): Promise<
     return;
   }
 
-  const [updated] = await db.update(usersTable)
-    .set({ status: "banned" })
-    .where(eq(usersTable.id, params.data.userId))
-    .returning();
+  const { data: updated } = await supabase.from("users")
+    .update({ status: "banned" })
+    .eq("id", params.data.userId)
+    .select()
+    .single();
 
   await logAudit(req.user!.id, updated.id, "ban_user", `Permanently banned user ${updated.email}`);
 
@@ -159,18 +160,18 @@ router.patch("/admin/users/:userId/role", requireAdmin, async (req, res): Promis
   }
 
   if (params.data.userId === req.user!.id && (parsed.data.role as string) !== "super_admin") {
-    const allSuperAdmins = await db.select().from(usersTable)
-      .where(eq(usersTable.role, "super_admin"));
-    if (allSuperAdmins.length <= 1) {
+    const { count } = await supabase.from("users")
+      .select("*", { count: "exact", head: true })
+      .eq("role", "super_admin");
+    if ((count ?? 0) <= 1) {
       res.status(403).json({ error: "Cannot demote the sole super_admin. Promote another user first." });
       return;
     }
   }
 
-  const [user] = await db.update(usersTable)
-    .set({ role: parsed.data.role })
-    .where(eq(usersTable.id, params.data.userId))
-    .returning();
+  await supabase.from("users")
+    .update({ role: parsed.data.role })
+    .eq("id", params.data.userId);
 
   await logAudit(
     req.user!.id,
@@ -183,41 +184,53 @@ router.patch("/admin/users/:userId/role", requireAdmin, async (req, res): Promis
 });
 
 router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
-  const users = await db.select().from(usersTable);
-  const subjects = await db.select().from(subjectsTable);
-  const chapters = await db.select().from(chaptersTable);
-  const topics = await db.select().from(topicsTable);
-  const questions = await db.select().from(questionsTable);
-  const results = await db.select().from(examResultsTable);
-  const notes = await db.select().from(notesTable);
+  const [
+    { data: users },
+    { data: subjects },
+    { data: chapters },
+    { data: topics },
+    { data: questions },
+    { data: results },
+    { data: notes },
+    { data: allProgress },
+  ] = await Promise.all([
+    supabase.from("users").select("*"),
+    supabase.from("subjects").select("*"),
+    supabase.from("chapters").select("*"),
+    supabase.from("topics").select("id, name"),
+    supabase.from("questions").select("id"),
+    supabase.from("exam_results").select("*"),
+    supabase.from("notes").select("file_size_bytes"),
+    supabase.from("topic_progress").select("*"),
+  ]);
 
-  const allProgress = await db.select().from(topicProgressTable);
-
-  const storageUsedBytes = notes.reduce((sum, n) => sum + n.fileSizeBytes, 0);
+  const storageUsedBytes = (notes ?? []).reduce((sum, n) => sum + n.file_size_bytes, 0);
 
   const lectureClicksByTopic: Record<string, number> = {};
-  for (const p of allProgress) {
-    if (p.lectureClickCount > 0) {
-      lectureClicksByTopic[p.topicId] = (lectureClicksByTopic[p.topicId] ?? 0) + p.lectureClickCount;
+  for (const p of allProgress ?? []) {
+    if (p.lecture_click_count > 0) {
+      lectureClicksByTopic[p.topic_id] = (lectureClicksByTopic[p.topic_id] ?? 0) + p.lecture_click_count;
     }
   }
 
-  const totalApprovedUsers = users.filter((u) => u.status === "approved").length;
+  const totalApprovedUsers = (users ?? []).filter((u) => u.status === "approved").length;
 
-  const topicsWithCtr = topics.map((t) => {
+  const { data: lowCtrConfigRow } = await supabase.from("system_config")
+    .select("value")
+    .eq("key", "low_ctr_threshold")
+    .maybeSingle();
+  const lowCtrThreshold = lowCtrConfigRow ? parseInt(lowCtrConfigRow.value, 10) : 10;
+
+  const topicsWithCtr = (topics ?? []).map((t) => {
     const totalClicks = lectureClicksByTopic[t.id] ?? 0;
-    const uniqueClickers = allProgress.filter(
-      (p) => p.topicId === t.id && p.lectureClickCount > 0,
+    const uniqueClickers = (allProgress ?? []).filter(
+      (p) => p.topic_id === t.id && p.lecture_click_count > 0,
     ).length;
     const ctrPercent = totalApprovedUsers > 0
       ? Math.round((uniqueClickers / totalApprovedUsers) * 100)
       : 0;
     return { topicId: t.id, topicName: t.name, totalClicks, uniqueClickers, ctrPercent };
   });
-
-  const [lowCtrConfig] = await db.select().from(systemConfigTable)
-    .where(eq(systemConfigTable.key, "low_ctr_threshold"));
-  const lowCtrThreshold = lowCtrConfig ? parseInt(lowCtrConfig.value, 10) : 10;
 
   const lowCtrTopics = topicsWithCtr
     .filter((t) => t.ctrPercent < lowCtrThreshold)
@@ -227,14 +240,14 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
   const totalLectureClicks = Object.values(lectureClicksByTopic).reduce((s, c) => s + c, 0);
 
   res.json({
-    totalUsers: users.length,
-    pendingApproval: users.filter((u) => u.status === "pending_approval").length,
+    totalUsers: users?.length ?? 0,
+    pendingApproval: (users ?? []).filter((u) => u.status === "pending_approval").length,
     activeUsers: totalApprovedUsers,
-    totalSubjects: subjects.length,
-    totalChapters: chapters.length,
-    totalTopics: topics.length,
-    totalQuestions: questions.length,
-    totalExamsAttempted: results.length,
+    totalSubjects: subjects?.length ?? 0,
+    totalChapters: chapters?.length ?? 0,
+    totalTopics: topics?.length ?? 0,
+    totalQuestions: questions?.length ?? 0,
+    totalExamsAttempted: results?.length ?? 0,
     storageUsedBytes,
     storageLimitBytes: 9 * 1024 * 1024 * 1024,
     totalLectureClicks,
@@ -244,8 +257,8 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
 
 router.get("/admin/config", requireAdmin, async (req, res): Promise<void> => {
   await ensureDefaultConfig();
-  const configs = await db.select().from(systemConfigTable);
-  const configMap = Object.fromEntries(configs.map((c) => [c.key, { value: c.value, description: c.description ?? "" }]));
+  const { data: configs } = await supabase.from("system_config").select("*");
+  const configMap = Object.fromEntries((configs ?? []).map((c) => [c.key, { value: c.value, description: c.description ?? "" }]));
   res.json(configMap);
 });
 
@@ -258,9 +271,7 @@ router.patch("/admin/config", requireAdmin, async (req, res): Promise<void> => {
 
   for (const [key, value] of Object.entries(updates)) {
     if (typeof value !== "string") continue;
-    await db.insert(systemConfigTable)
-      .values({ key, value })
-      .onConflictDoUpdate({ target: systemConfigTable.key, set: { value } });
+    await supabase.from("system_config").upsert({ key, value }, { onConflict: "key" });
   }
 
   await logAudit(req.user!.id, null, "update_config", `Updated keys: ${Object.keys(updates).join(", ")}`);
@@ -269,28 +280,19 @@ router.patch("/admin/config", requireAdmin, async (req, res): Promise<void> => {
 });
 
 router.get("/admin/audit-logs", requireAdmin, async (req, res): Promise<void> => {
-  const logs = await db.select({
-    id: auditLogsTable.id,
-    actorId: auditLogsTable.actorId,
-    targetId: auditLogsTable.targetId,
-    action: auditLogsTable.action,
-    details: auditLogsTable.details,
-    createdAt: auditLogsTable.createdAt,
-    actorName: usersTable.fullName,
-  })
-    .from(auditLogsTable)
-    .leftJoin(usersTable, eq(auditLogsTable.actorId, usersTable.id))
-    .orderBy(desc(auditLogsTable.createdAt))
+  const { data: logs } = await supabase.from("audit_logs")
+    .select("*, users!audit_logs_actor_id_fkey(full_name)")
+    .order("created_at", { ascending: false })
     .limit(100);
 
-  res.json(logs.map((l) => ({
+  res.json((logs ?? []).map((l) => ({
     id: l.id,
-    actorId: l.actorId,
-    actorName: l.actorName ?? "System",
-    targetId: l.targetId,
+    actorId: l.actor_id,
+    actorName: (l.users as any)?.full_name ?? "System",
+    targetId: l.target_id,
     action: l.action,
     details: l.details,
-    createdAt: l.createdAt.toISOString(),
+    createdAt: l.created_at,
   })));
 });
 
@@ -303,24 +305,24 @@ router.post("/admin/users/:userId/reset-progress", requireAdmin, async (req, res
 
   const { userId } = req.params as { userId: string };
 
-  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const { data: target } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
   if (!target) {
     res.status(404).json({ error: "User not found" });
     return;
   }
 
-  await db.delete(topicProgressTable).where(eq(topicProgressTable.userId, userId));
+  await supabase.from("topic_progress").delete().eq("user_id", userId);
 
-  const userAttempts = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.userId, userId));
-  for (const attempt of userAttempts) {
-    await db.delete(attemptAnswersTable).where(eq(attemptAnswersTable.attemptId, attempt.id));
+  const { data: userAttempts } = await supabase.from("exam_attempts").select("id").eq("user_id", userId);
+  for (const attempt of userAttempts ?? []) {
+    await supabase.from("attempt_answers").delete().eq("attempt_id", attempt.id);
   }
-  await db.delete(examAttemptsTable).where(eq(examAttemptsTable.userId, userId));
-  await db.delete(examResultsTable).where(eq(examResultsTable.userId, userId));
+  await supabase.from("exam_attempts").delete().eq("user_id", userId);
+  await supabase.from("exam_results").delete().eq("user_id", userId);
 
   await logAudit(actor.id, userId, "reset_progress", `Reset all progress for user ${target.email}`);
 
-  res.json({ success: true, message: `Progress reset for ${target.fullName}` });
+  res.json({ success: true, message: `Progress reset for ${target.full_name}` });
 });
 
 router.get("/admin/export-data", requireAdmin, async (req, res): Promise<void> => {
@@ -330,21 +332,28 @@ router.get("/admin/export-data", requireAdmin, async (req, res): Promise<void> =
     return;
   }
 
-  const users = await db.select().from(usersTable);
-  const results = await db.select().from(examResultsTable);
-  const notes = await db.select().from(notesTable);
-  const progress = await db.select().from(topicProgressTable);
+  const [
+    { data: users },
+    { data: results },
+    { data: notes },
+    { data: progress },
+  ] = await Promise.all([
+    supabase.from("users").select("*"),
+    supabase.from("exam_results").select("*"),
+    supabase.from("notes").select("*"),
+    supabase.from("topic_progress").select("*"),
+  ]);
 
-  const sanitizedUsers = users.map((u) => ({
+  const sanitizedUsers = (users ?? []).map((u) => ({
     id: u.id,
-    fullName: u.fullName,
+    fullName: u.full_name,
     email: u.email,
     mobile: u.mobile,
     role: u.role,
     status: u.status,
-    emailVerified: u.emailVerified,
-    createdAt: u.createdAt.toISOString(),
-    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    emailVerified: u.email_verified,
+    createdAt: u.created_at,
+    lastLoginAt: u.last_login_at ?? null,
   }));
 
   await logAudit(actor.id, null, "export_data", "Exported all user data (GDPR)");
@@ -352,103 +361,98 @@ router.get("/admin/export-data", requireAdmin, async (req, res): Promise<void> =
   res.json({
     exportedAt: new Date().toISOString(),
     users: sanitizedUsers,
-    examResults: results.map((r) => ({
-      ...r,
-      submittedAt: r.submittedAt.toISOString(),
+    examResults: (results ?? []).map((r) => ({
+      id: r.id, userId: r.user_id, examId: r.exam_id, score: r.score,
+      maxScore: r.max_score, accuracy: r.accuracy, passed: r.passed,
+      submittedAt: r.submitted_at,
     })),
-    notes: notes.map((n) => ({
-      ...n,
-      uploadedAt: n.uploadedAt.toISOString(),
+    notes: (notes ?? []).map((n) => ({
+      id: n.id, userId: n.user_id, chapterId: n.chapter_id,
+      fileName: n.file_name, fileSizeBytes: n.file_size_bytes,
+      uploadedAt: n.uploaded_at,
     })),
-    topicProgress: progress.map((p) => ({
-      ...p,
-      updatedAt: p.updatedAt?.toISOString() ?? null,
+    topicProgress: (progress ?? []).map((p) => ({
+      id: p.id, userId: p.user_id, topicId: p.topic_id,
+      lectureQuizPassed: p.lecture_quiz_passed, dppCompleted: p.dpp_completed,
+      pyqCompleted: p.pyq_completed, topicTestPassed: p.topic_test_passed,
+      updatedAt: p.updated_at ?? null,
     })),
   });
 });
 
 router.get("/admin/qr-analytics", requireAdmin, async (req, res): Promise<void> => {
-  const topQuestions = await db.select({
-    questionId: qrScanLogsTable.questionId,
-    scanCount: sql<number>`count(*)::int`,
-  })
-    .from(qrScanLogsTable)
-    .groupBy(qrScanLogsTable.questionId)
-    .orderBy(desc(sql`count(*)`))
-    .limit(20);
+  const { data: allScans } = await supabase.from("qr_scan_logs").select("question_id, user_id");
 
-  const recentScans = await db.select({
-    id: qrScanLogsTable.id,
-    questionId: qrScanLogsTable.questionId,
-    userId: qrScanLogsTable.userId,
-    examId: qrScanLogsTable.examId,
-    scannedAt: qrScanLogsTable.scannedAt,
-    userName: usersTable.fullName,
-  })
-    .from(qrScanLogsTable)
-    .leftJoin(usersTable, eq(qrScanLogsTable.userId, usersTable.id))
-    .orderBy(desc(qrScanLogsTable.scannedAt))
+  const scanCounts: Record<string, number> = {};
+  const uniqueStudents = new Set<string>();
+  for (const s of allScans ?? []) {
+    scanCounts[s.question_id] = (scanCounts[s.question_id] ?? 0) + 1;
+    uniqueStudents.add(s.user_id);
+  }
+
+  const topQuestions = Object.entries(scanCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([questionId, scanCount]) => ({ questionId, scanCount }));
+
+  const { data: recentScansRaw } = await supabase.from("qr_scan_logs")
+    .select("*, users!qr_scan_logs_user_id_fkey(full_name)")
+    .order("scanned_at", { ascending: false })
     .limit(30);
 
-  const totalScans = await db.select({ count: sql<number>`count(*)::int` }).from(qrScanLogsTable);
-  const uniqueStudents = await db.select({ count: sql<number>`count(distinct ${qrScanLogsTable.userId})::int` }).from(qrScanLogsTable);
-
   res.json({
-    totalScans: totalScans[0]?.count ?? 0,
-    uniqueStudents: uniqueStudents[0]?.count ?? 0,
+    totalScans: allScans?.length ?? 0,
+    uniqueStudents: uniqueStudents.size,
     topQuestions,
-    recentScans: recentScans.map((s) => ({
-      ...s,
-      scannedAt: s.scannedAt.toISOString(),
+    recentScans: (recentScansRaw ?? []).map((s) => ({
+      id: s.id,
+      questionId: s.question_id,
+      userId: s.user_id,
+      examId: s.exam_id,
+      scannedAt: s.scanned_at,
+      userName: (s.users as any)?.full_name ?? "Unknown",
     })),
   });
 });
 
 router.get("/admin/live-attempts", requireAdmin, async (req, res): Promise<void> => {
-  const liveAttempts = await db.select({
-    id: examAttemptsTable.id,
-    userId: examAttemptsTable.userId,
-    examId: examAttemptsTable.examId,
-    status: examAttemptsTable.status,
-    startTime: examAttemptsTable.startTime,
-    remainingSeconds: examAttemptsTable.remainingSeconds,
-    pauseCount: examAttemptsTable.pauseCount,
-    userName: usersTable.fullName,
-    examTitle: examsTable.title,
-    examType: examsTable.type,
-  })
-    .from(examAttemptsTable)
-    .leftJoin(usersTable, eq(examAttemptsTable.userId, usersTable.id))
-    .leftJoin(examsTable, eq(examAttemptsTable.examId, examsTable.id))
-    .where(eq(examAttemptsTable.status, "in_progress"))
-    .orderBy(desc(examAttemptsTable.startTime));
+  const { data: liveAttempts } = await supabase.from("exam_attempts")
+    .select("*, users!exam_attempts_user_id_fkey(full_name), exams!exam_attempts_exam_id_fkey(title, type)")
+    .eq("status", "in_progress")
+    .order("start_time", { ascending: false });
 
-  res.json(liveAttempts.map((a) => ({
-    ...a,
-    startTime: a.startTime.toISOString(),
-    elapsedMinutes: Math.floor((Date.now() - new Date(a.startTime).getTime()) / 60000),
+  res.json((liveAttempts ?? []).map((a) => ({
+    id: a.id,
+    userId: a.user_id,
+    examId: a.exam_id,
+    status: a.status,
+    startTime: a.start_time,
+    remainingSeconds: a.remaining_seconds,
+    pauseCount: a.pause_count,
+    userName: (a.users as any)?.full_name ?? null,
+    examTitle: (a.exams as any)?.title ?? null,
+    examType: (a.exams as any)?.type ?? null,
+    elapsedMinutes: Math.floor((Date.now() - new Date(a.start_time).getTime()) / 60000),
   })));
 });
 
-// ── Emergency Recovery: force-submit a stuck in_progress attempt ─────────────
 router.post("/admin/attempts/:attemptId/force-submit", requireAdmin, async (req, res): Promise<void> => {
   const attemptId = String(req.params.attemptId);
   if (!attemptId) { res.status(400).json({ error: "attemptId is required" }); return; }
 
-  const [attempt] = await db.select().from(examAttemptsTable)
-    .where(eq(examAttemptsTable.id, attemptId));
+  const { data: attempt } = await supabase.from("exam_attempts").select("*").eq("id", attemptId).maybeSingle();
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
   if (attempt.status === "submitted") {
     res.status(409).json({ error: "Attempt is already submitted" });
     return;
   }
 
-  await db.update(examAttemptsTable)
-    .set({ status: "submitted", endTime: new Date(), remainingSeconds: 0 })
-    .where(eq(examAttemptsTable.id, attemptId));
+  await supabase.from("exam_attempts")
+    .update({ status: "submitted", end_time: new Date().toISOString(), remaining_seconds: 0 })
+    .eq("id", attemptId);
 
   await createNotification(
-    attempt.userId,
+    attempt.user_id,
     "exam_reminder",
     "Exam Submitted by Admin",
     "An administrator has submitted your in-progress exam attempt on your behalf.",
@@ -477,16 +481,16 @@ router.post("/admin/import-syllabus", requireAdmin, async (req, res): Promise<vo
     if (!subjectName || !chapterName || !topicName) continue;
 
     if (!subjectCache[subjectName]) {
-      const [existing] = await db.select().from(subjectsTable).where(eq(subjectsTable.name, subjectName));
+      const { data: existing } = await supabase.from("subjects").select("id").eq("name", subjectName).maybeSingle();
       if (existing) {
         subjectCache[subjectName] = existing.id;
       } else {
-        const [allSubjects] = await db.select({ count: sql<number>`count(*)::int` }).from(subjectsTable);
-        const [newSubject] = await db.insert(subjectsTable).values({
+        const { count } = await supabase.from("subjects").select("*", { count: "exact", head: true });
+        const { data: newSubject } = await supabase.from("subjects").insert({
           id: nanoid(),
           name: subjectName,
-          order: (allSubjects?.count ?? 0) + 1,
-        }).returning();
+          order: (count ?? 0) + 1,
+        }).select().single();
         subjectCache[subjectName] = newSubject.id;
         created.subjects++;
       }
@@ -496,18 +500,23 @@ router.post("/admin/import-syllabus", requireAdmin, async (req, res): Promise<vo
     const chapterKey = `${subjectId}::${chapterName}`;
 
     if (!chapterCache[chapterKey]) {
-      const existing = await db.select().from(chaptersTable)
-        .where(and(eq(chaptersTable.subjectId, subjectId), eq(chaptersTable.name, chapterName)));
-      if (existing[0]) {
-        chapterCache[chapterKey] = existing[0].id;
+      const { data: existing } = await supabase.from("chapters")
+        .select("id")
+        .eq("subject_id", subjectId)
+        .eq("name", chapterName)
+        .maybeSingle();
+      if (existing) {
+        chapterCache[chapterKey] = existing.id;
       } else {
-        const chapterCount = await db.select({ count: sql<number>`count(*)::int` }).from(chaptersTable).where(eq(chaptersTable.subjectId, subjectId));
-        const [newChapter] = await db.insert(chaptersTable).values({
+        const { count } = await supabase.from("chapters")
+          .select("*", { count: "exact", head: true })
+          .eq("subject_id", subjectId);
+        const { data: newChapter } = await supabase.from("chapters").insert({
           id: nanoid(),
-          subjectId,
+          subject_id: subjectId,
           name: chapterName,
-          order: (chapterCount[0]?.count ?? 0) + 1,
-        }).returning();
+          order: (count ?? 0) + 1,
+        }).select().single();
         chapterCache[chapterKey] = newChapter.id;
         created.chapters++;
       }
@@ -515,15 +524,20 @@ router.post("/admin/import-syllabus", requireAdmin, async (req, res): Promise<vo
 
     const chapterId = chapterCache[chapterKey];
 
-    const existingTopics = await db.select().from(topicsTable)
-      .where(and(eq(topicsTable.chapterId, chapterId), eq(topicsTable.name, topicName)));
-    if (!existingTopics[0]) {
-      const topicCount = await db.select({ count: sql<number>`count(*)::int` }).from(topicsTable).where(eq(topicsTable.chapterId, chapterId));
-      await db.insert(topicsTable).values({
+    const { data: existingTopic } = await supabase.from("topics")
+      .select("id")
+      .eq("chapter_id", chapterId)
+      .eq("name", topicName)
+      .maybeSingle();
+    if (!existingTopic) {
+      const { count } = await supabase.from("topics")
+        .select("*", { count: "exact", head: true })
+        .eq("chapter_id", chapterId);
+      await supabase.from("topics").insert({
         id: nanoid(),
-        chapterId,
+        chapter_id: chapterId,
         name: topicName,
-        order: row.topic_order ?? (topicCount[0]?.count ?? 0) + 1,
+        order: row.topic_order ?? (count ?? 0) + 1,
       });
       created.topics++;
     }
@@ -534,7 +548,6 @@ router.post("/admin/import-syllabus", requireAdmin, async (req, res): Promise<vo
   res.json({ success: true, created });
 });
 
-// M-07 — Emergency Super-Admin Recovery (SRS FR-BOOT-03)
 router.post("/admin/emergency-recovery", async (req, res): Promise<void> => {
   const recoverySecret = process.env.RECOVERY_SECRET;
   if (!recoverySecret) {
@@ -562,11 +575,11 @@ router.post("/admin/emergency-recovery", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Invalid recovery secret." });
     return;
   }
-  const [updated] = await db
-    .update(usersTable)
-    .set({ role: "super_admin", status: "approved" })
-    .where(eq(usersTable.id, userId))
-    .returning({ id: usersTable.id, email: usersTable.email });
+  const { data: updated } = await supabase.from("users")
+    .update({ role: "super_admin", status: "approved" })
+    .eq("id", userId)
+    .select("id, email")
+    .maybeSingle();
   if (!updated) {
     res.status(404).json({ error: "User not found." });
     return;

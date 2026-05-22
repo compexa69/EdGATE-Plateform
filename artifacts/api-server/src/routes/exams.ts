@@ -1,10 +1,4 @@
 import { Router, type IRouter } from "express";
-import {
-  db, examsTable, examAttemptsTable, examQuestionsTable, questionsTable,
-  attemptAnswersTable, examResultsTable, topicProgressTable,
-  chaptersTable, topicsTable, subjectsTable, systemConfigTable,
-} from "@workspace/db";
-import { eq, and, inArray, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ListExamsQueryParams,
@@ -21,68 +15,69 @@ import {
   GetResultParams,
 } from "@workspace/api-zod";
 import { requireApproved, requireAdmin } from "../lib/auth";
-import { systemConfigTable, usersTable } from "@workspace/db";
 import { createNotification } from "./notifications";
 import { sendNewQuizEmail } from "../lib/email";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
-// ── Gate helpers ─────────────────────────────────────────────────────────────
+// ── Gate helpers ──────────────────────────────────────────────────────────────
 
-/** Returns true if every topic in the chapter has topicTestPassed. */
 async function isChapterTestUnlocked(chapterId: string, userId: string): Promise<boolean> {
-  const topics = await db.select().from(topicsTable).where(eq(topicsTable.chapterId, chapterId));
-  if (topics.length === 0) return false;
+  const { data: topics } = await supabase.from("topics").select("id").eq("chapter_id", chapterId);
+  if (!topics || topics.length === 0) return false;
   for (const t of topics) {
-    const [prog] = await db.select().from(topicProgressTable)
-      .where(and(eq(topicProgressTable.topicId, t.id), eq(topicProgressTable.userId, userId)));
-    if (!prog?.topicTestPassed) return false;
+    const { data: prog } = await supabase.from("topic_progress")
+      .select("topic_test_passed")
+      .eq("topic_id", t.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!prog?.topic_test_passed) return false;
   }
   return true;
 }
 
-/** Returns true if the user has at least one submitted result for any chapter_test in this chapter. */
 async function isNotesUploadUnlocked(chapterId: string, userId: string): Promise<boolean> {
-  const chapterExams = await db.select().from(examsTable)
-    .where(and(eq(examsTable.chapterId, chapterId), eq(examsTable.type, "chapter_test")));
-  if (chapterExams.length === 0) return false;
+  const { data: chapterExams } = await supabase.from("exams")
+    .select("id")
+    .eq("chapter_id", chapterId)
+    .eq("type", "chapter_test");
+  if (!chapterExams || chapterExams.length === 0) return false;
   for (const exam of chapterExams) {
-    const [result] = await db.select().from(examResultsTable)
-      .where(and(eq(examResultsTable.examId, exam.id), eq(examResultsTable.userId, userId)));
+    const { data: result } = await supabase.from("exam_results")
+      .select("id")
+      .eq("exam_id", exam.id)
+      .eq("user_id", userId)
+      .maybeSingle();
     if (result) return true;
   }
   return false;
 }
 
-/**
- * Subject Test is unlocked when every chapter in the subject has at least one
- * chapter_test exam result where passed = true.
- */
 async function isSubjectTestUnlocked(subjectId: string, userId: string): Promise<boolean> {
-  const chapters = await db.select().from(chaptersTable)
-    .where(eq(chaptersTable.subjectId, subjectId));
-  if (chapters.length === 0) return false;
+  const { data: chapters } = await supabase.from("chapters").select("id").eq("subject_id", subjectId);
+  if (!chapters || chapters.length === 0) return false;
   for (const ch of chapters) {
-    const [chapterExam] = await db.select().from(examsTable)
-      .where(and(eq(examsTable.chapterId, ch.id), eq(examsTable.type, "chapter_test")));
+    const { data: chapterExam } = await supabase.from("exams")
+      .select("id")
+      .eq("chapter_id", ch.id)
+      .eq("type", "chapter_test")
+      .maybeSingle();
     if (!chapterExam) return false;
-    const [passedResult] = await db.select().from(examResultsTable)
-      .where(and(
-        eq(examResultsTable.examId, chapterExam.id),
-        eq(examResultsTable.userId, userId),
-        eq(examResultsTable.passed, true),
-      ));
+    const { data: passedResult } = await supabase.from("exam_results")
+      .select("id")
+      .eq("exam_id", chapterExam.id)
+      .eq("user_id", userId)
+      .eq("passed", true)
+      .maybeSingle();
     if (!passedResult) return false;
   }
   return true;
 }
 
-/**
- * Grand Test is unlocked when every subject has at least one passed subject_test result.
- */
 async function isGrandTestUnlocked(userId: string): Promise<boolean> {
-  const subjects = await db.select().from(subjectsTable);
-  if (subjects.length === 0) return false;
+  const { data: subjects } = await supabase.from("subjects").select("id");
+  if (!subjects || subjects.length === 0) return false;
   for (const s of subjects) {
     const unlocked = await isSubjectTestUnlocked(s.id, userId);
     if (!unlocked) return false;
@@ -90,16 +85,12 @@ async function isGrandTestUnlocked(userId: string): Promise<boolean> {
   return true;
 }
 
-/** Compute isUnlocked for a given exam row for this user. */
-async function computeExamUnlocked(
-  exam: typeof examsTable.$inferSelect,
-  userId: string,
-): Promise<boolean> {
-  if (exam.type === "chapter_test" && exam.chapterId) {
-    return isChapterTestUnlocked(exam.chapterId, userId);
+async function computeExamUnlocked(exam: Record<string, any>, userId: string): Promise<boolean> {
+  if (exam.type === "chapter_test" && exam.chapter_id) {
+    return isChapterTestUnlocked(exam.chapter_id, userId);
   }
-  if (exam.type === "subject_test" && exam.subjectId) {
-    return isSubjectTestUnlocked(exam.subjectId, userId);
+  if (exam.type === "subject_test" && exam.subject_id) {
+    return isSubjectTestUnlocked(exam.subject_id, userId);
   }
   if (exam.type === "grand_test") {
     return isGrandTestUnlocked(userId);
@@ -109,20 +100,40 @@ async function computeExamUnlocked(
 
 // ── Question formatter ────────────────────────────────────────────────────────
 
-function formatQuestion(q: typeof questionsTable.$inferSelect, showAnswer = false) {
+function formatQuestion(q: Record<string, any>, showAnswer = false) {
   return {
     id: q.id,
     text: q.text,
     options: q.options,
-    correctOption: showAnswer ? parseInt(q.correctOption, 10) : null,
+    correctOption: showAnswer ? parseInt(q.correct_option, 10) : null,
     marks: q.marks,
-    topicId: q.topicId ?? null,
-    imageUrl: q.imageUrl ?? null,
-    textSolution: showAnswer ? (q.textSolution ?? null) : null,
-    videoUrl: showAnswer ? (q.videoUrl ?? null) : null,
-    qrCodeSvg: showAnswer ? (q.qrCodeSvg ?? null) : null,
+    topicId: q.topic_id ?? null,
+    imageUrl: q.image_url ?? null,
+    textSolution: showAnswer ? (q.text_solution ?? null) : null,
+    videoUrl: showAnswer ? (q.video_url ?? null) : null,
+    qrCodeSvg: showAnswer ? (q.qr_code_svg ?? null) : null,
     difficulty: q.difficulty,
   };
+}
+
+// ── Topic progress helper ─────────────────────────────────────────────────────
+
+async function updateTopicProgress(userId: string, topicId: string, field: string, value: boolean) {
+  const { data: existing } = await supabase.from("topic_progress")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("topic_id", topicId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase.from("topic_progress")
+      .update({ [field]: value })
+      .eq("id", existing.id);
+  } else {
+    await supabase.from("topic_progress").insert({
+      id: nanoid(), user_id: userId, topic_id: topicId, [field]: value,
+    });
+  }
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -131,28 +142,31 @@ router.get("/exams", requireApproved, async (req, res): Promise<void> => {
   const params = ListExamsQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  let query = db.select().from(examsTable).$dynamic();
-  const conditions = [];
-  if (params.data.type) conditions.push(eq(examsTable.type, params.data.type as typeof examsTable.$inferSelect["type"]));
-  if (params.data.subjectId) conditions.push(eq(examsTable.subjectId, params.data.subjectId));
-  if (params.data.chapterId) conditions.push(eq(examsTable.chapterId, params.data.chapterId));
-  if (params.data.topicId) conditions.push(eq(examsTable.topicId, params.data.topicId));
-  if (conditions.length > 0) query = query.where(and(...conditions));
+  let query = supabase.from("exams").select("*");
+  if (params.data.type) query = query.eq("type", params.data.type);
+  if (params.data.subjectId) query = query.eq("subject_id", params.data.subjectId);
+  if (params.data.chapterId) query = query.eq("chapter_id", params.data.chapterId);
+  if (params.data.topicId) query = query.eq("topic_id", params.data.topicId);
 
-  const exams = await query;
-  const result = await Promise.all(exams.map(async (e) => {
-    const qCount = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, e.id));
-    const totalMarks = qCount.length * 4;
-    const [attempt] = await db.select().from(examResultsTable)
-      .where(and(eq(examResultsTable.examId, e.id), eq(examResultsTable.userId, req.user!.id)));
+  const { data: exams } = await query;
+  const result = await Promise.all((exams ?? []).map(async (e) => {
+    const { count: qCount } = await supabase.from("exam_questions")
+      .select("*", { count: "exact", head: true })
+      .eq("exam_id", e.id);
+    const totalMarks = (qCount ?? 0) * 4;
+    const { data: attempt } = await supabase.from("exam_results")
+      .select("score")
+      .eq("exam_id", e.id)
+      .eq("user_id", req.user!.id)
+      .maybeSingle();
     const isUnlocked = await computeExamUnlocked(e, req.user!.id);
     return {
       id: e.id, title: e.title, type: e.type,
-      subjectId: e.subjectId ?? null, chapterId: e.chapterId ?? null, topicId: e.topicId ?? null,
-      durationMinutes: e.durationMinutes, totalQuestions: qCount.length, totalMarks,
-      passingScore: e.passingScore ?? null, negativeMarking: e.negativeMarking,
+      subjectId: e.subject_id ?? null, chapterId: e.chapter_id ?? null, topicId: e.topic_id ?? null,
+      durationMinutes: e.duration_minutes, totalQuestions: qCount ?? 0, totalMarks,
+      passingScore: e.passing_score ?? null, negativeMarking: e.negative_marking,
       isUnlocked, hasAttempted: !!attempt,
-      lastScore: attempt?.score ?? null, createdAt: e.createdAt.toISOString(),
+      lastScore: attempt?.score ?? null, createdAt: e.created_at,
     };
   }));
   res.json(result);
@@ -162,45 +176,55 @@ router.post("/exams", requireAdmin, async (req, res): Promise<void> => {
   const parsed = CreateExamBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { questionIds, ...examData } = parsed.data;
-  const [exam] = await db.insert(examsTable).values({ id: nanoid(), ...examData }).returning();
+  const d = parsed.data as any;
+  const { questionIds, ...examData } = d;
+
+  const { data: exam } = await supabase.from("exams").insert({
+    id: nanoid(),
+    title: examData.title,
+    type: examData.type,
+    subject_id: examData.subjectId ?? null,
+    chapter_id: examData.chapterId ?? null,
+    topic_id: examData.topicId ?? null,
+    duration_minutes: examData.durationMinutes,
+    passing_score: examData.passingScore ?? null,
+    negative_marking: examData.negativeMarking ?? 0,
+  }).select().single();
 
   if (questionIds?.length) {
-    await db.insert(examQuestionsTable).values(
-      questionIds.map((qId, i) => ({ id: nanoid(), examId: exam.id, questionId: qId, order: i }))
+    await supabase.from("exam_questions").insert(
+      questionIds.map((qId: string, i: number) => ({ id: nanoid(), exam_id: exam.id, question_id: qId, order: i }))
     );
   }
 
   res.status(201).json({
     id: exam.id, title: exam.title, type: exam.type,
-    subjectId: exam.subjectId ?? null, chapterId: exam.chapterId ?? null, topicId: exam.topicId ?? null,
-    durationMinutes: exam.durationMinutes, totalQuestions: questionIds?.length ?? 0,
+    subjectId: exam.subject_id ?? null, chapterId: exam.chapter_id ?? null, topicId: exam.topic_id ?? null,
+    durationMinutes: exam.duration_minutes, totalQuestions: questionIds?.length ?? 0,
     totalMarks: (questionIds?.length ?? 0) * 4,
-    passingScore: exam.passingScore ?? null, negativeMarking: exam.negativeMarking,
-    isUnlocked: true, hasAttempted: false, lastScore: null, createdAt: exam.createdAt.toISOString(),
+    passingScore: exam.passing_score ?? null, negativeMarking: exam.negative_marking,
+    isUnlocked: true, hasAttempted: false, lastScore: null, createdAt: exam.created_at,
   });
 
-  // Fire-and-forget: notify all approved students about the new quiz (skip drill exams)
   if (exam.type !== "drill") {
     setImmediate(async () => {
       try {
-        const approvedUsers = await db
-          .select({ id: usersTable.id, email: usersTable.email, fullName: usersTable.fullName })
-          .from(usersTable)
-          .where(eq(usersTable.status, "approved"));
+        const { data: approvedUsers } = await supabase.from("users")
+          .select("id, email, full_name")
+          .eq("status", "approved");
 
         await Promise.allSettled(
-          approvedUsers.map(async (user) => {
+          (approvedUsers ?? []).map(async (user) => {
             await createNotification(
               user.id,
               "new_quiz",
               `New quiz available: ${exam.title}`,
+              `A new ${exam.type.replace(/_/g, " ")} has been added: "${exam.title}". Open the app to start practising!`,
             );
-            await sendNewQuizEmail(user.email, user.fullName, exam.title, exam.type);
+            await sendNewQuizEmail(user.email, user.full_name, exam.title, exam.type);
           }),
         );
       } catch (err) {
-        // Non-fatal — exam was created successfully
         const { logger } = await import("../lib/logger");
         logger.error({ err, examId: exam.id }, "Failed to send new-quiz notifications");
       }
@@ -210,21 +234,21 @@ router.post("/exams", requireAdmin, async (req, res): Promise<void> => {
 
 router.delete("/exams/:examId", requireAdmin, async (req, res): Promise<void> => {
   const examId = String(req.params.examId);
-  const [deleted] = await db.delete(examsTable).where(eq(examsTable.id, examId)).returning();
+  const { data: deleted } = await supabase.from("exams").delete().eq("id", examId).select().maybeSingle();
   if (!deleted) { res.status(404).json({ error: "Exam not found" }); return; }
   res.sendStatus(204);
 });
 
 router.get("/exams/:examId/questions", requireApproved, async (req, res): Promise<void> => {
   const examId = String(req.params.examId);
-  const examQs = await db.select().from(examQuestionsTable)
-    .where(eq(examQuestionsTable.examId, examId))
-    .orderBy(examQuestionsTable.order);
-  if (examQs.length === 0) { res.json([]); return; }
-  const questionIds = examQs.map((aq) => aq.questionId);
-  const questions = await db.select().from(questionsTable)
-    .where(inArray(questionsTable.id, questionIds));
-  const ordered = examQs.map((aq) => questions.find((q) => q.id === aq.questionId)).filter(Boolean);
+  const { data: examQs } = await supabase.from("exam_questions")
+    .select("*")
+    .eq("exam_id", examId)
+    .order("order");
+  if (!examQs || examQs.length === 0) { res.json([]); return; }
+  const questionIds = examQs.map((aq) => aq.question_id);
+  const { data: questions } = await supabase.from("questions").select("*").in("id", questionIds);
+  const ordered = examQs.map((aq) => (questions ?? []).find((q) => q.id === aq.question_id)).filter(Boolean);
   res.json(ordered.map((q) => formatQuestion(q!, false)));
 });
 
@@ -232,17 +256,21 @@ router.post("/exams/:examId/questions", requireAdmin, async (req, res): Promise<
   const examId = String(req.params.examId);
   const { questionId, order } = req.body as { questionId?: string; order?: number };
   if (!questionId) { res.status(400).json({ error: "questionId required" }); return; }
-  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, examId));
+  const { data: exam } = await supabase.from("exams").select("id").eq("id", examId).maybeSingle();
   if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
-  const existingRows = await db.select().from(examQuestionsTable)
-    .where(and(eq(examQuestionsTable.examId, examId), eq(examQuestionsTable.questionId, String(questionId))));
-  if (existingRows.length > 0) { res.status(409).json({ error: "Question already in exam" }); return; }
-  const allQs = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, examId));
-  await db.insert(examQuestionsTable).values({
+  const { data: existingRows } = await supabase.from("exam_questions")
+    .select("id")
+    .eq("exam_id", examId)
+    .eq("question_id", String(questionId));
+  if (existingRows && existingRows.length > 0) { res.status(409).json({ error: "Question already in exam" }); return; }
+  const { count: allQsCount } = await supabase.from("exam_questions")
+    .select("*", { count: "exact", head: true })
+    .eq("exam_id", examId);
+  await supabase.from("exam_questions").insert({
     id: nanoid(),
-    examId,
-    questionId: String(questionId),
-    order: order ?? allQs.length,
+    exam_id: examId,
+    question_id: String(questionId),
+    order: order ?? (allQsCount ?? 0),
   });
   res.status(201).json({ success: true, message: "Question added to exam" });
 });
@@ -250,8 +278,7 @@ router.post("/exams/:examId/questions", requireAdmin, async (req, res): Promise<
 router.delete("/exams/:examId/questions/:questionId", requireAdmin, async (req, res): Promise<void> => {
   const examId = String(req.params.examId);
   const questionId = String(req.params.questionId);
-  await db.delete(examQuestionsTable)
-    .where(and(eq(examQuestionsTable.examId, examId), eq(examQuestionsTable.questionId, questionId)));
+  await supabase.from("exam_questions").delete().eq("exam_id", examId).eq("question_id", questionId);
   res.sendStatus(204);
 });
 
@@ -259,27 +286,27 @@ router.get("/exams/:examId", requireApproved, async (req, res): Promise<void> =>
   const params = GetExamParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, params.data.examId));
+  const { data: exam } = await supabase.from("exams").select("*").eq("id", params.data.examId).maybeSingle();
   if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
 
-  const examQs = await db.select().from(examQuestionsTable)
-    .where(eq(examQuestionsTable.examId, exam.id))
-    .orderBy(examQuestionsTable.order);
+  const { data: examQs } = await supabase.from("exam_questions")
+    .select("*")
+    .eq("exam_id", exam.id)
+    .order("order");
 
-  const questions = examQs.length > 0
-    ? await db.select().from(questionsTable)
-      .where(inArray(questionsTable.id, examQs.map((q) => q.questionId)))
+  const questions = examQs && examQs.length > 0
+    ? (await supabase.from("questions").select("*").in("id", examQs.map((q) => q.question_id))).data ?? []
     : [];
 
   const isUnlocked = await computeExamUnlocked(exam, req.user!.id);
 
   res.json({
     id: exam.id, title: exam.title, type: exam.type,
-    durationMinutes: exam.durationMinutes,
+    durationMinutes: exam.duration_minutes,
     totalQuestions: questions.length,
     totalMarks: questions.reduce((sum, q) => sum + q.marks, 0),
-    passingScore: exam.passingScore ?? null,
-    negativeMarking: exam.negativeMarking,
+    passingScore: exam.passing_score ?? null,
+    negativeMarking: exam.negative_marking,
     isUnlocked,
     questions: questions.map((q) => formatQuestion(q, false)),
   });
@@ -289,12 +316,11 @@ router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<v
   const params = StartExamParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, params.data.examId));
+  const { data: exam } = await supabase.from("exams").select("*").eq("id", params.data.examId).maybeSingle();
   if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
 
-  // ── Chapter Test gate enforcement ──────────────────────────────────────────
-  if (exam.type === "chapter_test" && exam.chapterId) {
-    const unlocked = await isChapterTestUnlocked(exam.chapterId, req.user!.id);
+  if (exam.type === "chapter_test" && exam.chapter_id) {
+    const unlocked = await isChapterTestUnlocked(exam.chapter_id, req.user!.id);
     if (!unlocked) {
       res.status(403).json({
         error: "Chapter Test is locked",
@@ -304,9 +330,8 @@ router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<v
     }
   }
 
-  // ── Subject Test gate enforcement ───────────────────────────────────────────
-  if (exam.type === "subject_test" && exam.subjectId) {
-    const unlocked = await isSubjectTestUnlocked(exam.subjectId, req.user!.id);
+  if (exam.type === "subject_test" && exam.subject_id) {
+    const unlocked = await isSubjectTestUnlocked(exam.subject_id, req.user!.id);
     if (!unlocked) {
       res.status(403).json({
         error: "Subject Test is locked",
@@ -316,50 +341,52 @@ router.post("/exams/:examId/start", requireApproved, async (req, res): Promise<v
     }
   }
 
-  // ── Attempt limit enforcement (SRS EX-04) ────────────────────────────────
-  const [configRow] = await db.select().from(systemConfigTable)
-    .where(eq(systemConfigTable.key, "max_quiz_attempts"));
+  const { data: configRow } = await supabase.from("system_config")
+    .select("value")
+    .eq("key", "max_quiz_attempts")
+    .maybeSingle();
   const maxAttempts = configRow ? parseInt(configRow.value, 10) : 3;
 
-  const previousAttempts = await db.select().from(examResultsTable)
-    .where(and(eq(examResultsTable.examId, exam.id), eq(examResultsTable.userId, req.user!.id)));
+  const { data: previousAttempts } = await supabase.from("exam_results")
+    .select("id")
+    .eq("exam_id", exam.id)
+    .eq("user_id", req.user!.id);
 
-  if (previousAttempts.length >= maxAttempts) {
+  if ((previousAttempts?.length ?? 0) >= maxAttempts) {
     res.status(403).json({
       error: `Attempt limit reached`,
-      reason: `You have already attempted this exam ${previousAttempts.length} time${previousAttempts.length !== 1 ? "s" : ""}. Maximum allowed is ${maxAttempts}.`,
-      attemptsUsed: previousAttempts.length,
+      reason: `You have already attempted this exam ${previousAttempts!.length} time${previousAttempts!.length !== 1 ? "s" : ""}. Maximum allowed is ${maxAttempts}.`,
+      attemptsUsed: previousAttempts!.length,
       maxAttempts,
     });
     return;
   }
-  // ─────────────────────────────────────────────────────────────────────────
 
-  const now = new Date();
-  const [attempt] = await db.insert(examAttemptsTable).values({
+  const now = new Date().toISOString();
+  const { data: attempt } = await supabase.from("exam_attempts").insert({
     id: nanoid(),
-    userId: req.user!.id,
-    examId: exam.id,
+    user_id: req.user!.id,
+    exam_id: exam.id,
     status: "in_progress",
-    startTime: now,
-    resumedAt: now,
-    remainingSeconds: exam.durationMinutes * 60,
-    pauseCount: 0,
-  }).returning();
+    start_time: now,
+    resumed_at: now,
+    remaining_seconds: exam.duration_minutes * 60,
+    pause_count: 0,
+  }).select().single();
 
-  const examQs = await db.select().from(examQuestionsTable)
-    .where(eq(examQuestionsTable.examId, exam.id))
-    .orderBy(examQuestionsTable.order);
+  const { data: examQs } = await supabase.from("exam_questions")
+    .select("*")
+    .eq("exam_id", exam.id)
+    .order("order");
 
-  const questions = examQs.length > 0
-    ? await db.select().from(questionsTable)
-      .where(inArray(questionsTable.id, examQs.map((q) => q.questionId)))
+  const questions = examQs && examQs.length > 0
+    ? (await supabase.from("questions").select("*").in("id", examQs.map((q) => q.question_id))).data ?? []
     : [];
 
   res.json({
-    id: attempt.id, examId: attempt.examId, userId: attempt.userId,
-    status: attempt.status, startTime: attempt.startTime.toISOString(),
-    pauseCount: attempt.pauseCount, remainingSeconds: attempt.remainingSeconds,
+    id: attempt.id, examId: attempt.exam_id, userId: attempt.user_id,
+    status: attempt.status, startTime: attempt.start_time,
+    pauseCount: attempt.pause_count, remainingSeconds: attempt.remaining_seconds,
     answers: [], questions: questions.map((q) => formatQuestion(q, false)),
   });
 });
@@ -370,32 +397,34 @@ router.post("/attempts/:attemptId/answer", requireApproved, async (req, res): Pr
   const parsed = SaveAnswerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [attemptOwner] = await db.select({ userId: examAttemptsTable.userId, status: examAttemptsTable.status })
-    .from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
+  const { data: attemptOwner } = await supabase.from("exam_attempts")
+    .select("user_id, status")
+    .eq("id", params.data.attemptId)
+    .maybeSingle();
   if (!attemptOwner) { res.status(404).json({ error: "Attempt not found" }); return; }
-  if (attemptOwner.userId !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (attemptOwner.user_id !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
   if (attemptOwner.status === "submitted") { res.status(409).json({ error: "Exam already submitted" }); return; }
 
-  const [existing] = await db.select().from(attemptAnswersTable)
-    .where(and(
-      eq(attemptAnswersTable.attemptId, params.data.attemptId),
-      eq(attemptAnswersTable.questionId, parsed.data.questionId)
-    ));
+  const { data: existing } = await supabase.from("attempt_answers")
+    .select("id")
+    .eq("attempt_id", params.data.attemptId)
+    .eq("question_id", parsed.data.questionId)
+    .maybeSingle();
 
   if (existing) {
-    await db.update(attemptAnswersTable).set({
-      selectedOption: parsed.data.selectedOption != null ? String(parsed.data.selectedOption) : null,
-      isMarkedForReview: parsed.data.isMarkedForReview,
-      timeSpentSeconds: parsed.data.timeSpentSeconds,
-    }).where(eq(attemptAnswersTable.id, existing.id));
+    await supabase.from("attempt_answers").update({
+      selected_option: parsed.data.selectedOption != null ? String(parsed.data.selectedOption) : null,
+      is_marked_for_review: parsed.data.isMarkedForReview,
+      time_spent_seconds: parsed.data.timeSpentSeconds,
+    }).eq("id", existing.id);
   } else {
-    await db.insert(attemptAnswersTable).values({
+    await supabase.from("attempt_answers").insert({
       id: nanoid(),
-      attemptId: params.data.attemptId,
-      questionId: parsed.data.questionId,
-      selectedOption: parsed.data.selectedOption != null ? String(parsed.data.selectedOption) : null,
-      isMarkedForReview: parsed.data.isMarkedForReview,
-      timeSpentSeconds: parsed.data.timeSpentSeconds,
+      attempt_id: params.data.attemptId,
+      question_id: parsed.data.questionId,
+      selected_option: parsed.data.selectedOption != null ? String(parsed.data.selectedOption) : null,
+      is_marked_for_review: parsed.data.isMarkedForReview,
+      time_spent_seconds: parsed.data.timeSpentSeconds,
     });
   }
 
@@ -408,34 +437,28 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
   const parsed = SubmitExamBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
+  const { data: attempt } = await supabase.from("exam_attempts").select("*").eq("id", params.data.attemptId).maybeSingle();
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
-  // ── Ownership check ───────────────────────────────────────────────────────
-  if (attempt.userId !== req.user!.id) {
+  if (attempt.user_id !== req.user!.id) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
 
-  // ── Idempotency: reject already-submitted attempts ────────────────────────
   if (attempt.status === "submitted") {
     res.status(409).json({ error: "This exam has already been submitted." });
     return;
   }
 
-  // ── Server-side timer validation (SRS C-13) ───────────────────────────────
-  // Calculate how much time has actually elapsed since the last resume/start.
-  const GRACE_SECONDS = 60; // 60s network grace period
-  const lastActiveAt = attempt.resumedAt ?? attempt.startTime;
-  const elapsedSinceResume = Math.floor((Date.now() - lastActiveAt.getTime()) / 1000);
-  const serverRemainingSeconds = attempt.remainingSeconds - elapsedSinceResume;
+  const GRACE_SECONDS = 60;
+  const lastActiveAt = attempt.resumed_at ?? attempt.start_time;
+  const elapsedSinceResume = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
+  const serverRemainingSeconds = attempt.remaining_seconds - elapsedSinceResume;
 
   if (serverRemainingSeconds < -GRACE_SECONDS) {
-    // Time truly expired server-side — still accept but strip any answers
-    // saved after the deadline by using only what was persisted to DB.
-    await db.update(examAttemptsTable)
-      .set({ status: "submitted", endTime: new Date() })
-      .where(eq(examAttemptsTable.id, attempt.id));
+    await supabase.from("exam_attempts")
+      .update({ status: "submitted", end_time: new Date().toISOString() })
+      .eq("id", attempt.id);
     res.status(400).json({
       error: "Exam time has expired. Your saved answers have been auto-submitted.",
       code: "EXAM_TIME_EXPIRED",
@@ -443,10 +466,10 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
     return;
   }
 
-  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, attempt.examId));
-  const examQs = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, exam.id));
-  const questions = examQs.length > 0
-    ? await db.select().from(questionsTable).where(inArray(questionsTable.id, examQs.map((q) => q.questionId)))
+  const { data: exam } = await supabase.from("exams").select("*").eq("id", attempt.exam_id).maybeSingle();
+  const { data: examQs } = await supabase.from("exam_questions").select("question_id").eq("exam_id", exam!.id);
+  const questions = examQs && examQs.length > 0
+    ? (await supabase.from("questions").select("*").in("id", examQs.map((q) => q.question_id))).data ?? []
     : [];
 
   const answerMap = new Map(parsed.data.answers.map((a) => [a.questionId, a]));
@@ -460,7 +483,7 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
   const questionWise = questions.map((q) => {
     const answer = answerMap.get(q.id);
     const selected = answer?.selectedOption;
-    const correctOpt = parseInt(q.correctOption, 10);
+    const correctOpt = parseInt(q.correct_option, 10);
     let isCorrect = false;
     let marksAwarded = 0;
 
@@ -473,8 +496,8 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
       score += q.marks;
     } else {
       incorrect++;
-      marksAwarded = -exam.negativeMarking;
-      score -= exam.negativeMarking;
+      marksAwarded = -exam!.negative_marking;
+      score -= exam!.negative_marking;
     }
 
     return {
@@ -482,95 +505,91 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
       selectedOption: selected ?? null, correctOption: correctOpt,
       isCorrect, marksAwarded,
       timeSpentSeconds: answer?.timeSpentSeconds ?? 0,
-      textSolution: q.textSolution ?? null,
-      imageUrl: q.imageUrl ?? null,
-      videoUrl: q.videoUrl ?? null,
-      qrCodeSvg: q.qrCodeSvg ?? null,
+      textSolution: q.text_solution ?? null,
+      imageUrl: q.image_url ?? null,
+      videoUrl: q.video_url ?? null,
+      qrCodeSvg: q.qr_code_svg ?? null,
     };
   });
 
   const maxScore = questions.reduce((s, q) => s + q.marks, 0);
   const accuracy = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
 
-  // Determine pass threshold: use exam-level override first, else fall back to
-  // the admin-configurable system_config percentage (SRS FR-GATE-01).
-  let passingThreshold = exam.passingScore ?? null;
+  let passingThreshold = exam!.passing_score ?? null;
   if (passingThreshold === null && maxScore > 0) {
     const configKey =
-      exam.type === "lecture_quiz" ? "lecture_quiz_passing_score" :
-      exam.type === "topic_test" ? "topic_test_passing_score" :
-      exam.type === "chapter_test" ? "chapter_test_passing_score" :
+      exam!.type === "lecture_quiz" ? "lecture_quiz_passing_score" :
+      exam!.type === "topic_test" ? "topic_test_passing_score" :
+      exam!.type === "chapter_test" ? "chapter_test_passing_score" :
       null;
     if (configKey) {
-      const [cfgRow] = await db.select({ value: systemConfigTable.value })
-        .from(systemConfigTable)
-        .where(eq(systemConfigTable.key, configKey));
+      const { data: cfgRow } = await supabase.from("system_config")
+        .select("value")
+        .eq("key", configKey)
+        .maybeSingle();
       const pct = cfgRow ? parseInt(cfgRow.value, 10) : 60;
       passingThreshold = Math.round((pct / 100) * maxScore);
     }
   }
   const passed = passingThreshold !== null ? score >= passingThreshold : score > 0;
 
-  const [result] = await db.insert(examResultsTable).values({
+  const { data: result } = await supabase.from("exam_results").insert({
     id: nanoid(),
-    attemptId: attempt.id,
-    userId: req.user!.id,
-    examId: exam.id,
+    attempt_id: attempt.id,
+    user_id: req.user!.id,
+    exam_id: exam!.id,
     score: Math.max(0, score),
-    maxScore,
+    max_score: maxScore,
     accuracy,
-    totalQuestions: questions.length,
-    correctAnswers: correct,
-    incorrectAnswers: incorrect,
-    skippedAnswers: skipped,
-    timeTakenSeconds: totalTime,
+    total_questions: questions.length,
+    correct_answers: correct,
+    incorrect_answers: incorrect,
+    skipped_answers: skipped,
+    time_taken_seconds: totalTime,
     passed,
-    submittedAt: new Date(),
-  }).returning();
+    submitted_at: new Date().toISOString(),
+  }).select().single();
 
-  await db.update(examAttemptsTable)
-    .set({ status: "submitted", endTime: new Date() })
-    .where(eq(examAttemptsTable.id, attempt.id));
+  await supabase.from("exam_attempts")
+    .update({ status: "submitted", end_time: new Date().toISOString() })
+    .eq("id", attempt.id);
 
-  if (exam.type === "lecture_quiz" && exam.topicId) {
-    await updateTopicProgress(req.user!.id, exam.topicId, "lectureQuizPassed", passed);
-  } else if (exam.type === "dpp" && exam.topicId) {
-    await updateTopicProgress(req.user!.id, exam.topicId, "dppCompleted", true);
-  } else if (exam.type === "pyq" && exam.topicId) {
-    await updateTopicProgress(req.user!.id, exam.topicId, "pyqCompleted", true);
-  } else if (exam.type === "topic_test" && exam.topicId) {
-    await updateTopicProgress(req.user!.id, exam.topicId, "topicTestPassed", passed);
+  if (exam!.type === "lecture_quiz" && exam!.topic_id) {
+    await updateTopicProgress(req.user!.id, exam!.topic_id, "lecture_quiz_passed", passed);
+  } else if (exam!.type === "dpp" && exam!.topic_id) {
+    await updateTopicProgress(req.user!.id, exam!.topic_id, "dpp_completed", true);
+  } else if (exam!.type === "pyq" && exam!.topic_id) {
+    await updateTopicProgress(req.user!.id, exam!.topic_id, "pyq_completed", true);
+  } else if (exam!.type === "topic_test" && exam!.topic_id) {
+    await updateTopicProgress(req.user!.id, exam!.topic_id, "topic_test_passed", passed);
   }
 
-  // Prompt a targeted drill when a topic test is failed with wrong (not just skipped) answers
-  if (exam.type === "topic_test" && !passed && incorrect > 0) {
+  if (exam!.type === "topic_test" && !passed && incorrect > 0) {
     (async () => {
       try {
         await createNotification(
           req.user!.id,
           "exam_reminder",
           "Topic Test Failed — Drill Available",
-          `You got ${incorrect} question${incorrect > 1 ? "s" : ""} wrong in "${exam.title}". Open your results to launch a focused drill on exactly those gaps before retrying.`,
+          `You got ${incorrect} question${incorrect > 1 ? "s" : ""} wrong in "${exam!.title}". Open your results to launch a focused drill on exactly those gaps before retrying.`,
         );
       } catch {}
     })();
   }
 
-  // Topic-wise breakdown
   const twStats = new Map<string, { name: string; correct: number; total: number }>();
   for (const q of questions) {
-    if (!q.topicId) continue;
-    const stat = twStats.get(q.topicId) ?? { name: "", correct: 0, total: 0 };
+    if (!q.topic_id) continue;
+    const stat = twStats.get(q.topic_id) ?? { name: "", correct: 0, total: 0 };
     stat.total++;
     const ans = answerMap.get(q.id);
-    if (ans?.selectedOption != null && ans.selectedOption === parseInt(q.correctOption, 10)) stat.correct++;
-    twStats.set(q.topicId, stat);
+    if (ans?.selectedOption != null && ans.selectedOption === parseInt(q.correct_option, 10)) stat.correct++;
+    twStats.set(q.topic_id, stat);
   }
   const twIds = Array.from(twStats.keys());
   if (twIds.length > 0) {
-    const topicRows = await db.select({ id: topicsTable.id, name: topicsTable.name })
-      .from(topicsTable).where(inArray(topicsTable.id, twIds));
-    for (const t of topicRows) { const s = twStats.get(t.id); if (s) s.name = t.name; }
+    const { data: topicRows } = await supabase.from("topics").select("id, name").in("id", twIds);
+    for (const t of topicRows ?? []) { const s = twStats.get(t.id); if (s) s.name = t.name; }
   }
   const topicWise = Array.from(twStats.entries()).map(([topicId, s]) => ({
     topicId, topicName: s.name || "Unknown",
@@ -578,55 +597,36 @@ router.post("/attempts/:attemptId/submit", requireApproved, async (req, res): Pr
     accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
   }));
 
-  // ── Percentile calculation (SRS M-06) ────────────────────────────────────
-  const allPeerResults = await db
-    .select({ score: examResultsTable.score })
-    .from(examResultsTable)
-    .where(eq(examResultsTable.examId, exam.id));
-  const peerTotal = allPeerResults.length;
-  const atOrBelow = allPeerResults.filter((r) => r.score <= result.score).length;
+  const { data: allPeerResults } = await supabase.from("exam_results")
+    .select("score")
+    .eq("exam_id", exam!.id);
+  const peerTotal = allPeerResults?.length ?? 0;
+  const atOrBelow = (allPeerResults ?? []).filter((r) => r.score <= result.score).length;
   const percentile = peerTotal > 0 ? Math.round((atOrBelow / peerTotal) * 100) : 100;
 
   res.json({
-    id: result.id, examId: exam.id, examTitle: exam.title, examType: exam.type,
-    score: result.score, maxScore: result.maxScore, accuracy: result.accuracy,
-    totalQuestions: result.totalQuestions, correctAnswers: result.correctAnswers,
-    incorrectAnswers: result.incorrectAnswers, skippedAnswers: result.skippedAnswers,
-    timeTakenSeconds: result.timeTakenSeconds, percentile,
+    id: result.id, examId: exam!.id, examTitle: exam!.title, examType: exam!.type,
+    score: result.score, maxScore: result.max_score, accuracy: result.accuracy,
+    totalQuestions: result.total_questions, correctAnswers: result.correct_answers,
+    incorrectAnswers: result.incorrect_answers, skippedAnswers: result.skipped_answers,
+    timeTakenSeconds: result.time_taken_seconds, percentile,
     passed: result.passed,
     questionWise,
     topicWise,
-    submittedAt: result.submittedAt.toISOString(),
+    submittedAt: result.submitted_at,
   });
 });
 
-async function updateTopicProgress(userId: string, topicId: string, field: string, value: boolean) {
-  const [existing] = await db.select().from(topicProgressTable)
-    .where(and(eq(topicProgressTable.userId, userId), eq(topicProgressTable.topicId, topicId)));
-
-  if (existing) {
-    await db.update(topicProgressTable)
-      .set({ [field]: value })
-      .where(eq(topicProgressTable.id, existing.id));
-  } else {
-    await db.insert(topicProgressTable).values({
-      id: nanoid(), userId, topicId, [field]: value,
-    });
-  }
-}
-
-// ── Server-side timer sync (SRS H-01) ─────────────────────────────────────────
-// Client polls this every 60 s and corrects local timer if drift > 5 s.
 router.get("/attempts/:attemptId/sync-time", requireApproved, async (req, res): Promise<void> => {
   const attemptId = String(req.params.attemptId);
-  const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, attemptId));
+  const { data: attempt } = await supabase.from("exam_attempts").select("*").eq("id", attemptId).maybeSingle();
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
-  if (attempt.userId !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (attempt.user_id !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
   if (attempt.status !== "in_progress") { res.status(409).json({ error: "Exam is not in progress" }); return; }
 
-  const lastActiveAt = attempt.resumedAt ?? attempt.startTime;
-  const elapsedSinceResume = Math.floor((Date.now() - lastActiveAt.getTime()) / 1000);
-  const remainingSeconds = Math.max(0, attempt.remainingSeconds - elapsedSinceResume);
+  const lastActiveAt = attempt.resumed_at ?? attempt.start_time;
+  const elapsedSinceResume = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
+  const remainingSeconds = Math.max(0, attempt.remaining_seconds - elapsedSinceResume);
 
   res.json({ remainingSeconds, serverTime: Date.now() });
 });
@@ -638,36 +638,35 @@ router.post("/attempts/:attemptId/pause", requireApproved, async (req, res): Pro
   const body = PauseExamBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
-  const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
+  const { data: attempt } = await supabase.from("exam_attempts").select("*").eq("id", params.data.attemptId).maybeSingle();
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
-  if (attempt.userId !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (attempt.user_id !== req.user!.id) { res.status(403).json({ error: "Forbidden" }); return; }
   if (attempt.status !== "in_progress") { res.status(409).json({ error: "Exam is not in progress" }); return; }
 
-  // ── Pause limit enforcement (SRS EX-02, H-06) ────────────────────────────
-  const [configRow] = await db.select().from(systemConfigTable)
-    .where(eq(systemConfigTable.key, "max_exam_pauses"));
+  const { data: configRow } = await supabase.from("system_config")
+    .select("value")
+    .eq("key", "max_exam_pauses")
+    .maybeSingle();
   const maxPauses = configRow ? parseInt(configRow.value, 10) : 2;
 
-  if (attempt.pauseCount >= maxPauses) {
+  if (attempt.pause_count >= maxPauses) {
     res.status(403).json({
       error: `Pause limit reached`,
-      reason: `You have already paused this exam ${attempt.pauseCount} time${attempt.pauseCount !== 1 ? "s" : ""}. Maximum allowed is ${maxPauses}.`,
-      pausesUsed: attempt.pauseCount,
+      reason: `You have already paused this exam ${attempt.pause_count} time${attempt.pause_count !== 1 ? "s" : ""}. Maximum allowed is ${maxPauses}.`,
+      pausesUsed: attempt.pause_count,
       maxPauses,
     });
     return;
   }
 
-  const newPauseCount = attempt.pauseCount + 1;
+  const newPauseCount = attempt.pause_count + 1;
 
-  await db.update(examAttemptsTable)
-    .set({
-      status: "paused",
-      pauseCount: newPauseCount,
-      remainingSeconds: body.data.remainingSeconds,
-    })
-    .where(eq(examAttemptsTable.id, attempt.id));
+  await supabase.from("exam_attempts").update({
+    status: "paused",
+    pause_count: newPauseCount,
+    remaining_seconds: body.data.remainingSeconds,
+  }).eq("id", attempt.id);
 
   res.json({
     success: true,
@@ -682,33 +681,34 @@ router.post("/attempts/:attemptId/resume", requireApproved, async (req, res): Pr
   const params = ResumeExamParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [attempt] = await db.select().from(examAttemptsTable).where(eq(examAttemptsTable.id, params.data.attemptId));
+  const { data: attempt } = await supabase.from("exam_attempts").select("*").eq("id", params.data.attemptId).maybeSingle();
   if (!attempt) { res.status(404).json({ error: "Attempt not found" }); return; }
 
-  await db.update(examAttemptsTable)
-    .set({ status: "in_progress", resumedAt: new Date() })
-    .where(eq(examAttemptsTable.id, attempt.id));
+  await supabase.from("exam_attempts").update({
+    status: "in_progress",
+    resumed_at: new Date().toISOString(),
+  }).eq("id", attempt.id);
 
-  const examQs = await db.select().from(examQuestionsTable)
-    .where(eq(examQuestionsTable.examId, attempt.examId))
-    .orderBy(examQuestionsTable.order);
+  const { data: examQs } = await supabase.from("exam_questions")
+    .select("*")
+    .eq("exam_id", attempt.exam_id)
+    .order("order");
 
-  const questions = examQs.length > 0
-    ? await db.select().from(questionsTable).where(inArray(questionsTable.id, examQs.map((q) => q.questionId)))
+  const questions = examQs && examQs.length > 0
+    ? (await supabase.from("questions").select("*").in("id", examQs.map((q) => q.question_id))).data ?? []
     : [];
 
-  const answers = await db.select().from(attemptAnswersTable)
-    .where(eq(attemptAnswersTable.attemptId, attempt.id));
+  const { data: answers } = await supabase.from("attempt_answers").select("*").eq("attempt_id", attempt.id);
 
   res.json({
-    id: attempt.id, examId: attempt.examId, userId: attempt.userId,
-    status: "in_progress", startTime: attempt.startTime.toISOString(),
-    pauseCount: attempt.pauseCount, remainingSeconds: attempt.remainingSeconds,
-    answers: answers.map((a) => ({
-      questionId: a.questionId,
-      selectedOption: a.selectedOption != null ? parseInt(a.selectedOption, 10) : null,
-      isMarkedForReview: a.isMarkedForReview,
-      timeSpentSeconds: a.timeSpentSeconds,
+    id: attempt.id, examId: attempt.exam_id, userId: attempt.user_id,
+    status: "in_progress", startTime: attempt.start_time,
+    pauseCount: attempt.pause_count, remainingSeconds: attempt.remaining_seconds,
+    answers: (answers ?? []).map((a) => ({
+      questionId: a.question_id,
+      selectedOption: a.selected_option != null ? parseInt(a.selected_option, 10) : null,
+      isMarkedForReview: a.is_marked_for_review,
+      timeSpentSeconds: a.time_spent_seconds,
     })),
     questions: questions.map((q) => formatQuestion(q, false)),
   });
@@ -718,261 +718,73 @@ router.get("/results/:resultId", requireApproved, async (req, res): Promise<void
   const params = GetResultParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [result] = await db.select().from(examResultsTable).where(eq(examResultsTable.id, params.data.resultId));
+  const { data: result } = await supabase.from("exam_results").select("*").eq("id", params.data.resultId).maybeSingle();
   if (!result) { res.status(404).json({ error: "Result not found" }); return; }
 
-  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, result.examId));
-  const examQs = await db.select().from(examQuestionsTable).where(eq(examQuestionsTable.examId, exam.id));
-  const questions = examQs.length > 0
-    ? await db.select().from(questionsTable).where(inArray(questionsTable.id, examQs.map((q) => q.questionId)))
+  const { data: exam } = await supabase.from("exams").select("*").eq("id", result.exam_id).maybeSingle();
+  const { data: examQs } = await supabase.from("exam_questions").select("question_id").eq("exam_id", result.exam_id);
+  const questions = examQs && examQs.length > 0
+    ? (await supabase.from("questions").select("*").in("id", examQs.map((q) => q.question_id))).data ?? []
     : [];
 
-  const answers = await db.select().from(attemptAnswersTable)
-    .where(eq(attemptAnswersTable.attemptId, result.attemptId));
-  const answerMap = new Map(answers.map((a) => [a.questionId, a]));
+  const { data: answers } = await supabase.from("attempt_answers")
+    .select("*")
+    .eq("attempt_id", result.attempt_id);
+  const answerMap = new Map((answers ?? []).map((a) => [a.question_id, a]));
 
   const questionWise = questions.map((q) => {
-    const answer = answerMap.get(q.id);
-    const correctOpt = parseInt(q.correctOption, 10);
-    const selected = answer?.selectedOption != null ? parseInt(answer.selectedOption, 10) : null;
+    const a = answerMap.get(q.id);
+    const selected = a?.selected_option != null ? parseInt(a.selected_option, 10) : null;
+    const correctOpt = parseInt(q.correct_option, 10);
     const isCorrect = selected === correctOpt;
-    const marksAwarded = selected == null ? 0 : isCorrect ? q.marks : -exam.negativeMarking;
     return {
       questionId: q.id, questionText: q.text,
       selectedOption: selected, correctOption: correctOpt,
-      isCorrect, marksAwarded,
-      timeSpentSeconds: answer?.timeSpentSeconds ?? 0,
-      textSolution: q.textSolution ?? null,
-      imageUrl: q.imageUrl ?? null,
-      videoUrl: q.videoUrl ?? null,
-      qrCodeSvg: q.qrCodeSvg ?? null,
+      isCorrect, marksAwarded: isCorrect ? q.marks : (selected != null ? -(exam?.negative_marking ?? 0) : 0),
+      timeSpentSeconds: a?.time_spent_seconds ?? 0,
+      textSolution: q.text_solution ?? null,
+      imageUrl: q.image_url ?? null,
+      videoUrl: q.video_url ?? null,
+      qrCodeSvg: q.qr_code_svg ?? null,
     };
   });
 
-  // Topic-wise breakdown (GET results)
-  const twStatsGet = new Map<string, { name: string; correct: number; total: number }>();
-  for (const q of questions) {
-    if (!q.topicId) continue;
-    const stat = twStatsGet.get(q.topicId) ?? { name: "", correct: 0, total: 0 };
-    stat.total++;
-    const ans = answerMap.get(q.id);
-    const sel = ans?.selectedOption != null ? parseInt(ans.selectedOption, 10) : null;
-    if (sel != null && sel === parseInt(q.correctOption, 10)) stat.correct++;
-    twStatsGet.set(q.topicId, stat);
-  }
-  const twIdsGet = Array.from(twStatsGet.keys());
-  if (twIdsGet.length > 0) {
-    const topicRowsGet = await db.select({ id: topicsTable.id, name: topicsTable.name })
-      .from(topicsTable).where(inArray(topicsTable.id, twIdsGet));
-    for (const t of topicRowsGet) { const s = twStatsGet.get(t.id); if (s) s.name = t.name; }
-  }
-  const topicWise = Array.from(twStatsGet.entries()).map(([topicId, s]) => ({
-    topicId, topicName: s.name || "Unknown",
-    correctAnswers: s.correct, totalQuestions: s.total,
-    accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
-  }));
-
-  // ── Percentile calculation for GET result (SRS M-06) ─────────────────────
-  const allPeerResultsGet = await db
-    .select({ score: examResultsTable.score })
-    .from(examResultsTable)
-    .where(eq(examResultsTable.examId, result.examId));
-  const peerTotalGet = allPeerResultsGet.length;
-  const atOrBelowGet = allPeerResultsGet.filter((r) => r.score <= result.score).length;
-  const percentileGet = peerTotalGet > 0 ? Math.round((atOrBelowGet / peerTotalGet) * 100) : 100;
+  const { data: allPeerResults } = await supabase.from("exam_results")
+    .select("score")
+    .eq("exam_id", result.exam_id);
+  const peerTotal = allPeerResults?.length ?? 0;
+  const atOrBelow = (allPeerResults ?? []).filter((r) => r.score <= result.score).length;
+  const percentile = peerTotal > 0 ? Math.round((atOrBelow / peerTotal) * 100) : 100;
 
   res.json({
-    id: result.id, examId: result.examId, examTitle: exam.title, examType: exam.type,
-    score: result.score, maxScore: result.maxScore, accuracy: result.accuracy,
-    totalQuestions: result.totalQuestions, correctAnswers: result.correctAnswers,
-    incorrectAnswers: result.incorrectAnswers, skippedAnswers: result.skippedAnswers,
-    timeTakenSeconds: result.timeTakenSeconds, percentile: percentileGet,
-    passed: result.passed, questionWise, topicWise,
-    submittedAt: result.submittedAt.toISOString(),
+    id: result.id, examId: exam?.id ?? result.exam_id,
+    examTitle: exam?.title ?? "Unknown", examType: exam?.type ?? "grand_test",
+    score: result.score, maxScore: result.max_score, accuracy: result.accuracy,
+    totalQuestions: result.total_questions, correctAnswers: result.correct_answers,
+    incorrectAnswers: result.incorrect_answers, skippedAnswers: result.skipped_answers,
+    timeTakenSeconds: result.time_taken_seconds, percentile,
+    passed: result.passed, questionWise,
+    submittedAt: result.submitted_at,
   });
 });
 
 router.get("/results", requireApproved, async (req, res): Promise<void> => {
-  const results = await db.select().from(examResultsTable)
-    .where(eq(examResultsTable.userId, req.user!.id));
+  const { data: results } = await supabase.from("exam_results")
+    .select("*")
+    .eq("user_id", req.user!.id)
+    .order("submitted_at", { ascending: false });
 
-  const formatted = await Promise.all(results.map(async (r) => {
-    const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, r.examId));
+  const formatted = await Promise.all((results ?? []).map(async (r) => {
+    const { data: exam } = await supabase.from("exams").select("title, type").eq("id", r.exam_id).maybeSingle();
     return {
-      id: r.id, examId: r.examId, examTitle: exam?.title ?? "Unknown",
-      examType: exam?.type ?? "grand_test",
-      score: r.score, maxScore: r.maxScore, accuracy: r.accuracy,
-      passed: r.passed, submittedAt: r.submittedAt.toISOString(),
+      id: r.id, examId: r.exam_id,
+      examTitle: exam?.title ?? "Unknown", examType: exam?.type ?? "grand_test",
+      score: r.score, maxScore: r.max_score, accuracy: r.accuracy,
+      passed: r.passed, submittedAt: r.submitted_at,
     };
   }));
 
   res.json(formatted);
-});
-
-// ── Weak-Topic Drill ──────────────────────────────────────────────────────────
-// Creates a fresh 5-question drill exam from the wrong answers in a failed result.
-
-router.post("/results/:resultId/drill", requireApproved, async (req, res): Promise<void> => {
-  const resultId = String(req.params.resultId);
-
-  const [result] = await db.select().from(examResultsTable)
-    .where(and(eq(examResultsTable.id, resultId), eq(examResultsTable.userId, req.user!.id)));
-  if (!result) { res.status(404).json({ error: "Result not found" }); return; }
-  if (result.passed) { res.status(400).json({ error: "Cannot drill a passed exam — well done!" }); return; }
-
-  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, result.examId));
-  if (!exam) { res.status(404).json({ error: "Exam not found" }); return; }
-  if (exam.type === "drill") { res.status(400).json({ error: "Cannot create a drill from a drill" }); return; }
-
-  // Fetch the original questions and the student's saved answers
-  const examQs = await db.select().from(examQuestionsTable)
-    .where(eq(examQuestionsTable.examId, exam.id));
-  const questionIds = examQs.map((q) => q.questionId);
-  if (questionIds.length === 0) { res.status(400).json({ error: "No questions found" }); return; }
-
-  const questions = await db.select().from(questionsTable)
-    .where(inArray(questionsTable.id, questionIds));
-
-  const answers = await db.select().from(attemptAnswersTable)
-    .where(eq(attemptAnswersTable.attemptId, result.attemptId));
-  const answerMap = new Map(answers.map((a) => [a.questionId, a]));
-
-  // Wrong = answered (not skipped) but chose the wrong option
-  const wrongQuestions = questions.filter((q) => {
-    const ans = answerMap.get(q.id);
-    if (!ans || ans.selectedOption == null) return false;
-    return parseInt(ans.selectedOption, 10) !== parseInt(q.correctOption, 10);
-  });
-
-  if (wrongQuestions.length === 0) {
-    res.status(400).json({ error: "No wrong answers to drill — you only skipped questions. Retry the full exam instead." });
-    return;
-  }
-
-  // Shuffle and cap at 5
-  const drillQs = wrongQuestions.sort(() => Math.random() - 0.5).slice(0, 5);
-
-  // Build the ephemeral drill exam (no passingScore, no negative marking)
-  const drillExamId = nanoid();
-  await db.insert(examsTable).values({
-    id: drillExamId,
-    title: `Drill: ${exam.title}`,
-    type: "drill",
-    topicId: exam.topicId,
-    subjectId: exam.subjectId,
-    chapterId: exam.chapterId,
-    durationMinutes: 10,
-    passingScore: null,
-    negativeMarking: 0,
-  });
-
-  await db.insert(examQuestionsTable).values(
-    drillQs.map((q, i) => ({ id: nanoid(), examId: drillExamId, questionId: q.id, order: i })),
-  );
-
-  res.json({ drillExamId, questionCount: drillQs.length });
-});
-
-// ── Gate check ────────────────────────────────────────────────────────────────
-// Checks whether the user is allowed to start a given exam based on SRS gating.
-
-router.post("/gate/check", requireApproved, async (req, res): Promise<void> => {
-  const { targetId, targetType } = req.body as { targetId: string; targetType: string };
-
-  const [exam] = await db.select().from(examsTable).where(eq(examsTable.id, targetId));
-  if (!exam) {
-    res.status(404).json({ error: "Exam not found" });
-    return;
-  }
-
-  const userId = req.user!.id;
-
-  // Subject-level gate
-  if (targetType === "subject_test" || exam.type === "subject_test") {
-    if (!exam.subjectId) {
-      res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
-      return;
-    }
-    const unlocked = await isSubjectTestUnlocked(exam.subjectId, userId);
-    if (!unlocked) {
-      res.json({
-        allowed: false,
-        nextStep: "chapter_test",
-        reason: "Pass all Chapter Tests in this subject first.",
-        gateStatus: "locked",
-      });
-      return;
-    }
-    res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
-    return;
-  }
-
-  // Chapter-level gate
-  if (targetType === "chapter_test" || exam.type === "chapter_test") {
-    if (!exam.chapterId) {
-      res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
-      return;
-    }
-    const unlocked = await isChapterTestUnlocked(exam.chapterId, userId);
-    if (!unlocked) {
-      res.json({
-        allowed: false,
-        nextStep: "topic_test",
-        reason: "Complete all topic tests in this chapter first.",
-        gateStatus: "locked",
-      });
-      return;
-    }
-    res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
-    return;
-  }
-
-  // Topic-level gates (lecture_quiz, dpp, pyq, topic_test)
-  if (!exam.topicId) {
-    res.json({ allowed: true, nextStep: null, reason: null, gateStatus: "unlocked" });
-    return;
-  }
-
-  const [prog] = await db.select().from(topicProgressTable)
-    .where(and(eq(topicProgressTable.topicId, exam.topicId), eq(topicProgressTable.userId, userId)));
-
-  let allowed = true;
-  let nextStep: string | null = null;
-  let reason: string | null = null;
-
-  if (targetType === "lecture_quiz" || exam.type === "lecture_quiz") {
-    // Lecture quiz requires at least one lecture click
-    if (!prog || prog.lectureClickCount === 0) {
-      allowed = false;
-      nextStep = "lecture";
-      reason = "Watch the video lecture before attempting the quiz.";
-    }
-  } else if (targetType === "dpp" || exam.type === "dpp") {
-    if (!prog?.lectureQuizPassed) {
-      allowed = false;
-      nextStep = "lecture_quiz";
-      reason = "Pass the Lecture Quiz before attempting DPP.";
-    }
-  } else if (targetType === "pyq" || exam.type === "pyq") {
-    if (!prog?.dppCompleted) {
-      allowed = false;
-      nextStep = "dpp";
-      reason = "Complete the DPP before attempting PYQs.";
-    }
-  } else if (targetType === "topic_test" || exam.type === "topic_test") {
-    if (!prog?.pyqCompleted) {
-      allowed = false;
-      nextStep = "pyq";
-      reason = "Complete the PYQs before attempting the Topic Test.";
-    }
-  }
-
-  res.json({
-    allowed,
-    nextStep,
-    reason,
-    gateStatus: allowed ? "unlocked" : "locked",
-  });
 });
 
 export default router;

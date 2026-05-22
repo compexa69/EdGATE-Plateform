@@ -1,39 +1,37 @@
 import { Router, type IRouter } from "express";
-import { db, externalTestsTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { requireApproved } from "../lib/auth";
 import { CreateExternalTestBody, DeleteExternalTestParams } from "@workspace/api-zod";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
-function formatTest(t: typeof externalTestsTable.$inferSelect) {
+function formatTest(t: Record<string, any>) {
   return {
     id: t.id,
-    userId: t.userId,
-    examName: t.examName,
-    examType: t.examType,
+    userId: t.user_id,
+    examName: t.exam_name,
+    examType: t.exam_type,
     score: t.score,
-    maxScore: t.maxScore,
-    totalQuestions: t.totalQuestions ?? null,
-    correctAnswers: t.correctAnswers ?? null,
-    incorrectAnswers: t.incorrectAnswers ?? null,
-    skippedAnswers: t.skippedAnswers ?? null,
+    maxScore: t.max_score,
+    totalQuestions: t.total_questions ?? null,
+    correctAnswers: t.correct_answers ?? null,
+    incorrectAnswers: t.incorrect_answers ?? null,
+    skippedAnswers: t.skipped_answers ?? null,
     rank: t.rank ?? null,
     percentile: t.percentile ?? null,
-    attemptedAt: t.attemptedAt.toISOString(),
+    attemptedAt: t.attempted_at,
     notes: t.notes ?? null,
-    createdAt: t.createdAt.toISOString(),
+    createdAt: t.created_at,
   };
 }
 
 router.get("/external-tests", requireApproved, async (req, res): Promise<void> => {
-  const tests = await db
-    .select()
-    .from(externalTestsTable)
-    .where(eq(externalTestsTable.userId, req.user!.id))
-    .orderBy(desc(externalTestsTable.attemptedAt));
-  res.json(tests.map(formatTest));
+  const { data: tests } = await supabase.from("external_tests")
+    .select("*")
+    .eq("user_id", req.user!.id)
+    .order("attempted_at", { ascending: false });
+  res.json((tests ?? []).map(formatTest));
 });
 
 router.post("/external-tests", requireApproved, async (req, res): Promise<void> => {
@@ -43,25 +41,22 @@ router.post("/external-tests", requireApproved, async (req, res): Promise<void> 
     return;
   }
 
-  const [test] = await db
-    .insert(externalTestsTable)
-    .values({
-      id: nanoid(),
-      userId: req.user!.id,
-      examName: parsed.data.examName,
-      examType: parsed.data.examType ?? "other",
-      score: parsed.data.score,
-      maxScore: parsed.data.maxScore,
-      totalQuestions: parsed.data.totalQuestions ?? null,
-      correctAnswers: parsed.data.correctAnswers ?? null,
-      incorrectAnswers: parsed.data.incorrectAnswers ?? null,
-      skippedAnswers: parsed.data.skippedAnswers ?? null,
-      rank: parsed.data.rank ?? null,
-      percentile: parsed.data.percentile ?? null,
-      attemptedAt: parsed.data.attemptedAt,
-      notes: parsed.data.notes ?? null,
-    })
-    .returning();
+  const { data: test } = await supabase.from("external_tests").insert({
+    id: nanoid(),
+    user_id: req.user!.id,
+    exam_name: parsed.data.examName,
+    exam_type: parsed.data.examType ?? "other",
+    score: parsed.data.score,
+    max_score: parsed.data.maxScore,
+    total_questions: parsed.data.totalQuestions ?? null,
+    correct_answers: parsed.data.correctAnswers ?? null,
+    incorrect_answers: parsed.data.incorrectAnswers ?? null,
+    skipped_answers: parsed.data.skippedAnswers ?? null,
+    rank: parsed.data.rank ?? null,
+    percentile: parsed.data.percentile ?? null,
+    attempted_at: parsed.data.attemptedAt,
+    notes: parsed.data.notes ?? null,
+  }).select().single();
 
   res.status(201).json(formatTest(test));
 });
@@ -71,10 +66,12 @@ router.delete("/external-tests/:testId", requireApproved, async (req, res): Prom
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const testId = params.data.testId;
 
-  const [deleted] = await db
-    .delete(externalTestsTable)
-    .where(and(eq(externalTestsTable.id, testId), eq(externalTestsTable.userId, req.user!.id)))
-    .returning();
+  const { data: deleted } = await supabase.from("external_tests")
+    .delete()
+    .eq("id", testId)
+    .eq("user_id", req.user!.id)
+    .select()
+    .maybeSingle();
 
   if (!deleted) {
     res.status(404).json({ error: "Test not found" });

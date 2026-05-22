@@ -1,8 +1,7 @@
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { sendStorageAlertEmail } from "./email";
 import { logger } from "./logger";
+import { supabase } from "./supabase";
 
 const B2_APPLICATION_KEY_ID = process.env.B2_APPLICATION_KEY_ID ?? "";
 const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY ?? "";
@@ -56,11 +55,11 @@ export async function runStorageMonitor(): Promise<void> {
         return;
       }
 
-      const admins = await db.select({ email: usersTable.email })
-        .from(usersTable)
-        .where(eq(usersTable.role, "super_admin"));
+      const { data: admins } = await supabase.from("users")
+        .select("email")
+        .eq("role", "super_admin");
 
-      for (const admin of admins) {
+      for (const admin of admins ?? []) {
         await sendStorageAlertEmail(admin.email, usedGB, LIMIT_GB);
       }
       lastAlertSentAt = now;

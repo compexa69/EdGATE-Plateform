@@ -1,10 +1,9 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { UpdateProfileBody } from "@workspace/api-zod";
 import { requireAuth, getUserById } from "../lib/auth";
 import { formatUser } from "./auth";
 import { getDownloadSignedUrl, deleteObject } from "../lib/b2";
+import { supabase } from "../lib/supabase";
 
 const router: IRouter = Router();
 
@@ -16,8 +15,8 @@ router.get("/profile", requireAuth, async (req, res): Promise<void> => {
   }
   const base = formatUser(user);
   let photoUrl: string | null = null;
-  if (user.photoB2Key) {
-    try { photoUrl = await getDownloadSignedUrl(user.photoB2Key); } catch { /* ignore */ }
+  if (user.photo_b2_key) {
+    try { photoUrl = await getDownloadSignedUrl(user.photo_b2_key); } catch { /* ignore */ }
   }
   res.json({ ...base, photoUrl });
 });
@@ -30,22 +29,23 @@ router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
   }
 
   const updates: Record<string, string> = {};
-  if (parsed.data.fullName) updates.fullName = parsed.data.fullName;
+  if (parsed.data.fullName) updates.full_name = parsed.data.fullName;
   if (parsed.data.mobile) updates.mobile = parsed.data.mobile;
 
   if ((req.body as any).photoB2Key) {
-    updates.photoB2Key = (req.body as any).photoB2Key;
+    updates.photo_b2_key = (req.body as any).photoB2Key;
   }
 
-  const [user] = await db.update(usersTable)
-    .set(updates)
-    .where(eq(usersTable.id, req.user!.id))
-    .returning();
+  const { data: user } = await supabase.from("users")
+    .update(updates)
+    .eq("id", req.user!.id)
+    .select()
+    .single();
 
   const base = formatUser(user);
   let photoUrl: string | null = null;
-  if (user.photoB2Key) {
-    try { photoUrl = await getDownloadSignedUrl(user.photoB2Key); } catch { /* ignore */ }
+  if (user.photo_b2_key) {
+    try { photoUrl = await getDownloadSignedUrl(user.photo_b2_key); } catch { /* ignore */ }
   }
   res.json({ ...base, photoUrl });
 });
@@ -57,20 +57,18 @@ router.delete("/profile/photo", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  if (!user.photoB2Key) {
+  if (!user.photo_b2_key) {
     res.status(404).json({ error: "No profile photo to remove" });
     return;
   }
 
   try {
-    await deleteObject(user.photoB2Key);
+    await deleteObject(user.photo_b2_key);
   } catch {
     /* B2 delete failure is non-fatal — still clear the DB key */
   }
 
-  await db.update(usersTable)
-    .set({ photoB2Key: null })
-    .where(eq(usersTable.id, user.id));
+  await supabase.from("users").update({ photo_b2_key: null }).eq("id", user.id);
 
   res.json({ success: true, message: "Profile photo removed" });
 });
@@ -87,21 +85,21 @@ router.delete("/profile", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  if (user.photoB2Key) {
-    try { await deleteObject(user.photoB2Key); } catch { /* non-fatal */ }
+  if (user.photo_b2_key) {
+    try { await deleteObject(user.photo_b2_key); } catch { /* non-fatal */ }
   }
 
-  await db.update(usersTable).set({
-    deletedAt: new Date(),
-    fullName: "Deleted User",
+  await supabase.from("users").update({
+    deleted_at: new Date().toISOString(),
+    full_name: "Deleted User",
     email: `deleted_${user.id}@deleted.invalid`,
     mobile: "+910000000000",
-    photoB2Key: null,
-    emailVerifyToken: null,
-    passwordResetToken: null,
-    emailChangeToken: null,
-    emailChangeNewEmail: null,
-  }).where(eq(usersTable.id, user.id));
+    photo_b2_key: null,
+    email_verify_token: null,
+    password_reset_token: null,
+    email_change_token: null,
+    email_change_new_email: null,
+  }).eq("id", user.id);
 
   res.json({ success: true, message: "Account deleted. We're sorry to see you go." });
 });

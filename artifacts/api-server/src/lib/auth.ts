@@ -2,8 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { createHash } from "crypto";
 import { type Request, type Response, type NextFunction } from "express";
-import { db, usersTable, revokedTokensTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { supabase } from "./supabase";
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-me";
 const SALT_ROUNDS = 10;
@@ -33,19 +32,13 @@ export function hashToken(token: string): string {
 
 export async function revokeToken(token: string, expiresAt: Date): Promise<void> {
   const tokenHash = hashToken(token);
-  await db
-    .insert(revokedTokensTable)
-    .values({ tokenHash, expiresAt })
-    .onConflictDoNothing();
+  await supabase.from("revoked_tokens").upsert({ token_hash: tokenHash, expires_at: expiresAt.toISOString() }, { onConflict: "token_hash", ignoreDuplicates: true });
 }
 
 export async function isTokenRevoked(token: string): Promise<boolean> {
   const tokenHash = hashToken(token);
-  const [row] = await db
-    .select({ tokenHash: revokedTokensTable.tokenHash })
-    .from(revokedTokensTable)
-    .where(eq(revokedTokensTable.tokenHash, tokenHash));
-  return !!row;
+  const { data } = await supabase.from("revoked_tokens").select("token_hash").eq("token_hash", tokenHash).maybeSingle();
+  return !!data;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -98,6 +91,6 @@ export function requireApproved(req: Request, res: Response, next: NextFunction)
 }
 
 export async function getUserById(id: string) {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
-  return user ?? null;
+  const { data } = await supabase.from("users").select("*").eq("id", id).maybeSingle();
+  return data ?? null;
 }
