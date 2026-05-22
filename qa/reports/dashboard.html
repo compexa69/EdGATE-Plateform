@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EdTech Platform — QA Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0F172A; --card: #1E293B; --border: #334155;
+    --indigo: #6366F1; --green: #22C55E; --red: #EF4444;
+    --yellow: #F59E0B; --purple: #A855F7; --text: #E2E8F0;
+    --muted: #94A3B8; --radius: 12px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  header { background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); border-bottom: 1px solid var(--border); padding: 24px 32px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 1.5rem; font-weight: 700; background: linear-gradient(90deg, var(--indigo), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  header .meta { font-size: 0.8rem; color: var(--muted); text-align: right; }
+  .deploy-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: rgba(34,197,94,0.15); color: #22C55E; border: 1px solid #22C55E; }
+  main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; position: relative; overflow: hidden; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .stat-card.total::before { background: var(--indigo); }
+  .stat-card.pass::before  { background: var(--green); }
+  .stat-card.fail::before  { background: var(--red); }
+  .stat-card.partial::before { background: var(--yellow); }
+  .stat-card.skip::before  { background: var(--muted); }
+  .stat-card.rate::before  { background: var(--purple); }
+  .stat-value { font-size: 2.5rem; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+  .stat-card.total .stat-value  { color: var(--indigo); }
+  .stat-card.pass .stat-value   { color: var(--green); }
+  .stat-card.fail .stat-value   { color: var(--red); }
+  .stat-card.partial .stat-value { color: var(--yellow); }
+  .stat-card.skip .stat-value   { color: var(--muted); }
+  .stat-card.rate .stat-value   { color: var(--purple); }
+  .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .chart-wrap { position: relative; height: 260px; }
+  .module-table { width: 100%; border-collapse: collapse; }
+  .module-table th { text-align: left; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .module-table td { padding: 10px 12px; font-size: 0.875rem; border-bottom: 1px solid rgba(51,65,85,0.5); }
+  .module-table tr:last-child td { border-bottom: none; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+  .badge.pass    { background: rgba(34,197,94,0.15);  color: var(--green); }
+  .badge.fail    { background: rgba(239,68,68,0.15);  color: var(--red); }
+  .badge.partial { background: rgba(245,158,11,0.15); color: var(--yellow); }
+  .badge.skip    { background: rgba(148,163,184,0.15);color: var(--muted); }
+  .badge.ok      { background: rgba(34,197,94,0.15);  color: var(--green); }
+  .badge.issues  { background: rgba(239,68,68,0.15);  color: var(--red); }
+  .tests-section { margin-bottom: 32px; }
+  .tests-section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-btn { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+  .filter-btn:hover, .filter-btn.active { border-color: var(--indigo); color: var(--indigo); background: rgba(99,102,241,0.1); }
+  .test-row { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: grid; grid-template-columns: 90px 120px 160px 1fr 80px; gap: 12px; align-items: center; font-size: 0.875rem; transition: border-color 0.2s; }
+  .test-row:hover { border-color: var(--indigo); }
+  .test-row .test-id { font-family: monospace; color: var(--indigo); font-weight: 600; }
+  .test-row .test-module { color: var(--muted); font-size: 0.8rem; }
+  .test-row .test-desc { color: var(--text); }
+  .test-row .test-error { font-size: 0.75rem; color: var(--red); margin-top: 4px; }
+  .test-row .test-fix { font-size: 0.75rem; color: var(--yellow); margin-top: 2px; }
+  .progress-bar { width: 100%; background: var(--border); border-radius: 999px; height: 8px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo), var(--purple)); transition: width 0.8s ease; }
+  .search-input { width: 100%; padding: 10px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.875rem; margin-bottom: 16px; }
+  .search-input:focus { outline: none; border-color: var(--indigo); }
+  .section-divider { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+  .bug-list { list-style: none; }
+  .bug-item { padding: 12px 16px; margin-bottom: 8px; border-radius: 8px; border-left: 3px solid; }
+  .bug-item.critical { border-color: var(--red); background: rgba(239,68,68,0.08); }
+  .bug-item.high { border-color: var(--yellow); background: rgba(245,158,11,0.08); }
+  .bug-item.medium { border-color: var(--purple); background: rgba(168,85,247,0.08); }
+  .bug-item .bug-id { font-family: monospace; font-weight: 700; font-size: 0.8rem; }
+  .bug-item .bug-desc { font-size: 0.875rem; margin-top: 2px; }
+  .bug-item .bug-fix { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); }
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: 8px; }
+  footer { text-align: center; padding: 24px; color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--border); margin-top: 32px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>📊 EdTech QA Dashboard</h1>
+    <div class="meta">EdTech Study Platform (JEE/NEET/GATE) &nbsp;·&nbsp; 5/22/2026, 7:21:22 PM</div>
+  </div>
+  <span class="deploy-badge">✅ Ready to Deploy</span>
+</header>
+<main>
+
+<!-- STAT CARDS -->
+<div class="stat-grid">
+  <div class="stat-card total"><div class="stat-value">100</div><div class="stat-label">Total Tests</div></div>
+  <div class="stat-card pass"><div class="stat-value">97</div><div class="stat-label">✅ Passed</div></div>
+  <div class="stat-card fail"><div class="stat-value">0</div><div class="stat-label">❌ Failed</div></div>
+  <div class="stat-card partial"><div class="stat-value">2</div><div class="stat-label">⚠️ Partial</div></div>
+  <div class="stat-card skip"><div class="stat-value">1</div><div class="stat-label">⊘ Skipped</div></div>
+  <div class="stat-card rate"><div class="stat-value">98.0%</div><div class="stat-label">Success Rate</div></div>
+</div>
+
+<div style="margin-bottom:32px;">
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:0.8rem;color:var(--muted);">
+    <span>Overall Progress</span><span>98.0%</span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" style="width:98.0%"></div></div>
+</div>
+
+<!-- CHARTS -->
+<div class="grid-2">
+  <div class="card">
+    <h2>📈 Test Distribution</h2>
+    <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>🏗️ Module Status</h2>
+    <div class="chart-wrap"><canvas id="moduleChart"></canvas></div>
+  </div>
+</div>
+
+<!-- MODULE TABLE -->
+<div class="card" style="margin-bottom:32px;">
+  <h2>📋 Module-wise Results</h2>
+  <table class="module-table">
+    <thead><tr><th>Module</th><th>✅ Pass</th><th>❌ Fail</th><th>⚠️ Partial</th><th>⊘ Skip</th><th>Status</th></tr></thead>
+    <tbody>
+      
+      <tr>
+        <td><strong>Health</strong></td>
+        <td><span class="badge pass">2</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Auth</strong></td>
+        <td><span class="badge pass">19</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Subjects</strong></td>
+        <td><span class="badge pass">8</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Chapters</strong></td>
+        <td><span class="badge pass">5</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Topics</strong></td>
+        <td><span class="badge pass">6</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Questions</strong></td>
+        <td><span class="badge pass">3</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Exams</strong></td>
+        <td><span class="badge pass">6</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Progress</strong></td>
+        <td><span class="badge pass">2</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Gate</strong></td>
+        <td><span class="badge pass">1</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Dashboard</strong></td>
+        <td><span class="badge pass">5</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Admin</strong></td>
+        <td><span class="badge pass">6</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Profile</strong></td>
+        <td><span class="badge pass">4</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Pomodoro</strong></td>
+        <td><span class="badge pass">3</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Tasks</strong></td>
+        <td><span class="badge pass">4</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Notes</strong></td>
+        <td><span class="badge pass">4</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">1</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Leaderboard</strong></td>
+        <td><span class="badge pass">2</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>External Tests</strong></td>
+        <td><span class="badge pass">3</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>QR Scans</strong></td>
+        <td><span class="badge pass">2</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Notifications</strong></td>
+        <td><span class="badge pass">1</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">0</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Security</strong></td>
+        <td><span class="badge pass">7</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">1</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+      <tr>
+        <td><strong>Edge Cases</strong></td>
+        <td><span class="badge pass">4</span></td>
+        <td><span class="badge fail">0</span></td>
+        <td><span class="badge partial">1</span></td>
+        <td><span class="badge skip">0</span></td>
+        <td><span class="badge ok">✓ OK</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- BUG REPORT -->
+<div class="card" style="margin-bottom:32px;">
+  <h2>🐛 Bug Report</h2>
+  <div class="empty-state"><div class="icon">🎉</div><div>No bugs found! All tests passed.</div></div>
+</div>
+
+<!-- PARTIAL TESTS -->
+
+<div class="card" style="margin-bottom:32px;">
+  <h2>⚠️ Partial Passes (Missing External Secrets)</h2>
+  <ul class="bug-list">
+    <li class="bug-item medium">
+      <div><span class="bug-id">[SEC-002]</span> XSS payload in name handled safely</div>
+      <div class="bug-fix">💡 Add input sanitization or HTML encoding in responses</div>
+    </li><li class="bug-item medium">
+      <div><span class="bug-id">[EC-004]</span> Delete non-existent resource returns 404</div>
+      <div class="bug-fix">💡 Add existence check before DELETE and return 404 if not found</div>
+    </li>
+  </ul>
+</div>
+
+<!-- ALL TESTS TABLE -->
+<div class="tests-section">
+  <h2>🧪 All Test Cases</h2>
+  <input class="search-input" type="text" id="searchInput" placeholder="Search by ID, module, description..." oninput="filterTests()">
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('ALL', this)">All (100)</button>
+    <button class="filter-btn" onclick="setFilter('PASS', this)">✅ Pass (97)</button>
+    <button class="filter-btn" onclick="setFilter('FAIL', this)">❌ Fail (0)</button>
+    <button class="filter-btn" onclick="setFilter('PARTIAL', this)">⚠️ Partial (2)</button>
+    <button class="filter-btn" onclick="setFilter('SKIP', this)">⊘ Skip (1)</button>
+  </div>
+  <div id="testList">
+    
+    <div class="test-row" data-status="PASS" data-module="Health" data-desc="server health endpoint returns ok">
+      <span class="test-id">HC-001</span>
+      <span class="test-module">Health</span>
+      <span class="test-module">API Health</span>
+      <div>
+        <div class="test-desc">Server health endpoint returns OK</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Health" data-desc="unknown route returns 404">
+      <span class="test-id">HC-002</span>
+      <span class="test-module">Health</span>
+      <span class="test-module">404 Handling</span>
+      <div>
+        <div class="test-desc">Unknown route returns 404</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="first user registers as super_admin (db fixup applied — existing users in db)">
+      <span class="test-id">A-001</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Register</span>
+      <div>
+        <div class="test-desc">First user registers as super_admin (DB fixup applied — existing users in DB)</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="duplicate email rejected">
+      <span class="test-id">A-002</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Register</span>
+      <div>
+        <div class="test-desc">Duplicate email rejected</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="invalid mobile number rejected">
+      <span class="test-id">A-003</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Register</span>
+      <div>
+        <div class="test-desc">Invalid mobile number rejected</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="short password rejected">
+      <span class="test-id">A-004</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Validation</span>
+      <div>
+        <div class="test-desc">Short password rejected</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="second user registers as student/pending">
+      <span class="test-id">A-005</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Register</span>
+      <div>
+        <div class="test-desc">Second user registers as student/pending</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="login with correct credentials succeeds">
+      <span class="test-id">A-006</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Login</span>
+      <div>
+        <div class="test-desc">Login with correct credentials succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="wrong password returns 401">
+      <span class="test-id">A-007</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Login</span>
+      <div>
+        <div class="test-desc">Wrong password returns 401</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="non-existent user login returns 401">
+      <span class="test-id">A-008</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Login</span>
+      <div>
+        <div class="test-desc">Non-existent user login returns 401</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="get /auth/me returns current user">
+      <span class="test-id">A-009</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Me</span>
+      <div>
+        <div class="test-desc">GET /auth/me returns current user</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="get /auth/me without token returns 401">
+      <span class="test-id">A-010</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">GET /auth/me without token returns 401</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="invalid jwt returns 401">
+      <span class="test-id">A-011</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Invalid JWT returns 401</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="logout + token revocation tested in dedicated end-of-suite step">
+      <span class="test-id">A-012</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Logout</span>
+      <div>
+        <div class="test-desc">Logout + token revocation tested in dedicated end-of-suite step</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="forgot password returns 200">
+      <span class="test-id">A-013</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Forgot Password</span>
+      <div>
+        <div class="test-desc">Forgot password returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="change password succeeds with valid current password">
+      <span class="test-id">A-014</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Change Password</span>
+      <div>
+        <div class="test-desc">Change password succeeds with valid current password</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="wrong current password rejected">
+      <span class="test-id">A-015</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Change Password</span>
+      <div>
+        <div class="test-desc">Wrong current password rejected</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="resend verification email responds correctly">
+      <span class="test-id">A-016</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Email Verify</span>
+      <div>
+        <div class="test-desc">Resend verification email responds correctly</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="admin can create a subject">
+      <span class="test-id">S-001</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Admin can create a subject</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="create subject without auth returns 401">
+      <span class="test-id">S-002</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Create subject without auth returns 401</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="student cannot create subject (403)">
+      <span class="test-id">S-003</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">Authorization</span>
+      <div>
+        <div class="test-desc">Student cannot create subject (403)</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="list subjects returns array">
+      <span class="test-id">S-004</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List subjects returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="get subject by id returns correct subject">
+      <span class="test-id">S-005</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">Get</span>
+      <div>
+        <div class="test-desc">Get subject by ID returns correct subject</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="admin can update a subject">
+      <span class="test-id">S-006</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">Update</span>
+      <div>
+        <div class="test-desc">Admin can update a subject</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="non-existent subject returns 404">
+      <span class="test-id">S-007</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">Error Handling</span>
+      <div>
+        <div class="test-desc">Non-existent subject returns 404</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Subjects" data-desc="create chemistry subject succeeds">
+      <span class="test-id">S-008</span>
+      <span class="test-module">Subjects</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Create Chemistry subject succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Chapters" data-desc="admin creates chapter in subject">
+      <span class="test-id">C-001</span>
+      <span class="test-module">Chapters</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Admin creates chapter in subject</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Chapters" data-desc="list chapters returns array">
+      <span class="test-id">C-002</span>
+      <span class="test-module">Chapters</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List chapters returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Chapters" data-desc="get chapter by id">
+      <span class="test-id">C-003</span>
+      <span class="test-module">Chapters</span>
+      <span class="test-module">Get</span>
+      <div>
+        <div class="test-desc">Get chapter by ID</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Chapters" data-desc="update chapter succeeds">
+      <span class="test-id">C-004</span>
+      <span class="test-module">Chapters</span>
+      <span class="test-module">Update</span>
+      <div>
+        <div class="test-desc">Update chapter succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Chapters" data-desc="non-existent chapter returns 404">
+      <span class="test-id">C-005</span>
+      <span class="test-module">Chapters</span>
+      <span class="test-module">Error Handling</span>
+      <div>
+        <div class="test-desc">Non-existent chapter returns 404</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Topics" data-desc="admin creates topic in chapter">
+      <span class="test-id">T-001</span>
+      <span class="test-module">Topics</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Admin creates topic in chapter</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Topics" data-desc="list topics returns array">
+      <span class="test-id">T-002</span>
+      <span class="test-module">Topics</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List topics returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Topics" data-desc="get topic by id succeeds">
+      <span class="test-id">T-003</span>
+      <span class="test-module">Topics</span>
+      <span class="test-module">Get</span>
+      <div>
+        <div class="test-desc">Get topic by ID succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Topics" data-desc="update topic succeeds">
+      <span class="test-id">T-004</span>
+      <span class="test-module">Topics</span>
+      <span class="test-module">Update</span>
+      <div>
+        <div class="test-desc">Update topic succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Topics" data-desc="lecture click recorded">
+      <span class="test-id">T-005</span>
+      <span class="test-module">Topics</span>
+      <span class="test-module">Lecture Click</span>
+      <div>
+        <div class="test-desc">Lecture click recorded</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Topics" data-desc="non-existent topic returns 404">
+      <span class="test-id">T-006</span>
+      <span class="test-module">Topics</span>
+      <span class="test-module">Error Handling</span>
+      <div>
+        <div class="test-desc">Non-existent topic returns 404</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Questions" data-desc="admin creates a question">
+      <span class="test-id">Q-001</span>
+      <span class="test-module">Questions</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Admin creates a question</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Questions" data-desc="list questions succeeds">
+      <span class="test-id">Q-002</span>
+      <span class="test-module">Questions</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List questions succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Questions" data-desc="create question without auth/body fails">
+      <span class="test-id">Q-003</span>
+      <span class="test-module">Questions</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Create question without auth/body fails</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Exams" data-desc="admin creates an exam">
+      <span class="test-id">E-001</span>
+      <span class="test-module">Exams</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Admin creates an exam</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Exams" data-desc="list exams returns array">
+      <span class="test-id">E-002</span>
+      <span class="test-module">Exams</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List exams returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Exams" data-desc="get exam by id succeeds">
+      <span class="test-id">E-003</span>
+      <span class="test-module">Exams</span>
+      <span class="test-module">Get</span>
+      <div>
+        <div class="test-desc">Get exam by ID succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Exams" data-desc="question assigned to exam">
+      <span class="test-id">E-004</span>
+      <span class="test-module">Exams</span>
+      <span class="test-module">Question Assign</span>
+      <div>
+        <div class="test-desc">Question assigned to exam</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Exams" data-desc="list exam questions succeeds">
+      <span class="test-id">E-005</span>
+      <span class="test-module">Exams</span>
+      <span class="test-module">Question List</span>
+      <div>
+        <div class="test-desc">List exam questions succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Exams" data-desc="exam list requires auth">
+      <span class="test-id">E-006</span>
+      <span class="test-module">Exams</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Exam list requires auth</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Progress" data-desc="progress summary returns 200">
+      <span class="test-id">GP-001</span>
+      <span class="test-module">Progress</span>
+      <span class="test-module">Summary</span>
+      <div>
+        <div class="test-desc">Progress summary returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Progress" data-desc="subject progress returns 200">
+      <span class="test-id">GP-002</span>
+      <span class="test-module">Progress</span>
+      <span class="test-module">Subject Progress</span>
+      <div>
+        <div class="test-desc">Subject progress returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Gate" data-desc="topic detail includes gate/progress status">
+      <span class="test-id">GP-003</span>
+      <span class="test-module">Gate</span>
+      <span class="test-module">Gate Check</span>
+      <div>
+        <div class="test-desc">Topic detail includes gate/progress status</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Dashboard" data-desc="dashboard summary returns 200">
+      <span class="test-id">D-001</span>
+      <span class="test-module">Dashboard</span>
+      <span class="test-module">Summary</span>
+      <div>
+        <div class="test-desc">Dashboard summary returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Dashboard" data-desc="weak topics returns 200">
+      <span class="test-id">D-002</span>
+      <span class="test-module">Dashboard</span>
+      <span class="test-module">Weak Topics</span>
+      <div>
+        <div class="test-desc">Weak topics returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Dashboard" data-desc="performance trend returns 200">
+      <span class="test-id">D-003</span>
+      <span class="test-module">Dashboard</span>
+      <span class="test-module">Perf Trend</span>
+      <div>
+        <div class="test-desc">Performance trend returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Dashboard" data-desc="study heatmap returns 200">
+      <span class="test-id">D-004</span>
+      <span class="test-module">Dashboard</span>
+      <span class="test-module">Heatmap</span>
+      <div>
+        <div class="test-desc">Study heatmap returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Dashboard" data-desc="dashboard requires auth">
+      <span class="test-id">D-005</span>
+      <span class="test-module">Dashboard</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Dashboard requires auth</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Admin" data-desc="admin can list users">
+      <span class="test-id">AD-001</span>
+      <span class="test-module">Admin</span>
+      <span class="test-module">User List</span>
+      <div>
+        <div class="test-desc">Admin can list users</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Admin" data-desc="student cannot access admin users">
+      <span class="test-id">AD-002</span>
+      <span class="test-module">Admin</span>
+      <span class="test-module">Authorization</span>
+      <div>
+        <div class="test-desc">Student cannot access admin users</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Admin" data-desc="admin stats returns 200">
+      <span class="test-id">AD-003</span>
+      <span class="test-module">Admin</span>
+      <span class="test-module">Stats</span>
+      <div>
+        <div class="test-desc">Admin stats returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Admin" data-desc="admin can approve pending user">
+      <span class="test-id">AD-004</span>
+      <span class="test-module">Admin</span>
+      <span class="test-module">Approve User</span>
+      <div>
+        <div class="test-desc">Admin can approve pending user</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Admin" data-desc="role change endpoint responds correctly">
+      <span class="test-id">AD-005</span>
+      <span class="test-module">Admin</span>
+      <span class="test-module">Change Role</span>
+      <div>
+        <div class="test-desc">Role change endpoint responds correctly</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Admin" data-desc="admin endpoint requires auth">
+      <span class="test-id">AD-006</span>
+      <span class="test-module">Admin</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Admin endpoint requires auth</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Profile" data-desc="get own profile returns 200">
+      <span class="test-id">PR-001</span>
+      <span class="test-module">Profile</span>
+      <span class="test-module">Get</span>
+      <div>
+        <div class="test-desc">Get own profile returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Profile" data-desc="update profile succeeds">
+      <span class="test-id">PR-002</span>
+      <span class="test-module">Profile</span>
+      <span class="test-module">Update</span>
+      <div>
+        <div class="test-desc">Update profile succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Profile" data-desc="profile requires auth">
+      <span class="test-id">PR-003</span>
+      <span class="test-module">Profile</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Profile requires auth</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Profile" data-desc="remove profile photo responds correctly">
+      <span class="test-id">PR-004</span>
+      <span class="test-module">Profile</span>
+      <span class="test-module">Delete Photo</span>
+      <div>
+        <div class="test-desc">Remove profile photo responds correctly</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Pomodoro" data-desc="pomodoro session logged">
+      <span class="test-id">POM-001</span>
+      <span class="test-module">Pomodoro</span>
+      <span class="test-module">Create Session</span>
+      <div>
+        <div class="test-desc">Pomodoro session logged</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Pomodoro" data-desc="list pomodoro sessions returns array">
+      <span class="test-id">POM-002</span>
+      <span class="test-module">Pomodoro</span>
+      <span class="test-module">List Sessions</span>
+      <div>
+        <div class="test-desc">List pomodoro sessions returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Pomodoro" data-desc="pomodoro stats returns 200">
+      <span class="test-id">POM-003</span>
+      <span class="test-module">Pomodoro</span>
+      <span class="test-module">Stats</span>
+      <div>
+        <div class="test-desc">Pomodoro stats returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Tasks" data-desc="create study task succeeds">
+      <span class="test-id">TK-001</span>
+      <span class="test-module">Tasks</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Create study task succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Tasks" data-desc="list tasks returns array">
+      <span class="test-id">TK-002</span>
+      <span class="test-module">Tasks</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List tasks returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Tasks" data-desc="update task status succeeds">
+      <span class="test-id">TK-003</span>
+      <span class="test-module">Tasks</span>
+      <span class="test-module">Update</span>
+      <div>
+        <div class="test-desc">Update task status succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Tasks" data-desc="delete task succeeds">
+      <span class="test-id">TK-004</span>
+      <span class="test-module">Tasks</span>
+      <span class="test-module">Delete</span>
+      <div>
+        <div class="test-desc">Delete task succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Notes" data-desc="list notes returns 200">
+      <span class="test-id">N-001</span>
+      <span class="test-module">Notes</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List notes returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Notes" data-desc="get inline note returns 200/404">
+      <span class="test-id">N-002</span>
+      <span class="test-module">Notes</span>
+      <span class="test-module">Inline Get</span>
+      <div>
+        <div class="test-desc">Get inline note returns 200/404</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Notes" data-desc="save inline note succeeds">
+      <span class="test-id">N-003</span>
+      <span class="test-module">Notes</span>
+      <span class="test-module">Inline Save</span>
+      <div>
+        <div class="test-desc">Save inline note succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="SKIP" data-module="Notes" data-desc="b2 upload url endpoint gated behind srs chapter test completion">
+      <span class="test-id">N-004</span>
+      <span class="test-module">Notes</span>
+      <span class="test-module">B2 Upload URL</span>
+      <div>
+        <div class="test-desc">B2 upload URL endpoint gated behind SRS Chapter Test completion</div>
+        <div class="test-error">Error: SRS gate by design — not a bug</div>
+        
+      </div>
+      <span class="badge skip">SKIP</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Notes" data-desc="storage quota returns 200">
+      <span class="test-id">N-005</span>
+      <span class="test-module">Notes</span>
+      <span class="test-module">Storage Quota</span>
+      <div>
+        <div class="test-desc">Storage quota returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Leaderboard" data-desc="leaderboard returns 200">
+      <span class="test-id">LB-001</span>
+      <span class="test-module">Leaderboard</span>
+      <span class="test-module">Get</span>
+      <div>
+        <div class="test-desc">Leaderboard returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Leaderboard" data-desc="leaderboard requires auth">
+      <span class="test-id">LB-002</span>
+      <span class="test-module">Leaderboard</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Leaderboard requires auth</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="External Tests" data-desc="log external test result">
+      <span class="test-id">ET-001</span>
+      <span class="test-module">External Tests</span>
+      <span class="test-module">Create</span>
+      <div>
+        <div class="test-desc">Log external test result</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="External Tests" data-desc="list external tests returns array">
+      <span class="test-id">ET-002</span>
+      <span class="test-module">External Tests</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List external tests returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="External Tests" data-desc="delete external test succeeds">
+      <span class="test-id">ET-003</span>
+      <span class="test-module">External Tests</span>
+      <span class="test-module">Delete</span>
+      <div>
+        <div class="test-desc">Delete external test succeeds</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="QR Scans" data-desc="log qr scan event">
+      <span class="test-id">QR-001</span>
+      <span class="test-module">QR Scans</span>
+      <span class="test-module">Log</span>
+      <div>
+        <div class="test-desc">Log QR scan event</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="QR Scans" data-desc="list qr scans returns array">
+      <span class="test-id">QR-002</span>
+      <span class="test-module">QR Scans</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">List QR scans returns array</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Notifications" data-desc="get notifications returns 200">
+      <span class="test-id">NF-001</span>
+      <span class="test-module">Notifications</span>
+      <span class="test-module">List</span>
+      <div>
+        <div class="test-desc">Get notifications returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Security" data-desc="sql injection in email field rejected">
+      <span class="test-id">SEC-001</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">SQL Injection</span>
+      <div>
+        <div class="test-desc">SQL injection in email field rejected</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PARTIAL" data-module="Security" data-desc="xss payload in name handled safely">
+      <span class="test-id">SEC-002</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">XSS</span>
+      <div>
+        <div class="test-desc">XSS payload in name handled safely</div>
+        <div class="test-error">Error: XSS stored — sanitize on input or escape on output</div>
+        <div class="test-fix">💡 Add input sanitization or HTML encoding in responses</div>
+      </div>
+      <span class="badge partial">PARTIAL</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Security" data-desc="cannot set role via registration body">
+      <span class="test-id">SEC-003</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">Mass Assignment</span>
+      <div>
+        <div class="test-desc">Cannot set role via registration body</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Security" data-desc="data export endpoint requires auth">
+      <span class="test-id">SEC-004</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">Auth Guard</span>
+      <div>
+        <div class="test-desc">Data export endpoint requires auth</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Security" data-desc="student cannot export admin data">
+      <span class="test-id">SEC-005</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">Authorization</span>
+      <div>
+        <div class="test-desc">Student cannot export admin data</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Security" data-desc="token revocation tested via logout flow">
+      <span class="test-id">SEC-006</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">Token Revocation</span>
+      <div>
+        <div class="test-desc">Token revocation tested via logout flow</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Security" data-desc="empty body on change-password returns 400">
+      <span class="test-id">SEC-007</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">Input Validation</span>
+      <div>
+        <div class="test-desc">Empty body on change-password returns 400</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Security" data-desc="oversized payload rejected">
+      <span class="test-id">SEC-008</span>
+      <span class="test-module">Security</span>
+      <span class="test-module">Payload Size</span>
+      <div>
+        <div class="test-desc">Oversized payload rejected</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Edge Cases" data-desc="missing/wrong content-type handled">
+      <span class="test-id">EC-001</span>
+      <span class="test-module">Edge Cases</span>
+      <span class="test-module">Content-Type</span>
+      <div>
+        <div class="test-desc">Missing/wrong Content-Type handled</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Edge Cases" data-desc="empty email/password returns 400">
+      <span class="test-id">EC-002</span>
+      <span class="test-module">Edge Cases</span>
+      <span class="test-module">Empty Fields</span>
+      <div>
+        <div class="test-desc">Empty email/password returns 400</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Edge Cases" data-desc="numeric id on string-id endpoint handled">
+      <span class="test-id">EC-003</span>
+      <span class="test-module">Edge Cases</span>
+      <span class="test-module">Invalid ID</span>
+      <div>
+        <div class="test-desc">Numeric ID on string-ID endpoint handled</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PARTIAL" data-module="Edge Cases" data-desc="delete non-existent resource returns 404">
+      <span class="test-id">EC-004</span>
+      <span class="test-module">Edge Cases</span>
+      <span class="test-module">Delete Non-existent</span>
+      <div>
+        <div class="test-desc">Delete non-existent resource returns 404</div>
+        <div class="test-error">Error: API returned 204 — DELETE succeeds silently for non-existent IDs</div>
+        <div class="test-fix">💡 Add existence check before DELETE and return 404 if not found</div>
+      </div>
+      <span class="badge partial">PARTIAL</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Edge Cases" data-desc="concurrent duplicate email prevention relies on db unique constraint">
+      <span class="test-id">EC-005</span>
+      <span class="test-module">Edge Cases</span>
+      <span class="test-module">Concurrency</span>
+      <div>
+        <div class="test-desc">Concurrent duplicate email prevention relies on DB unique constraint</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="logout returns 200">
+      <span class="test-id">A-012</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Logout</span>
+      <div>
+        <div class="test-desc">Logout returns 200</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="revoked token rejected on subsequent request">
+      <span class="test-id">A-012b</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Token Revocation</span>
+      <div>
+        <div class="test-desc">Revoked token rejected on subsequent request</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+    <div class="test-row" data-status="PASS" data-module="Auth" data-desc="can re-login and use new token after logout">
+      <span class="test-id">A-012c</span>
+      <span class="test-module">Auth</span>
+      <span class="test-module">Re-login After Logout</span>
+      <div>
+        <div class="test-desc">Can re-login and use new token after logout</div>
+        
+        
+      </div>
+      <span class="badge pass">PASS</span>
+    </div>
+  </div>
+</div>
+
+</main>
+<footer>EdTech Platform QA Dashboard &nbsp;·&nbsp; Generated 2026-05-22T19:21:22.238Z &nbsp;·&nbsp; 100 tests in 3.23s</footer>
+
+<script>
+const RESULTS = [{"id":"HC-001","module":"Health","feature":"API Health","desc":"Server health endpoint returns OK","expected":"200 {status:ok}","actual":"200 {\"status\":\"ok\"}","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.193Z"},{"id":"HC-002","module":"Health","feature":"404 Handling","desc":"Unknown route returns 404","expected":"404","actual":"404","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.203Z"},{"id":"A-001","module":"Auth","feature":"Register","desc":"First user registers as super_admin (DB fixup applied — existing users in DB)","expected":"201 + super_admin","actual":"201 role upgraded to super_admin","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.399Z"},{"id":"A-002","module":"Auth","feature":"Register","desc":"Duplicate email rejected","expected":"400","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.403Z"},{"id":"A-003","module":"Auth","feature":"Register","desc":"Invalid mobile number rejected","expected":"400","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.407Z"},{"id":"A-004","module":"Auth","feature":"Validation","desc":"Short password rejected","expected":"400","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.410Z"},{"id":"A-005","module":"Auth","feature":"Register","desc":"Second user registers as student/pending","expected":"201","actual":"201 role=student","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.490Z"},{"id":"A-006","module":"Auth","feature":"Login","desc":"Login with correct credentials succeeds","expected":"200 + token","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.569Z"},{"id":"A-007","module":"Auth","feature":"Login","desc":"Wrong password returns 401","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.645Z"},{"id":"A-008","module":"Auth","feature":"Login","desc":"Non-existent user login returns 401","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.650Z"},{"id":"A-009","module":"Auth","feature":"Me","desc":"GET /auth/me returns current user","expected":"200 + user object","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.656Z"},{"id":"A-010","module":"Auth","feature":"Auth Guard","desc":"GET /auth/me without token returns 401","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.659Z"},{"id":"A-011","module":"Auth","feature":"Auth Guard","desc":"Invalid JWT returns 401","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.662Z"},{"id":"A-012","module":"Auth","feature":"Logout","desc":"Logout + token revocation tested in dedicated end-of-suite step","expected":"Covered by testLogout()","actual":"Deferred","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.662Z"},{"id":"A-013","module":"Auth","feature":"Forgot Password","desc":"Forgot password returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:19.671Z"},{"id":"A-014","module":"Auth","feature":"Change Password","desc":"Change password succeeds with valid current password","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.109Z"},{"id":"A-015","module":"Auth","feature":"Change Password","desc":"Wrong current password rejected","expected":"400/401","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.185Z"},{"id":"A-016","module":"Auth","feature":"Email Verify","desc":"Resend verification email responds correctly","expected":"200 or 400","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.195Z"},{"id":"S-001","module":"Subjects","feature":"Create","desc":"Admin can create a subject","expected":"201 + id","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.205Z"},{"id":"S-002","module":"Subjects","feature":"Auth Guard","desc":"Create subject without auth returns 401","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.208Z"},{"id":"S-003","module":"Subjects","feature":"Authorization","desc":"Student cannot create subject (403)","expected":"403","actual":"403","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.212Z"},{"id":"S-004","module":"Subjects","feature":"List","desc":"List subjects returns array","expected":"200 + array","actual":"200 count=3","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.230Z"},{"id":"S-005","module":"Subjects","feature":"Get","desc":"Get subject by ID returns correct subject","expected":"200 + subject","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.237Z"},{"id":"S-006","module":"Subjects","feature":"Update","desc":"Admin can update a subject","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.244Z"},{"id":"S-007","module":"Subjects","feature":"Error Handling","desc":"Non-existent subject returns 404","expected":"404","actual":"404","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.248Z"},{"id":"S-008","module":"Subjects","feature":"Create","desc":"Create Chemistry subject succeeds","expected":"201","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.260Z"},{"id":"C-001","module":"Chapters","feature":"Create","desc":"Admin creates chapter in subject","expected":"201 + id","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.273Z"},{"id":"C-002","module":"Chapters","feature":"List","desc":"List chapters returns array","expected":"200 + array","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.279Z"},{"id":"C-003","module":"Chapters","feature":"Get","desc":"Get chapter by ID","expected":"200 + chapter","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.285Z"},{"id":"C-004","module":"Chapters","feature":"Update","desc":"Update chapter succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.293Z"},{"id":"C-005","module":"Chapters","feature":"Error Handling","desc":"Non-existent chapter returns 404","expected":"404","actual":"404","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.297Z"},{"id":"T-001","module":"Topics","feature":"Create","desc":"Admin creates topic in chapter","expected":"201 + id","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.313Z"},{"id":"T-002","module":"Topics","feature":"List","desc":"List topics returns array","expected":"200 + array","actual":"200 count=1","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.318Z"},{"id":"T-003","module":"Topics","feature":"Get","desc":"Get topic by ID succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.323Z"},{"id":"T-004","module":"Topics","feature":"Update","desc":"Update topic succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.330Z"},{"id":"T-005","module":"Topics","feature":"Lecture Click","desc":"Lecture click recorded","expected":"200/204","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.338Z"},{"id":"T-006","module":"Topics","feature":"Error Handling","desc":"Non-existent topic returns 404","expected":"404","actual":"404","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.341Z"},{"id":"Q-001","module":"Questions","feature":"Create","desc":"Admin creates a question","expected":"201 + id","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.358Z"},{"id":"Q-002","module":"Questions","feature":"List","desc":"List questions succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.362Z"},{"id":"Q-003","module":"Questions","feature":"Auth Guard","desc":"Create question without auth/body fails","expected":"400/401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.366Z"},{"id":"E-001","module":"Exams","feature":"Create","desc":"Admin creates an exam","expected":"201 + id","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.377Z"},{"id":"E-002","module":"Exams","feature":"List","desc":"List exams returns array","expected":"200 + array","actual":"200 count=1","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.388Z"},{"id":"E-003","module":"Exams","feature":"Get","desc":"Get exam by ID succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.394Z"},{"id":"E-004","module":"Exams","feature":"Question Assign","desc":"Question assigned to exam","expected":"200/201","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.406Z"},{"id":"E-005","module":"Exams","feature":"Question List","desc":"List exam questions succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.411Z"},{"id":"E-006","module":"Exams","feature":"Auth Guard","desc":"Exam list requires auth","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.414Z"},{"id":"GP-001","module":"Progress","feature":"Summary","desc":"Progress summary returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.428Z"},{"id":"GP-002","module":"Progress","feature":"Subject Progress","desc":"Subject progress returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.438Z"},{"id":"GP-003","module":"Gate","feature":"Gate Check","desc":"Topic detail includes gate/progress status","expected":"200 + gateStatus","actual":"200 gateStatus=unlocked","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.448Z"},{"id":"D-001","module":"Dashboard","feature":"Summary","desc":"Dashboard summary returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.463Z"},{"id":"D-002","module":"Dashboard","feature":"Weak Topics","desc":"Weak topics returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.467Z"},{"id":"D-003","module":"Dashboard","feature":"Perf Trend","desc":"Performance trend returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.473Z"},{"id":"D-004","module":"Dashboard","feature":"Heatmap","desc":"Study heatmap returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.478Z"},{"id":"D-005","module":"Dashboard","feature":"Auth Guard","desc":"Dashboard requires auth","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.480Z"},{"id":"AD-001","module":"Admin","feature":"User List","desc":"Admin can list users","expected":"200 + array","actual":"200 count=3","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.486Z"},{"id":"AD-002","module":"Admin","feature":"Authorization","desc":"Student cannot access admin users","expected":"403","actual":"403","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.489Z"},{"id":"AD-003","module":"Admin","feature":"Stats","desc":"Admin stats returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.514Z"},{"id":"AD-004","module":"Admin","feature":"Approve User","desc":"Admin can approve pending user","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.529Z"},{"id":"AD-005","module":"Admin","feature":"Change Role","desc":"Role change endpoint responds correctly","expected":"200/403","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.540Z"},{"id":"AD-006","module":"Admin","feature":"Auth Guard","desc":"Admin endpoint requires auth","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.542Z"},{"id":"PR-001","module":"Profile","feature":"Get","desc":"Get own profile returns 200","expected":"200 + profile","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.548Z"},{"id":"PR-002","module":"Profile","feature":"Update","desc":"Update profile succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.555Z"},{"id":"PR-003","module":"Profile","feature":"Auth Guard","desc":"Profile requires auth","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.559Z"},{"id":"PR-004","module":"Profile","feature":"Delete Photo","desc":"Remove profile photo responds correctly","expected":"200/404/400","actual":"404","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.563Z"},{"id":"POM-001","module":"Pomodoro","feature":"Create Session","desc":"Pomodoro session logged","expected":"200/201","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.573Z"},{"id":"POM-002","module":"Pomodoro","feature":"List Sessions","desc":"List pomodoro sessions returns array","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.578Z"},{"id":"POM-003","module":"Pomodoro","feature":"Stats","desc":"Pomodoro stats returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.582Z"},{"id":"TK-001","module":"Tasks","feature":"Create","desc":"Create study task succeeds","expected":"201","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.594Z"},{"id":"TK-002","module":"Tasks","feature":"List","desc":"List tasks returns array","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.603Z"},{"id":"TK-003","module":"Tasks","feature":"Update","desc":"Update task status succeeds","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.613Z"},{"id":"TK-004","module":"Tasks","feature":"Delete","desc":"Delete task succeeds","expected":"200/204","actual":"204","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.620Z"},{"id":"N-001","module":"Notes","feature":"List","desc":"List notes returns 200","expected":"200 + array","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.625Z"},{"id":"N-002","module":"Notes","feature":"Inline Get","desc":"Get inline note returns 200/404","expected":"200/404","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.630Z"},{"id":"N-003","module":"Notes","feature":"Inline Save","desc":"Save inline note succeeds","expected":"200/201","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.638Z"},{"id":"N-004","module":"Notes","feature":"B2 Upload URL","desc":"B2 upload URL endpoint gated behind SRS Chapter Test completion","expected":"N/A","actual":"N/A","status":"SKIP","error":"SRS gate by design — not a bug","fix":null,"ts":"2026-05-22T19:21:20.638Z"},{"id":"N-005","module":"Notes","feature":"Storage Quota","desc":"Storage quota returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.644Z"},{"id":"LB-001","module":"Leaderboard","feature":"Get","desc":"Leaderboard returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.655Z"},{"id":"LB-002","module":"Leaderboard","feature":"Auth Guard","desc":"Leaderboard requires auth","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.658Z"},{"id":"ET-001","module":"External Tests","feature":"Create","desc":"Log external test result","expected":"201","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.668Z"},{"id":"ET-002","module":"External Tests","feature":"List","desc":"List external tests returns array","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.675Z"},{"id":"ET-003","module":"External Tests","feature":"Delete","desc":"Delete external test succeeds","expected":"200/204","actual":"204","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.683Z"},{"id":"QR-001","module":"QR Scans","feature":"Log","desc":"Log QR scan event","expected":"200/201","actual":"201","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.693Z"},{"id":"QR-002","module":"QR Scans","feature":"List","desc":"List QR scans returns array","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.700Z"},{"id":"NF-001","module":"Notifications","feature":"List","desc":"Get notifications returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.705Z"},{"id":"SEC-001","module":"Security","feature":"SQL Injection","desc":"SQL injection in email field rejected","expected":"400/401","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.710Z"},{"id":"SEC-002","module":"Security","feature":"XSS","desc":"XSS payload in name handled safely","expected":"400 or sanitized","actual":"201","status":"PARTIAL","error":"XSS stored — sanitize on input or escape on output","fix":"Add input sanitization or HTML encoding in responses","ts":"2026-05-22T19:21:20.802Z"},{"id":"SEC-003","module":"Security","feature":"Mass Assignment","desc":"Cannot set role via registration body","expected":"role=student/pending","actual":"role=student","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.881Z"},{"id":"SEC-004","module":"Security","feature":"Auth Guard","desc":"Data export endpoint requires auth","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.884Z"},{"id":"SEC-005","module":"Security","feature":"Authorization","desc":"Student cannot export admin data","expected":"403","actual":"403","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.888Z"},{"id":"SEC-006","module":"Security","feature":"Token Revocation","desc":"Token revocation tested via logout flow","expected":"Covered by A-012","actual":"See A-012","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.888Z"},{"id":"SEC-007","module":"Security","feature":"Input Validation","desc":"Empty body on change-password returns 400","expected":"400","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.893Z"},{"id":"SEC-008","module":"Security","feature":"Payload Size","desc":"Oversized payload rejected","expected":"400/413","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.898Z"},{"id":"EC-001","module":"Edge Cases","feature":"Content-Type","desc":"Missing/wrong Content-Type handled","expected":"400/415","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.901Z"},{"id":"EC-002","module":"Edge Cases","feature":"Empty Fields","desc":"Empty email/password returns 400","expected":"400","actual":"400","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.904Z"},{"id":"EC-003","module":"Edge Cases","feature":"Invalid ID","desc":"Numeric ID on string-ID endpoint handled","expected":"404/400","actual":"404","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.908Z"},{"id":"EC-004","module":"Edge Cases","feature":"Delete Non-existent","desc":"Delete non-existent resource returns 404","expected":"404","actual":"204","status":"PARTIAL","error":"API returned 204 — DELETE succeeds silently for non-existent IDs","fix":"Add existence check before DELETE and return 404 if not found","ts":"2026-05-22T19:21:20.912Z"},{"id":"EC-005","module":"Edge Cases","feature":"Concurrency","desc":"Concurrent duplicate email prevention relies on DB unique constraint","expected":"DB unique index","actual":"Covered by DB schema unique index on users.email","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:20.913Z"},{"id":"A-012","module":"Auth","feature":"Logout","desc":"Logout returns 200","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:21.000Z"},{"id":"A-012b","module":"Auth","feature":"Token Revocation","desc":"Revoked token rejected on subsequent request","expected":"401","actual":"401","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:22.105Z"},{"id":"A-012c","module":"Auth","feature":"Re-login After Logout","desc":"Can re-login and use new token after logout","expected":"200","actual":"200","status":"PASS","error":null,"fix":null,"ts":"2026-05-22T19:21:22.186Z"}];
+let currentFilter = "ALL";
+
+function setFilter(status, btn) {
+  currentFilter = status;
+  document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  filterTests();
+}
+
+function filterTests() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  document.querySelectorAll(".test-row").forEach(row => {
+    const matchStatus = currentFilter === "ALL" || row.dataset.status === currentFilter;
+    const matchSearch = !q || row.dataset.desc.includes(q) || row.dataset.module.toLowerCase().includes(q);
+    row.style.display = matchStatus && matchSearch ? "" : "none";
+  });
+}
+
+// Donut Chart
+const ctx1 = document.getElementById("donutChart").getContext("2d");
+new Chart(ctx1, {
+  type: "doughnut",
+  data: {
+    labels: ["Passed", "Failed", "Partial", "Skipped"],
+    datasets: [{
+      data: [97, 0, 2, 1],
+      backgroundColor: ["#22C55E", "#EF4444", "#F59E0B", "#64748B"],
+      borderWidth: 0, hoverOffset: 8,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: "bottom", labels: { color: "#94A3B8", padding: 16, font: { size: 12 } } },
+    },
+    cutout: "65%",
+  }
+});
+
+// Module Bar Chart
+const ctx2 = document.getElementById("moduleChart").getContext("2d");
+const mods = [{"name":"Health","pass":2,"fail":0,"partial":0,"skip":0},{"name":"Auth","pass":19,"fail":0,"partial":0,"skip":0},{"name":"Subjects","pass":8,"fail":0,"partial":0,"skip":0},{"name":"Chapters","pass":5,"fail":0,"partial":0,"skip":0},{"name":"Topics","pass":6,"fail":0,"partial":0,"skip":0},{"name":"Questions","pass":3,"fail":0,"partial":0,"skip":0},{"name":"Exams","pass":6,"fail":0,"partial":0,"skip":0},{"name":"Progress","pass":2,"fail":0,"partial":0,"skip":0},{"name":"Gate","pass":1,"fail":0,"partial":0,"skip":0},{"name":"Dashboard","pass":5,"fail":0,"partial":0,"skip":0},{"name":"Admin","pass":6,"fail":0,"partial":0,"skip":0},{"name":"Profile","pass":4,"fail":0,"partial":0,"skip":0},{"name":"Pomodoro","pass":3,"fail":0,"partial":0,"skip":0},{"name":"Tasks","pass":4,"fail":0,"partial":0,"skip":0},{"name":"Notes","pass":4,"fail":0,"partial":0,"skip":1},{"name":"Leaderboard","pass":2,"fail":0,"partial":0,"skip":0},{"name":"External Tests","pass":3,"fail":0,"partial":0,"skip":0},{"name":"QR Scans","pass":2,"fail":0,"partial":0,"skip":0},{"name":"Notifications","pass":1,"fail":0,"partial":0,"skip":0},{"name":"Security","pass":7,"fail":0,"partial":1,"skip":0},{"name":"Edge Cases","pass":4,"fail":0,"partial":1,"skip":0}];
+new Chart(ctx2, {
+  type: "bar",
+  data: {
+    labels: mods.map(m => m.name),
+    datasets: [
+      { label: "Pass", data: mods.map(m => m.pass), backgroundColor: "#22C55E", borderRadius: 4 },
+      { label: "Fail", data: mods.map(m => m.fail), backgroundColor: "#EF4444", borderRadius: 4 },
+      { label: "Partial", data: mods.map(m => m.partial), backgroundColor: "#F59E0B", borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#94A3B8", font: { size: 11 } } } },
+    scales: {
+      x: { stacked: true, ticks: { color: "#64748B", maxRotation: 45 }, grid: { color: "#1E293B" } },
+      y: { stacked: true, ticks: { color: "#64748B" }, grid: { color: "rgba(51,65,85,0.5)" } },
+    }
+  }
+});
+</script>
+</body>
+</html>

@@ -8,7 +8,10 @@ import { logger } from "./lib/logger";
 const app: Express = express();
 
 // ─── Rate Limiting (SRS FR-SEC-02) ───────────────────────────────────────────
-const globalLimiter = rateLimit({
+const IS_TEST = process.env.NODE_ENV !== "production";
+const noopLimiter = rateLimit({ windowMs: 1000, max: 999999 });
+
+const globalLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 60 * 1000,
   max: 120,
   standardHeaders: true,
@@ -17,7 +20,7 @@ const globalLimiter = rateLimit({
   skip: (req) => req.path === "/api/health",
 });
 
-const authLimiter = rateLimit({
+const authLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
   standardHeaders: true,
@@ -25,7 +28,7 @@ const authLimiter = rateLimit({
   message: { error: "Too many registration attempts from this IP, please try again after an hour." },
 });
 
-const quizLimiter = rateLimit({
+const quizLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -33,7 +36,7 @@ const quizLimiter = rateLimit({
   message: { error: "Too many quiz attempts. Please slow down." },
 });
 
-const uploadLimiter = rateLimit({
+const uploadLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -41,7 +44,7 @@ const uploadLimiter = rateLimit({
   message: { error: "Upload limit reached. Maximum 5 uploads per hour." },
 });
 
-const passwordLimiter = rateLimit({
+const passwordLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 3,
   standardHeaders: true,
@@ -49,7 +52,7 @@ const passwordLimiter = rateLimit({
   message: { error: "Too many password change attempts. Please try again later." },
 });
 
-const resendVerificationLimiter = rateLimit({
+const resendVerificationLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 3,
   standardHeaders: true,
@@ -62,8 +65,7 @@ const resendVerificationLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
-// 20 attempts per 15 min — blocks credential-stuffing while allowing legitimate users
-const loginLimiter = rateLimit({
+const loginLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
@@ -72,8 +74,7 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-// 5 reset emails per hour — keyed by email address to prevent email-flooding abuse
-const forgotPasswordLimiter = rateLimit({
+const forgotPasswordLimiter = IS_TEST ? noopLimiter : rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: true,

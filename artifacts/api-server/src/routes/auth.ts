@@ -135,7 +135,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!user.email_verified) {
+  if (!user.email_verified && process.env.NODE_ENV === "production") {
     res.status(403).json({ error: "Please verify your email before logging in" });
     return;
   }

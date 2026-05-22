@@ -1,0 +1,192 @@
+Act as a senior QA engineer and software testing expert.
+
+I have already built a complete project. Your task is to fully analyze the project and create a professional automated testing system.
+
+========================
+PHASE 1 — PROJECT ANALYSIS
+========================
+1. Analyze the complete project structure.
+2. Identify:
+   - Frontend
+   - Backend
+   - APIs
+   - Database
+   - Authentication system
+   - Dependencies
+   - Frameworks & libraries
+3. Understand all features, workflows, and modules.
+
+========================
+PHASE 2 — GENERATE TEST CASES
+========================
+Create ALL possible test cases including:
+
+- Unit Testing
+- Integration Testing
+- API Testing
+- UI/UX Testing
+- Authentication Testing
+- Authorization Testing
+- Form Validation Testing
+- Edge Case Testing
+- Error Handling Testing
+- Security Testing
+- Performance Testing
+- Database Testing
+- Responsive/Mobile Testing
+- Accessibility Testing
+
+========================
+PHASE 3 — AUTOMATED EXECUTION
+========================
+1. Automatically execute all generated test cases.
+2. Detect:
+   - Passed tests
+   - Failed tests
+   - Partially passed tests
+   - Skipped tests
+   - Flaky tests
+
+3. Retry flaky tests automatically.
+
+========================
+PHASE 4 — DETAILED REPORTING
+========================
+Generate professional testing reports with:
+
+- Total test cases
+- Passed test cases
+- Failed test cases
+- Partially passed test cases
+- Skipped test cases
+- Success percentage
+- Failure percentage
+- Code coverage percentage
+- Error logs
+- Stack traces
+- Bug locations
+- Suggested fixes
+
+========================
+PHASE 5 — SEPARATE REPORT FILES
+========================
+Create separate files for each category.
+
+Generate BOTH:
+- Markdown (.md)
+- PDF (.pdf)
+
+Required files:
+
+1. passed-tests.md
+2. passed-tests.pdf
+
+Contains:
+- Successfully executed test cases
+- Execution logs
+- Coverage details
+- Performance details
+
+------------------------------------------------
+
+3. failed-tests.md
+4. failed-tests.pdf
+
+Contains:
+- Failed test cases
+- Exact failure reasons
+- Error logs
+- Stack traces
+- Bug locations
+- Suggested fixes
+- Severity levels
+
+------------------------------------------------
+
+5. partially-passed-tests.md
+6. partially-passed-tests.pdf
+
+Contains:
+- Partially successful tests
+- Which steps passed
+- Which steps failed
+- Root cause analysis
+- Recommended fixes
+
+------------------------------------------------
+
+7. skipped-tests.md
+8. skipped-tests.pdf
+
+Contains:
+- Skipped tests
+- Reason for skipping
+- Dependencies/issues blocking execution
+
+------------------------------------------------
+
+9. final-summary-report.md
+10. final-summary-report.pdf
+
+Contains:
+- Executive QA summary
+- Total execution statistics
+- Pass/fail charts
+- Critical issues
+- High priority bugs
+- Risk analysis
+- Deployment readiness status
+
+========================
+PHASE 6 — TESTING DASHBOARD
+========================
+Generate a clean QA dashboard showing:
+- Real-time test statistics
+- Passed/Failed counters
+- Charts & graphs
+- Code coverage
+- Module-wise status
+- Critical bug highlights
+
+========================
+PHASE 7 — OUTPUT REQUIREMENTS
+========================
+For every test case provide:
+
+- Test Case ID
+- Module Name
+- Feature Name
+- Test Description
+- Preconditions
+- Steps to Execute
+- Expected Result
+- Actual Result
+- Status:
+   PASS / FAIL / PARTIAL / SKIPPED
+- Error Details
+- Screenshots (if applicable)
+- Suggested Fixes
+
+========================
+PHASE 8 — BEST PRACTICES
+========================
+- Use modern testing frameworks
+- Follow industry QA standards
+- Create reusable testing scripts
+- Organize reports professionally
+- Maintain readable folder structure
+- Use clean naming conventions
+- Generate detailed logs
+
+========================
+FINAL GOAL
+========================
+I want a complete professional QA testing system that clearly shows:
+
+- Which test cases successfully ran
+- Which test cases failed
+- Which test cases partially ran
+- Why they failed
+- How to fix them
+- Separate markdown and PDF reports for each category
+- A final deployment readiness report
