@@ -49,7 +49,7 @@ export function useGetDashboardSummary() {
         supabase.from("topic_progress").select("topic_test_passed, created_at, updated_at").eq("user_id", user!.id),
         supabase.from("topics").select("id", { count: "exact", head: false }),
         supabase.from("exam_results").select("passed, accuracy, submitted_at").eq("user_id", user!.id),
-        supabase.from("pomodoro").select("focus_minutes, completed_at").eq("user_id", user!.id).gte("completed_at", new Date(Date.now() - 30 * 86400000).toISOString()),
+        supabase.from("pomodoro_sessions").select("duration_minutes, completed_at").eq("user_id", user!.id).gte("completed_at", new Date(Date.now() - 30 * 86400000).toISOString()),
       ]);
 
       const topicsCompleted = (topicProgress ?? []).filter((p) => p.topic_test_passed).length;

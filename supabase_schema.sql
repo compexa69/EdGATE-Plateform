@@ -1,13 +1,13 @@
 -- ============================================================
--- EdTech Platform — Complete Supabase Schema (v2 — fixed)
--- Run this entire script in: Supabase Dashboard > SQL Editor
+-- EdTech Platform — Complete Supabase Schema (v3 — final)
+-- Run this entire script once in:
+--   Supabase Dashboard → SQL Editor → New query → Run
 --
--- Safe to run multiple times. All comparisons use ::text casts
--- so they work whether the existing id columns are text or uuid.
--- Policies are dropped and recreated cleanly on every run.
+-- Fully idempotent: safe to re-run at any time.
+-- All tables, enums, triggers, RLS policies, and indexes included.
 -- ============================================================
 
--- Enable required extensions
+-- ── Extensions ───────────────────────────────────────────────
 create extension if not exists "uuid-ossp";
 
 -- ============================================================
@@ -38,7 +38,7 @@ do $$ begin create type external_exam_type as enum ('jee_main', 'jee_advanced', 
 exception when duplicate_object then null; end $$;
 
 -- ============================================================
--- 2. HELPER: updated_at trigger function
+-- 2. SHARED TRIGGER: auto-update updated_at
 -- ============================================================
 create or replace function set_updated_at()
 returns trigger as $$
@@ -48,32 +48,32 @@ begin
 end;
 $$ language plpgsql;
 
+-- Helper macro to attach the trigger (idempotent)
+-- Usage: called inline per table with DO blocks below.
+
 -- ============================================================
 -- 3. USERS
--- Linked to Supabase auth.users via id (stored as text to be
--- compatible with both fresh and pre-existing schemas).
--- Supabase Auth handles passwords, email verification, and
--- password-reset flows — those columns are removed from here.
+-- Mirrors auth.users. Supabase Auth owns passwords, email
+-- verification, and password-reset — not stored here.
+-- First registered user → super_admin + approved automatically.
 -- ============================================================
 create table if not exists public.users (
   id                     text primary key,
   full_name              text not null default '',
   email                  text not null unique,
   mobile                 text not null default '',
-  role                   user_role not null default 'student',
-  status                 user_status not null default 'pending_approval',
-  email_verified         boolean not null default false,
+  role                   user_role    not null default 'student',
+  status                 user_status  not null default 'pending_approval',
+  email_verified         boolean      not null default false,
   email_change_token     text,
   email_change_new_email text,
   email_change_expiry    timestamptz,
   photo_b2_key           text,
   last_login_at          timestamptz,
   deleted_at             timestamptz,
-  created_at             timestamptz not null default now(),
-  updated_at             timestamptz not null default now()
+  created_at             timestamptz  not null default now(),
+  updated_at             timestamptz  not null default now()
 );
-
--- Add trigger only if it doesn't exist
 do $$ begin
   create trigger users_updated_at before update on public.users
     for each row execute function set_updated_at();
@@ -85,7 +85,7 @@ returns trigger as $$
 declare
   user_count integer;
 begin
-  select count(*) into user_count from public.users;
+  select count(*) into user_count from public.users where deleted_at is null;
   insert into public.users (id, full_name, email, mobile, role, status, email_verified)
   values (
     new.id::text,
@@ -106,12 +106,13 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_auth_user();
 
--- Sync email_verified when user confirms email via Supabase Auth
+-- Sync email_verified when user confirms email in Supabase Auth
 create or replace function public.handle_auth_user_updated()
 returns trigger as $$
 begin
   if new.email_confirmed_at is not null and old.email_confirmed_at is null then
-    update public.users set email_verified = true
+    update public.users
+    set email_verified = true
     where id::text = new.id::text;
   end if;
   return new;
@@ -128,7 +129,7 @@ create trigger on_auth_user_updated
 -- ============================================================
 create table if not exists public.subjects (
   id          text primary key default ('sub_' || replace(gen_random_uuid()::text, '-', '')),
-  name        text not null,
+  name        text    not null,
   description text,
   "order"     integer not null default 0,
   icon_name   text,
@@ -145,8 +146,8 @@ exception when duplicate_object then null; end $$;
 -- ============================================================
 create table if not exists public.chapters (
   id          text primary key default ('chp_' || replace(gen_random_uuid()::text, '-', '')),
-  subject_id  text not null references public.subjects(id) on delete cascade,
-  name        text not null,
+  subject_id  text    not null references public.subjects(id) on delete cascade,
+  name        text    not null,
   description text,
   "order"     integer not null default 0,
   created_at  timestamptz not null default now(),
@@ -162,8 +163,8 @@ exception when duplicate_object then null; end $$;
 -- ============================================================
 create table if not exists public.topics (
   id                  text primary key default ('top_' || replace(gen_random_uuid()::text, '-', '')),
-  chapter_id          text not null references public.chapters(id) on delete cascade,
-  name                text not null,
+  chapter_id          text    not null references public.chapters(id) on delete cascade,
+  name                text    not null,
   description         text,
   "order"             integer not null default 0,
   telegram_chat_id    text,
@@ -182,19 +183,19 @@ exception when duplicate_object then null; end $$;
 -- 7. QUESTIONS
 -- ============================================================
 create table if not exists public.questions (
-  id              text primary key default ('q_' || replace(gen_random_uuid()::text, '-', '')),
-  topic_id        text references public.topics(id) on delete set null,
-  text            text not null,
-  options         text[] not null,
-  correct_option  text not null,
-  marks           real not null default 4,
-  image_url       text,
-  text_solution   text,
-  video_url       text,
-  qr_code_svg     text,
-  difficulty      difficulty not null default 'medium',
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
+  id             text       primary key default ('q_' || replace(gen_random_uuid()::text, '-', '')),
+  topic_id       text       references public.topics(id) on delete set null,
+  text           text       not null,
+  options        text[]     not null,
+  correct_option text       not null,
+  marks          real       not null default 4,
+  image_url      text,
+  text_solution  text,
+  video_url      text,
+  qr_code_svg    text,
+  difficulty     difficulty not null default 'medium',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
 );
 do $$ begin
   create trigger questions_updated_at before update on public.questions
@@ -205,15 +206,15 @@ exception when duplicate_object then null; end $$;
 -- 8. EXAMS
 -- ============================================================
 create table if not exists public.exams (
-  id               text primary key default ('exam_' || replace(gen_random_uuid()::text, '-', '')),
-  title            text not null,
+  id               text      primary key default ('exam_' || replace(gen_random_uuid()::text, '-', '')),
+  title            text      not null,
   type             exam_type not null,
-  subject_id       text references public.subjects(id) on delete set null,
-  chapter_id       text references public.chapters(id) on delete set null,
-  topic_id         text references public.topics(id) on delete set null,
-  duration_minutes integer not null default 60,
+  subject_id       text      references public.subjects(id) on delete set null,
+  chapter_id       text      references public.chapters(id) on delete set null,
+  topic_id         text      references public.topics(id) on delete set null,
+  duration_minutes integer   not null default 60,
   passing_score    integer,
-  negative_marking real not null default 1,
+  negative_marking real      not null default 1,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
@@ -227,26 +228,27 @@ exception when duplicate_object then null; end $$;
 -- ============================================================
 create table if not exists public.exam_questions (
   id          text primary key default ('eq_' || replace(gen_random_uuid()::text, '-', '')),
-  exam_id     text not null references public.exams(id) on delete cascade,
-  question_id text not null references public.questions(id) on delete cascade,
-  "order"     integer not null default 0
+  exam_id     text    not null references public.exams(id) on delete cascade,
+  question_id text    not null references public.questions(id) on delete cascade,
+  "order"     integer not null default 0,
+  unique (exam_id, question_id)
 );
 
 -- ============================================================
 -- 10. EXAM ATTEMPTS
 -- ============================================================
 create table if not exists public.exam_attempts (
-  id                text primary key default ('att_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id           text not null references public.users(id) on delete cascade,
-  exam_id           text not null references public.exams(id) on delete cascade,
+  id                text           primary key default ('att_' || replace(gen_random_uuid()::text, '-', '')),
+  user_id           text           not null references public.users(id) on delete cascade,
+  exam_id           text           not null references public.exams(id) on delete cascade,
   status            attempt_status not null default 'in_progress',
-  start_time        timestamptz not null default now(),
+  start_time        timestamptz    not null default now(),
   end_time          timestamptz,
-  pause_count       integer not null default 0,
-  remaining_seconds integer not null default 3600,
+  pause_count       integer        not null default 0,
+  remaining_seconds integer        not null default 3600,
   resumed_at        timestamptz,
-  created_at        timestamptz not null default now(),
-  updated_at        timestamptz not null default now()
+  created_at        timestamptz    not null default now(),
+  updated_at        timestamptz    not null default now()
 );
 do $$ begin
   create trigger exam_attempts_updated_at before update on public.exam_attempts
@@ -258,8 +260,8 @@ exception when duplicate_object then null; end $$;
 -- ============================================================
 create table if not exists public.attempt_answers (
   id                   text primary key default ('ans_' || replace(gen_random_uuid()::text, '-', '')),
-  attempt_id           text not null references public.exam_attempts(id) on delete cascade,
-  question_id          text not null,
+  attempt_id           text    not null references public.exam_attempts(id) on delete cascade,
+  question_id          text    not null,
   selected_option      text,
   is_marked_for_review boolean not null default false,
   time_spent_seconds   integer not null default 0,
@@ -275,12 +277,12 @@ exception when duplicate_object then null; end $$;
 -- ============================================================
 create table if not exists public.exam_results (
   id                 text primary key default ('res_' || replace(gen_random_uuid()::text, '-', '')),
-  attempt_id         text not null references public.exam_attempts(id) on delete cascade,
-  user_id            text not null references public.users(id) on delete cascade,
-  exam_id            text not null references public.exams(id) on delete cascade,
-  score              real not null default 0,
-  max_score          real not null default 0,
-  accuracy           real not null default 0,
+  attempt_id         text  not null references public.exam_attempts(id) on delete cascade,
+  user_id            text  not null references public.users(id) on delete cascade,
+  exam_id            text  not null references public.exams(id) on delete cascade,
+  score              real  not null default 0,
+  max_score          real  not null default 0,
+  accuracy           real  not null default 0,
   total_questions    integer not null default 0,
   correct_answers    integer not null default 0,
   incorrect_answers  integer not null default 0,
@@ -291,12 +293,12 @@ create table if not exists public.exam_results (
 );
 
 -- ============================================================
--- 13. TOPIC PROGRESS
+-- 13. TOPIC PROGRESS  (SRS gating state per user per topic)
 -- ============================================================
 create table if not exists public.topic_progress (
   id                  text primary key default ('tp_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id             text not null references public.users(id) on delete cascade,
-  topic_id            text not null references public.topics(id) on delete cascade,
+  user_id             text    not null references public.users(id) on delete cascade,
+  topic_id            text    not null references public.topics(id) on delete cascade,
   lecture_click_count integer not null default 0,
   lecture_quiz_passed boolean not null default false,
   dpp_completed       boolean not null default false,
@@ -312,28 +314,29 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 -- ============================================================
--- 14. NOTES (B2 file uploads)
+-- 14. NOTES  (B2-stored PDF uploads per chapter)
 -- ============================================================
 create table if not exists public.notes (
   id              text primary key default ('note_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id         text not null references public.users(id) on delete cascade,
-  chapter_id      text not null references public.chapters(id) on delete cascade,
-  file_name       text not null,
-  file_size_bytes integer not null,
-  b2_key          text not null,
+  user_id         text    not null references public.users(id) on delete cascade,
+  chapter_id      text    not null references public.chapters(id) on delete cascade,
+  file_name       text    not null,
+  file_size_bytes integer not null default 0,
+  b2_key          text    not null,
   uploaded_at     timestamptz not null default now(),
   annotations     text
 );
 
 -- ============================================================
--- 15. INLINE NOTES
+-- 15. INLINE NOTES  (Markdown notes per topic, per user)
 -- ============================================================
 create table if not exists public.inline_notes (
-  id          text primary key default ('in_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id     text not null references public.users(id) on delete cascade,
-  topic_id    text not null references public.topics(id) on delete cascade,
-  content     text not null default '',
-  updated_at  timestamptz not null default now()
+  id         text primary key default ('in_' || replace(gen_random_uuid()::text, '-', '')),
+  user_id    text not null references public.users(id) on delete cascade,
+  topic_id   text not null references public.topics(id) on delete cascade,
+  content    text not null default '',
+  updated_at timestamptz not null default now(),
+  unique (user_id, topic_id)
 );
 do $$ begin
   create trigger inline_notes_updated_at before update on public.inline_notes
@@ -342,32 +345,32 @@ exception when duplicate_object then null; end $$;
 
 -- ============================================================
 -- 16. POMODORO SESSIONS
+-- Columns match what the frontend hook inserts/reads:
+--   duration_minutes, break_minutes, task_id, completed_at
 -- ============================================================
 create table if not exists public.pomodoro_sessions (
   id               text primary key default ('pom_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id          text not null references public.users(id) on delete cascade,
-  duration_seconds integer not null,
-  topic_context    text,
-  topic_id         text references public.topics(id) on delete set null,
-  start_time       timestamptz not null,
-  end_time         timestamptz not null,
+  user_id          text    not null references public.users(id) on delete cascade,
+  duration_minutes integer not null default 25,
+  break_minutes    integer not null default 5,
+  task_id          text    references public.study_tasks(id) on delete set null,
+  completed_at     timestamptz not null default now(),
   created_at       timestamptz not null default now()
 );
 
 -- ============================================================
--- 17. STUDY TASKS
+-- 17. STUDY TASKS  (daily planner — auto-generated or manual)
 -- ============================================================
 create table if not exists public.study_tasks (
-  id             text primary key default ('task_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id        text not null references public.users(id) on delete cascade,
-  title          text not null,
+  id             text        primary key default ('task_' || replace(gen_random_uuid()::text, '-', '')),
+  user_id        text        not null references public.users(id) on delete cascade,
+  title          text        not null,
   description    text,
   status         task_status not null default 'pending',
   source         task_source not null default 'manual',
-  topic_id       text references public.topics(id) on delete set null,
-  is_locked      text not null default 'false',
-  sort_order     integer not null default 0,
-  scheduled_date date not null,
+  topic_id       text        references public.topics(id) on delete set null,
+  sort_order     integer     not null default 0,
+  scheduled_date date        not null,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
@@ -377,24 +380,24 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 -- ============================================================
--- 18. EXTERNAL TESTS
+-- 18. EXTERNAL TESTS  (off-platform exam scores)
 -- ============================================================
 create table if not exists public.external_tests (
-  id                text primary key default ('ext_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id           text not null references public.users(id) on delete cascade,
-  exam_name         text not null,
-  exam_type         external_exam_type not null default 'other',
-  score             real not null,
-  max_score         real not null,
+  id                text               primary key default ('ext_' || replace(gen_random_uuid()::text, '-', '')),
+  user_id           text               not null references public.users(id) on delete cascade,
+  exam_name         text               not null,
+  exam_type         text               not null default 'other',
+  score             real               not null,
+  max_score         real               not null,
   total_questions   integer,
   correct_answers   integer,
   incorrect_answers integer,
   skipped_answers   integer,
   rank              integer,
   percentile        real,
-  attempted_at      timestamptz not null,
+  attempted_at      timestamptz        not null,
   notes             text,
-  created_at        timestamptz not null default now()
+  created_at        timestamptz        not null default now()
 );
 
 -- ============================================================
@@ -402,16 +405,16 @@ create table if not exists public.external_tests (
 -- ============================================================
 create table if not exists public.notifications (
   id         text primary key default ('notif_' || replace(gen_random_uuid()::text, '-', '')),
-  user_id    text not null references public.users(id) on delete cascade,
-  type       text not null,
-  title      text not null,
-  message    text not null,
+  user_id    text    not null references public.users(id) on delete cascade,
+  type       text    not null,
+  title      text    not null,
+  message    text    not null,
   is_read    boolean not null default false,
   created_at timestamptz not null default now()
 );
 
 -- ============================================================
--- 20. SYSTEM CONFIG
+-- 20. SYSTEM CONFIG  (admin key-value settings)
 -- ============================================================
 create table if not exists public.system_config (
   key         text primary key,
@@ -425,11 +428,13 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 insert into public.system_config (key, value, description) values
-  ('max_exam_attempts',           '3',  'Maximum attempts per exam per user'),
-  ('passing_score_default',       '60', 'Default passing score percentage'),
-  ('max_upload_size_mb',          '10', 'Maximum file upload size in MB'),
-  ('storage_alert_threshold_gb',  '8',  'B2 storage alert threshold in GB'),
-  ('storage_limit_gb',            '10', 'B2 total storage limit in GB')
+  ('max_exam_attempts',          '3',     'Maximum attempts per exam per user'),
+  ('passing_score_default',      '60',    'Default passing score percentage'),
+  ('max_upload_size_mb',         '10',    'Maximum file upload size in MB'),
+  ('low_ctr_threshold',          '3',     'Lecture click count below which a topic is low engagement'),
+  ('maintenance_mode',           'false', 'Show maintenance banner on frontend'),
+  ('storage_alert_threshold_gb', '8',     'B2 storage alert threshold in GB'),
+  ('storage_limit_gb',           '10',    'B2 total storage limit in GB')
 on conflict (key) do nothing;
 
 -- ============================================================
@@ -457,7 +462,7 @@ create table if not exists public.qr_scan_logs (
 );
 
 -- ============================================================
--- 23. PUSH SUBSCRIPTIONS
+-- 23. PUSH SUBSCRIPTIONS  (Web Push / VAPID)
 -- ============================================================
 create table if not exists public.push_subscriptions (
   id         text primary key default ('push_' || replace(gen_random_uuid()::text, '-', '')),
@@ -469,9 +474,8 @@ create table if not exists public.push_subscriptions (
 );
 
 -- ============================================================
--- 24. HELPER FUNCTIONS for RLS policies
--- All comparisons cast both sides to ::text so they work
--- whether id columns are stored as text or uuid.
+-- 24. RLS HELPER FUNCTIONS
+-- All comparisons cast to ::text — works with text or uuid ids.
 -- ============================================================
 create or replace function public.is_admin()
 returns boolean as $$
@@ -510,53 +514,54 @@ $$ language sql security definer stable;
 
 -- ============================================================
 -- 25. ROW LEVEL SECURITY
--- Drop existing policies first so re-runs are idempotent.
+-- Policies are dropped before recreation so re-runs are safe.
+-- The anon key is used from the frontend — RLS enforces access.
 -- ============================================================
 
 -- ── USERS ────────────────────────────────────────────────────
 alter table public.users enable row level security;
-drop policy if exists "Users can read own row or admin reads all" on public.users;
-drop policy if exists "Users can update own row" on public.users;
-drop policy if exists "Admins can update any user" on public.users;
-drop policy if exists "Trigger can insert users" on public.users;
+drop policy if exists "Users read own row or admin reads all" on public.users;
+drop policy if exists "Users update own row" on public.users;
+drop policy if exists "Admins update any user" on public.users;
+drop policy if exists "Auth trigger inserts users" on public.users;
 
-create policy "Users can read own row or admin reads all" on public.users
+create policy "Users read own row or admin reads all" on public.users
   for select using (id::text = auth.uid()::text or public.is_admin());
-create policy "Users can update own row" on public.users
+create policy "Users update own row" on public.users
   for update using (id::text = auth.uid()::text)
   with check (id::text = auth.uid()::text);
-create policy "Admins can update any user" on public.users
+create policy "Admins update any user" on public.users
   for update using (public.is_admin());
-create policy "Trigger can insert users" on public.users
+create policy "Auth trigger inserts users" on public.users
   for insert with check (true);
 
 -- ── SUBJECTS ─────────────────────────────────────────────────
 alter table public.subjects enable row level security;
-drop policy if exists "Authenticated users read subjects" on public.subjects;
+drop policy if exists "Anyone approved reads subjects" on public.subjects;
 drop policy if exists "Admins write subjects" on public.subjects;
 
-create policy "Authenticated users read subjects" on public.subjects
-  for select using (auth.uid() is not null);
+create policy "Anyone approved reads subjects" on public.subjects
+  for select using (public.is_approved() or public.is_admin());
 create policy "Admins write subjects" on public.subjects
   for all using (public.is_admin());
 
 -- ── CHAPTERS ─────────────────────────────────────────────────
 alter table public.chapters enable row level security;
-drop policy if exists "Authenticated users read chapters" on public.chapters;
+drop policy if exists "Anyone approved reads chapters" on public.chapters;
 drop policy if exists "Admins write chapters" on public.chapters;
 
-create policy "Authenticated users read chapters" on public.chapters
-  for select using (auth.uid() is not null);
+create policy "Anyone approved reads chapters" on public.chapters
+  for select using (public.is_approved() or public.is_admin());
 create policy "Admins write chapters" on public.chapters
   for all using (public.is_admin());
 
 -- ── TOPICS ───────────────────────────────────────────────────
 alter table public.topics enable row level security;
-drop policy if exists "Authenticated users read topics" on public.topics;
+drop policy if exists "Anyone approved reads topics" on public.topics;
 drop policy if exists "Admins write topics" on public.topics;
 
-create policy "Authenticated users read topics" on public.topics
-  for select using (auth.uid() is not null);
+create policy "Anyone approved reads topics" on public.topics
+  for select using (public.is_approved() or public.is_admin());
 create policy "Admins write topics" on public.topics
   for all using (public.is_admin());
 
@@ -605,33 +610,25 @@ create policy "Users update own in-progress attempts" on public.exam_attempts
 
 -- ── ATTEMPT ANSWERS ──────────────────────────────────────────
 alter table public.attempt_answers enable row level security;
-drop policy if exists "Users read own attempt answers" on public.attempt_answers;
-drop policy if exists "Users insert own attempt answers" on public.attempt_answers;
-drop policy if exists "Users update own attempt answers" on public.attempt_answers;
+drop policy if exists "Users read own answers" on public.attempt_answers;
+drop policy if exists "Users insert own answers" on public.attempt_answers;
+drop policy if exists "Users update own answers" on public.attempt_answers;
 
-create policy "Users read own attempt answers" on public.attempt_answers
+create policy "Users read own answers" on public.attempt_answers
   for select using (
-    exists (
-      select 1 from public.exam_attempts ea
-      where ea.id = attempt_id
-        and ea.user_id::text = auth.uid()::text
-    ) or public.is_admin()
+    exists (select 1 from public.exam_attempts ea
+      where ea.id = attempt_id and ea.user_id::text = auth.uid()::text)
+    or public.is_admin()
   );
-create policy "Users insert own attempt answers" on public.attempt_answers
+create policy "Users insert own answers" on public.attempt_answers
   for insert with check (
-    exists (
-      select 1 from public.exam_attempts ea
-      where ea.id = attempt_id
-        and ea.user_id::text = auth.uid()::text
-    )
+    exists (select 1 from public.exam_attempts ea
+      where ea.id = attempt_id and ea.user_id::text = auth.uid()::text)
   );
-create policy "Users update own attempt answers" on public.attempt_answers
+create policy "Users update own answers" on public.attempt_answers
   for update using (
-    exists (
-      select 1 from public.exam_attempts ea
-      where ea.id = attempt_id
-        and ea.user_id::text = auth.uid()::text
-    )
+    exists (select 1 from public.exam_attempts ea
+      where ea.id = attempt_id and ea.user_id::text = auth.uid()::text)
   );
 
 -- ── EXAM RESULTS ─────────────────────────────────────────────
@@ -660,12 +657,12 @@ create policy "Users update own progress" on public.topic_progress
 -- ── NOTES ────────────────────────────────────────────────────
 alter table public.notes enable row level security;
 drop policy if exists "Users read own notes, admins read all" on public.notes;
-drop policy if exists "Approved users insert own notes" on public.notes;
+drop policy if exists "Approved users insert notes" on public.notes;
 drop policy if exists "Users delete own notes" on public.notes;
 
 create policy "Users read own notes, admins read all" on public.notes
   for select using (user_id::text = auth.uid()::text or public.is_admin());
-create policy "Approved users insert own notes" on public.notes
+create policy "Approved users insert notes" on public.notes
   for insert with check (user_id::text = auth.uid()::text and public.is_approved());
 create policy "Users delete own notes" on public.notes
   for delete using (user_id::text = auth.uid()::text or public.is_admin());
@@ -679,30 +676,30 @@ create policy "Users manage own inline notes" on public.inline_notes
 
 -- ── POMODORO SESSIONS ────────────────────────────────────────
 alter table public.pomodoro_sessions enable row level security;
-drop policy if exists "Users read own pomodoro, admins read all" on public.pomodoro_sessions;
-drop policy if exists "Approved users insert own pomodoro" on public.pomodoro_sessions;
+drop policy if exists "Users read own pomodoro" on public.pomodoro_sessions;
+drop policy if exists "Approved users insert pomodoro" on public.pomodoro_sessions;
 
-create policy "Users read own pomodoro, admins read all" on public.pomodoro_sessions
+create policy "Users read own pomodoro" on public.pomodoro_sessions
   for select using (user_id::text = auth.uid()::text or public.is_admin());
-create policy "Approved users insert own pomodoro" on public.pomodoro_sessions
+create policy "Approved users insert pomodoro" on public.pomodoro_sessions
   for insert with check (user_id::text = auth.uid()::text and public.is_approved());
 
 -- ── STUDY TASKS ──────────────────────────────────────────────
 alter table public.study_tasks enable row level security;
-drop policy if exists "Users manage own tasks" on public.study_tasks;
+drop policy if exists "Users manage own study tasks" on public.study_tasks;
 
-create policy "Users manage own tasks" on public.study_tasks
+create policy "Users manage own study tasks" on public.study_tasks
   for all using (user_id::text = auth.uid()::text);
 
 -- ── EXTERNAL TESTS ───────────────────────────────────────────
 alter table public.external_tests enable row level security;
-drop policy if exists "Users read own external tests, admins read all" on public.external_tests;
-drop policy if exists "Approved users insert own external tests" on public.external_tests;
+drop policy if exists "Users read own external tests, admins all" on public.external_tests;
+drop policy if exists "Approved users insert external tests" on public.external_tests;
 drop policy if exists "Users delete own external tests" on public.external_tests;
 
-create policy "Users read own external tests, admins read all" on public.external_tests
+create policy "Users read own external tests, admins all" on public.external_tests
   for select using (user_id::text = auth.uid()::text or public.is_admin());
-create policy "Approved users insert own external tests" on public.external_tests
+create policy "Approved users insert external tests" on public.external_tests
   for insert with check (user_id::text = auth.uid()::text and public.is_approved());
 create policy "Users delete own external tests" on public.external_tests
   for delete using (user_id::text = auth.uid()::text);
@@ -710,12 +707,12 @@ create policy "Users delete own external tests" on public.external_tests
 -- ── NOTIFICATIONS ────────────────────────────────────────────
 alter table public.notifications enable row level security;
 drop policy if exists "Users read own notifications" on public.notifications;
-drop policy if exists "Users update own notifications (mark read)" on public.notifications;
+drop policy if exists "Users mark notifications read" on public.notifications;
 drop policy if exists "Admins insert notifications" on public.notifications;
 
 create policy "Users read own notifications" on public.notifications
   for select using (user_id::text = auth.uid()::text);
-create policy "Users update own notifications (mark read)" on public.notifications
+create policy "Users mark notifications read" on public.notifications
   for update using (user_id::text = auth.uid()::text);
 create policy "Admins insert notifications" on public.notifications
   for insert with check (public.is_admin());
@@ -742,12 +739,12 @@ create policy "Admins insert audit logs" on public.audit_logs
 
 -- ── QR SCAN LOGS ─────────────────────────────────────────────
 alter table public.qr_scan_logs enable row level security;
-drop policy if exists "Users read own QR scan logs, admins read all" on public.qr_scan_logs;
-drop policy if exists "Approved users insert QR scan logs" on public.qr_scan_logs;
+drop policy if exists "Users read own QR scans, admins read all" on public.qr_scan_logs;
+drop policy if exists "Approved users insert QR scans" on public.qr_scan_logs;
 
-create policy "Users read own QR scan logs, admins read all" on public.qr_scan_logs
+create policy "Users read own QR scans, admins read all" on public.qr_scan_logs
   for select using (user_id::text = auth.uid()::text or public.is_admin());
-create policy "Approved users insert QR scan logs" on public.qr_scan_logs
+create policy "Approved users insert QR scans" on public.qr_scan_logs
   for insert with check (user_id::text = auth.uid()::text and public.is_approved());
 
 -- ── PUSH SUBSCRIPTIONS ───────────────────────────────────────
@@ -760,27 +757,41 @@ create policy "Users manage own push subscriptions" on public.push_subscriptions
 -- ============================================================
 -- 26. PERFORMANCE INDEXES
 -- ============================================================
-create index if not exists idx_chapters_subject_id    on public.chapters(subject_id);
-create index if not exists idx_topics_chapter_id      on public.topics(chapter_id);
-create index if not exists idx_questions_topic_id     on public.questions(topic_id);
-create index if not exists idx_exams_type             on public.exams(type);
-create index if not exists idx_exams_topic_id         on public.exams(topic_id);
-create index if not exists idx_exam_questions_exam_id on public.exam_questions(exam_id);
-create index if not exists idx_exam_attempts_user_id  on public.exam_attempts(user_id);
-create index if not exists idx_exam_attempts_exam_id  on public.exam_attempts(exam_id);
-create index if not exists idx_exam_attempts_status   on public.exam_attempts(status);
-create index if not exists idx_attempt_answers_attempt on public.attempt_answers(attempt_id);
-create index if not exists idx_exam_results_user_id   on public.exam_results(user_id);
-create index if not exists idx_exam_results_exam_id   on public.exam_results(exam_id);
-create index if not exists idx_topic_progress_user_id on public.topic_progress(user_id);
-create index if not exists idx_notes_user_id          on public.notes(user_id);
-create index if not exists idx_inline_notes_user_topic on public.inline_notes(user_id, topic_id);
-create index if not exists idx_pomodoro_user_id       on public.pomodoro_sessions(user_id);
-create index if not exists idx_study_tasks_user_id    on public.study_tasks(user_id);
-create index if not exists idx_notifications_user_id  on public.notifications(user_id);
-create index if not exists idx_audit_logs_actor_id    on public.audit_logs(actor_id);
-create index if not exists idx_qr_scan_logs_user_id   on public.qr_scan_logs(user_id);
+create index if not exists idx_chapters_subject_id      on public.chapters(subject_id);
+create index if not exists idx_topics_chapter_id        on public.topics(chapter_id);
+create index if not exists idx_questions_topic_id       on public.questions(topic_id);
+create index if not exists idx_exams_type               on public.exams(type);
+create index if not exists idx_exams_topic_id           on public.exams(topic_id);
+create index if not exists idx_exams_chapter_id         on public.exams(chapter_id);
+create index if not exists idx_exam_questions_exam_id   on public.exam_questions(exam_id);
+create index if not exists idx_exam_attempts_user_id    on public.exam_attempts(user_id);
+create index if not exists idx_exam_attempts_exam_id    on public.exam_attempts(exam_id);
+create index if not exists idx_exam_attempts_status     on public.exam_attempts(status);
+create index if not exists idx_attempt_answers_attempt  on public.attempt_answers(attempt_id);
+create index if not exists idx_exam_results_user_id     on public.exam_results(user_id);
+create index if not exists idx_exam_results_exam_id     on public.exam_results(exam_id);
+create index if not exists idx_topic_progress_user_id   on public.topic_progress(user_id);
+create index if not exists idx_topic_progress_topic_id  on public.topic_progress(topic_id);
+create index if not exists idx_notes_user_id            on public.notes(user_id);
+create index if not exists idx_notes_chapter_id         on public.notes(chapter_id);
+create index if not exists idx_inline_notes_user_topic  on public.inline_notes(user_id, topic_id);
+create index if not exists idx_pomodoro_user_id         on public.pomodoro_sessions(user_id);
+create index if not exists idx_pomodoro_completed_at    on public.pomodoro_sessions(completed_at);
+create index if not exists idx_study_tasks_user_id      on public.study_tasks(user_id);
+create index if not exists idx_study_tasks_date         on public.study_tasks(scheduled_date);
+create index if not exists idx_study_tasks_status       on public.study_tasks(status);
+create index if not exists idx_external_tests_user_id   on public.external_tests(user_id);
+create index if not exists idx_notifications_user_id    on public.notifications(user_id);
+create index if not exists idx_notifications_is_read    on public.notifications(is_read);
+create index if not exists idx_audit_logs_actor_id      on public.audit_logs(actor_id);
+create index if not exists idx_audit_logs_created_at    on public.audit_logs(created_at desc);
+create index if not exists idx_qr_scan_logs_user_id     on public.qr_scan_logs(user_id);
+create index if not exists idx_qr_scan_logs_question_id on public.qr_scan_logs(question_id);
+create index if not exists idx_push_subs_user_id        on public.push_subscriptions(user_id);
 
 -- ============================================================
--- DONE. All tables, RLS policies, triggers, and indexes set up.
+-- DONE
+-- 23 tables | 8 enums | full RLS | auto-updated_at triggers
+-- auth.users → public.users sync via DB triggers
+-- First registered user is automatically super_admin + approved
 -- ============================================================
