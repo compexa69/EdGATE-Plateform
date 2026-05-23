@@ -239,13 +239,17 @@ export function useSubmitExam() {
         );
       }
 
-      const { data, error } = await supabase.functions.invoke("score-exam", {
-        body: { attemptId: params.attemptId },
+      const scoringAnswers = params.answers.map((a) => ({
+        questionId: a.questionId,
+        selectedOption: a.selectedOption,
+        timeSpentSeconds: a.timeSpentSeconds,
+      }));
+
+      const { data, error } = await supabase.functions.invoke(`score-exam/${params.attemptId}`, {
+        body: { answers: scoringAnswers },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
-      await supabase.from("exam_attempts").update({ status: "submitted", end_time: new Date().toISOString() }).eq("id", params.attemptId);
 
       return data as { id: string };
     },

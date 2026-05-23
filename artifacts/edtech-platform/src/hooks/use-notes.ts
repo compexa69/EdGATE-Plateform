@@ -80,7 +80,7 @@ export function useGetDownloadUrl() {
   return useMutation({
     mutationFn: async (b2Key: string) => {
       const { data, error } = await supabase.functions.invoke("b2-presign", {
-        body: { action: "download", b2Key },
+        body: { action: "download", key: b2Key },
       });
       if (error) throw error;
       return data as { url: string };

@@ -446,13 +446,19 @@ export function useCheckGate() {
 }
 
 export function useGetUploadUrl() {
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (params: { fileName: string; fileSizeBytes: number; chapterId: string }) => {
+      const ext = params.fileName.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") ?? "pdf";
+      const safeBase = params.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.[^.]+$/, "");
+      const key = `notes/${user!.id}/${params.chapterId}/${Date.now()}-${safeBase}.${ext}`;
+      const contentType = ext.toLowerCase() === "pdf" ? "application/pdf" : `image/${ext.toLowerCase()}`;
+
       const { data, error } = await supabase.functions.invoke("b2-presign", {
-        body: { action: "upload", fileName: params.fileName, chapterId: params.chapterId },
+        body: { action: "upload", key, contentType },
       });
       if (error) throw error;
-      return data as { uploadUrl: string; b2Key: string };
+      return { uploadUrl: data.url as string, b2Key: key };
     },
   });
 }

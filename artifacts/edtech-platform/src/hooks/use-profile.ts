@@ -30,7 +30,7 @@ export function useGetProfile() {
       let photoUrl: string | null = null;
       if (data.photo_b2_key) {
         const { data: urlData } = await supabase.functions.invoke("b2-presign", {
-          body: { action: "download", b2Key: data.photo_b2_key },
+          body: { action: "download", key: data.photo_b2_key },
         });
         photoUrl = urlData?.url ?? null;
       }
@@ -76,13 +76,21 @@ export function useChangePassword() {
 }
 
 export function useGetProfileUploadUrl() {
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async (fileName: string) => {
+      const ext = fileName.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") ?? "jpg";
+      const safeBase = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.[^.]+$/, "");
+      const key = `profiles/${user!.id}/${Date.now()}-${safeBase}.${ext}`;
+      const contentType = ["png", "jpg", "jpeg", "webp"].includes(ext.toLowerCase())
+        ? `image/${ext.toLowerCase() === "jpg" ? "jpeg" : ext.toLowerCase()}`
+        : "image/jpeg";
+
       const { data, error } = await supabase.functions.invoke("b2-presign", {
-        body: { action: "upload", fileName, context: "profile-photo" },
+        body: { action: "upload", key, contentType },
       });
       if (error) throw error;
-      return data as { uploadUrl: string; b2Key: string };
+      return { uploadUrl: data.url as string, b2Key: key };
     },
   });
 }
@@ -121,11 +129,14 @@ export function useRequestEmailChange() {
 }
 
 export function useDeleteAccount() {
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("delete-account", {});
+      const { error } = await supabase
+        .from("users")
+        .update({ status: "deleted" })
+        .eq("id", user!.id);
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       await supabase.auth.signOut();
     },
   });
