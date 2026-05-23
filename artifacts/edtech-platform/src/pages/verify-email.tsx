@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useVerifyEmail, useResendVerification } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { MailCheck, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 const verifySchema = z.object({
   token: z.string().length(6, "Token must be exactly 6 characters").toUpperCase(),
@@ -29,39 +30,47 @@ export default function VerifyEmail() {
     defaultValues: { token: "" },
   });
 
-  const verifyMutation = useVerifyEmail({
-    mutation: {
-      onSuccess: () => {
-        setVerified(true);
-        toast({ title: "Email verified!", description: "You can now log in." });
-        setTimeout(() => setLocation("/login"), 2500);
-      },
-      onError: (error) => {
-        toast({
-          title: "Verification failed",
-          description: error.message || "Invalid or expired token. Request a new one.",
-          variant: "destructive",
-        });
-      },
+  const verifyMutation = useMutation({
+    mutationFn: async ({ token }: { token: string }) => {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: "signup",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setVerified(true);
+      toast({ title: "Email verified!", description: "You can now log in." });
+      setTimeout(() => setLocation("/login"), 2500);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Verification failed",
+        description: error?.message || "Invalid or expired token. Request a new one.",
+        variant: "destructive",
+      });
     },
   });
 
-  const resendMutation = useResendVerification({
-    mutation: {
-      onSuccess: () => {
-        setResentAt(new Date());
-        toast({ title: "Code resent", description: "Check your inbox for a new verification code." });
-      },
-      onError: () => {
-        toast({ title: "Failed to resend", description: "Please try again shortly.", variant: "destructive" });
-      },
+  const resendMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.auth.resend({ type: "signup", email });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setResentAt(new Date());
+      toast({ title: "Code resent", description: "Check your inbox for a new verification code." });
+    },
+    onError: () => {
+      toast({ title: "Failed to resend", description: "Please try again shortly.", variant: "destructive" });
     },
   });
 
   const canResend = !resentAt || Date.now() - resentAt.getTime() > 60_000;
 
   const onSubmit = (values: z.infer<typeof verifySchema>) => {
-    verifyMutation.mutate({ data: { token: values.token } });
+    verifyMutation.mutate({ token: values.token });
   };
 
   if (verified) {
@@ -130,7 +139,7 @@ export default function VerifyEmail() {
               variant="outline"
               size="sm"
               disabled={!canResend || !email || resendMutation.isPending}
-              onClick={() => resendMutation.mutate({ data: { email } })}
+              onClick={() => resendMutation.mutate()}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               {resendMutation.isPending ? "Sending…" : "Resend Code"}

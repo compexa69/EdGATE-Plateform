@@ -1,23 +1,47 @@
-/**
- * Supabase browser client stub.
- *
- * Real-time subscriptions (notifications, leaderboard) are unavailable
- * without VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY. The app falls back
- * to polling every 5 minutes, so all core features still work.
- */
+import { createClient } from "@supabase/supabase-js";
 
-export const supabase = {
-  channel: () => ({
-    on: function () { return this; },
-    subscribe: () => ({ unsubscribe: () => {} }),
-  }),
-  removeChannel: () => Promise.resolve(),
-} as const;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn("[supabase] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not set — Supabase features disabled");
+}
+
+export const supabase = createClient(
+  SUPABASE_URL ?? "https://placeholder.supabase.co",
+  SUPABASE_ANON_KEY ?? "placeholder",
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      storageKey: "edtech_supabase_session",
+    },
+  },
+);
 
 export function subscribeToTable<T extends Record<string, unknown>>(
-  _table: string,
-  _filter: string | null,
-  _onInsert: (row: T) => void,
+  table: string,
+  filter: string | null,
+  onInsert: (row: T) => void,
 ): () => void {
-  return () => {};
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return () => {};
+
+  const channelName = filter ? `${table}:${filter}` : table;
+  let ch = supabase
+    .channel(channelName)
+    .on(
+      "postgres_changes" as any,
+      {
+        event: "INSERT",
+        schema: "public",
+        table,
+        ...(filter ? { filter } : {}),
+      },
+      (payload: { new: T }) => {
+        onInsert(payload.new);
+      },
+    );
+
+  ch = ch.subscribe();
+  return () => { supabase.removeChannel(ch); };
 }

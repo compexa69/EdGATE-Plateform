@@ -9,9 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 const schema = z.object({
-  token: z.string().length(6, "Code must be exactly 6 characters").toUpperCase(),
   newPassword: z.string()
     .min(8, "Password must be at least 8 characters")
     .regex(/[A-Z]/, "Must contain at least one uppercase letter")
@@ -30,38 +31,29 @@ export default function ResetPassword() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [done, setDone] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { token: "", newPassword: "", confirmPassword: "" },
+    defaultValues: { newPassword: "", confirmPassword: "" },
   });
 
-  const onSubmit = async (values: z.infer<typeof schema>) => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("edtech_token");
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ token: values.token, newPassword: values.newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: "Reset failed", description: data.error || "Invalid or expired code.", variant: "destructive" });
-        return;
-      }
+  const mutation = useMutation({
+    mutationFn: async ({ newPassword }: { newPassword: string }) => {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+    },
+    onSuccess: () => {
       setDone(true);
       toast({ title: "Password reset!", description: "You can now log in with your new password." });
       setTimeout(() => setLocation("/login"), 2500);
-    } catch {
-      toast({ title: "Network error", description: "Please try again.", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
+    },
+    onError: (error: any) => {
+      toast({ title: "Reset failed", description: error?.message || "Could not reset password.", variant: "destructive" });
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof schema>) => {
+    mutation.mutate({ newPassword: values.newPassword });
   };
 
   if (done) {
@@ -86,30 +78,11 @@ export default function ResetPassword() {
             <KeyRound className="w-12 h-12 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
-          <CardDescription>Enter the 6-character code from your email and choose a new password.</CardDescription>
+          <CardDescription>Choose a strong new password for your account.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              <FormField
-                control={form.control}
-                name="token"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reset Code</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="A1B2C3"
-                        className="text-center text-xl font-mono tracking-[0.4em] uppercase h-12"
-                        maxLength={6}
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="newPassword"
@@ -146,8 +119,8 @@ export default function ResetPassword() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full h-12 text-lg font-semibold" disabled={loading}>
-                {loading ? "Resetting…" : "Reset Password"}
+              <Button type="submit" className="w-full h-12 text-lg font-semibold" disabled={mutation.isPending}>
+                {mutation.isPending ? "Resetting…" : "Reset Password"}
               </Button>
               <div className="text-center text-sm text-muted-foreground">
                 <Link href="/login" className="text-primary hover:underline">Back to Login</Link>
