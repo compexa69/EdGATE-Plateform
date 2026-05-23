@@ -1,7 +1,17 @@
-const CACHE_NAME = "edtech-v2";
+const CACHE_NAME = "edtech-v3";
 const PRECACHE_URLS = ["/", "/manifest.json"];
 
+// Skip all caching when running in development (localhost or Replit dev domain)
+const IS_DEV = self.location.hostname === "localhost" ||
+  self.location.hostname.endsWith(".replit.dev") ||
+  self.location.hostname.endsWith(".pike.replit.dev") ||
+  self.location.hostname.endsWith(".repl.co");
+
 self.addEventListener("install", (event) => {
+  if (IS_DEV) {
+    self.skipWaiting();
+    return;
+  }
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
@@ -22,6 +32,9 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  // In dev, always go to network — never serve from cache
+  if (IS_DEV) return;
+
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.pathname.startsWith("/api/")) return;
