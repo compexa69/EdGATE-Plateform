@@ -9,13 +9,16 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Edit, Trash, BookOpen, Layers, List, ChevronRight,
-  Link2, Upload, FileSpreadsheet, CheckCircle,
+  Link2, Upload, FileSpreadsheet, CheckCircle, Download,
+  ChevronDown, ChevronUp, AlertCircle, FileJson,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 
 type View = "subjects" | "chapters" | "topics";
 
@@ -27,42 +30,283 @@ const emptySubjectForm: SubjectForm = { name: "", description: "", order: 0 };
 const emptyChapterForm: ChapterForm = { name: "", description: "", order: 0 };
 const emptyTopicForm: TopicForm = { name: "", description: "", order: 0, telegramChatId: "", telegramMessageId: "", telegramUrl: "", youtubeUrl: "" };
 
-function parseSyllabusCsv(text: string): Array<{ subject_name: string; chapter_name: string; topic_name: string; topic_order?: number }> {
+// ── Types ────────────────────────────────────────────────────────────────────
+interface FlatRow {
+  subject_name: string;
+  chapter_name: string;
+  topic_name: string;
+  subject_order?: number;
+  chapter_order?: number;
+  topic_order?: number;
+  subject_description?: string;
+  chapter_description?: string;
+  topic_description?: string;
+  telegram_url?: string;
+  telegram_chat_id?: string;
+  telegram_message_id?: string;
+  youtube_url?: string;
+}
+
+interface ImportResult {
+  created: { subjects: number; chapters: number; topics: number };
+  skipped: { subjects: number; chapters: number; topics: number };
+  totalRows: number;
+}
+
+interface TreeNode {
+  subject: string;
+  chapters: { name: string; topics: string[] }[];
+}
+
+// ── Parsers ──────────────────────────────────────────────────────────────────
+function parseCsv(text: string): FlatRow[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-  const idxSubject = headers.indexOf("subject_name");
-  const idxChapter = headers.indexOf("chapter_name");
-  const idxTopic = headers.indexOf("topic_name");
-  const idxOrder = headers.indexOf("topic_order");
-  if (idxSubject === -1 || idxChapter === -1 || idxTopic === -1) return [];
+  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  const idx = (name: string) => headers.indexOf(name);
+
+  if (idx("subject_name") === -1 || idx("chapter_name") === -1 || idx("topic_name") === -1) return [];
+
   return lines.slice(1).map((line) => {
     const cols = line.split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
+    const get = (name: string) => cols[idx(name)] ?? "";
+    const getNum = (name: string) => { const v = get(name); return v ? Number(v) : undefined; };
     return {
-      subject_name: cols[idxSubject] ?? "",
-      chapter_name: cols[idxChapter] ?? "",
-      topic_name: cols[idxTopic] ?? "",
-      topic_order: idxOrder !== -1 && cols[idxOrder] ? Number(cols[idxOrder]) : undefined,
+      subject_name: get("subject_name"),
+      chapter_name: get("chapter_name"),
+      topic_name: get("topic_name"),
+      subject_order: getNum("subject_order"),
+      chapter_order: getNum("chapter_order"),
+      topic_order: getNum("topic_order"),
+      subject_description: get("subject_description") || undefined,
+      chapter_description: get("chapter_description") || undefined,
+      topic_description: get("topic_description") || undefined,
+      telegram_url: get("telegram_url") || undefined,
+      telegram_chat_id: get("telegram_chat_id") || undefined,
+      telegram_message_id: get("telegram_message_id") || undefined,
+      youtube_url: get("youtube_url") || undefined,
     };
   }).filter((r) => r.subject_name && r.chapter_name && r.topic_name);
 }
 
+function parseJson(text: string): FlatRow[] | null {
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); } catch { return null; }
+
+  // Flat array: [{ subject_name, chapter_name, topic_name, ... }]
+  if (Array.isArray(parsed) && parsed.length > 0 && "subject_name" in (parsed[0] as object)) {
+    return (parsed as FlatRow[]).filter((r) => r.subject_name && r.chapter_name && r.topic_name);
+  }
+
+  // Nested array: [{ name, chapters: [{ name, topics: [{ name }] }] }]
+  if (Array.isArray(parsed)) {
+    const rows: FlatRow[] = [];
+    for (const subj of parsed as Array<{ name: string; order?: number; description?: string; chapters?: Array<{ name: string; order?: number; description?: string; topics?: Array<{ name: string; order?: number; description?: string; telegram_url?: string; youtube_url?: string }> }> }>) {
+      for (const ch of subj.chapters ?? []) {
+        for (const tp of ch.topics ?? []) {
+          rows.push({
+            subject_name: subj.name,
+            subject_order: subj.order,
+            subject_description: subj.description,
+            chapter_name: ch.name,
+            chapter_order: ch.order,
+            chapter_description: ch.description,
+            topic_name: tp.name,
+            topic_order: tp.order,
+            topic_description: tp.description,
+            telegram_url: tp.telegram_url,
+            youtube_url: tp.youtube_url,
+          });
+        }
+      }
+    }
+    return rows.filter((r) => r.subject_name && r.chapter_name && r.topic_name);
+  }
+
+  return null;
+}
+
+function buildTree(rows: FlatRow[]): TreeNode[] {
+  const map = new Map<string, Map<string, Set<string>>>();
+  for (const r of rows) {
+    if (!map.has(r.subject_name)) map.set(r.subject_name, new Map());
+    const chMap = map.get(r.subject_name)!;
+    if (!chMap.has(r.chapter_name)) chMap.set(r.chapter_name, new Set());
+    chMap.get(r.chapter_name)!.add(r.topic_name);
+  }
+  return [...map.entries()].map(([subject, chMap]) => ({
+    subject,
+    chapters: [...chMap.entries()].map(([name, topics]) => ({ name, topics: [...topics] })),
+  }));
+}
+
+// ── Template downloads ───────────────────────────────────────────────────────
+const CSV_TEMPLATE =
+  "subject_name,chapter_name,topic_name,topic_order,subject_order,chapter_order,telegram_url,youtube_url\n" +
+  "Physics,Mechanics,Newton's First Law,1,1,1,,\n" +
+  "Physics,Mechanics,Newton's Second Law,2,1,1,,\n" +
+  "Physics,Thermodynamics,Zeroth Law of Thermodynamics,1,1,2,,\n" +
+  "Chemistry,Physical Chemistry,Mole Concept,1,2,1,,https://youtube.com/watch?v=example\n";
+
+const JSON_TEMPLATE = JSON.stringify([
+  {
+    name: "Physics",
+    order: 1,
+    chapters: [
+      {
+        name: "Mechanics",
+        order: 1,
+        topics: [
+          { name: "Newton's First Law", order: 1 },
+          { name: "Newton's Second Law", order: 2 },
+        ],
+      },
+      {
+        name: "Thermodynamics",
+        order: 2,
+        topics: [{ name: "Zeroth Law of Thermodynamics", order: 1 }],
+      },
+    ],
+  },
+  {
+    name: "Chemistry",
+    order: 2,
+    chapters: [
+      {
+        name: "Physical Chemistry",
+        order: 1,
+        topics: [{ name: "Mole Concept", order: 1, youtube_url: "https://youtube.com/watch?v=example" }],
+      },
+    ],
+  },
+], null, 2);
+
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Tree preview component ───────────────────────────────────────────────────
+function TreePreview({ tree }: { tree: TreeNode[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(tree.slice(0, 2).map((n) => n.subject)));
+
+  const toggle = (subject: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(subject) ? next.delete(subject) : next.add(subject);
+      return next;
+    });
+  };
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/5 overflow-hidden">
+      <div className="px-3 py-2 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
+        <span className="text-xs font-semibold text-primary">
+          {tree.length} subject{tree.length !== 1 ? "s" : ""} · {tree.reduce((s, n) => s + n.chapters.length, 0)} chapters · {tree.reduce((s, n) => s + n.chapters.reduce((cs, c) => cs + c.topics.length, 0), 0)} topics
+        </span>
+        <button
+          className="text-xs text-primary/70 hover:text-primary"
+          onClick={() => setExpanded(expanded.size === tree.length ? new Set() : new Set(tree.map((n) => n.subject)))}
+        >
+          {expanded.size === tree.length ? "Collapse all" : "Expand all"}
+        </button>
+      </div>
+      <div className="max-h-52 overflow-y-auto divide-y divide-border/30">
+        {tree.map((node) => {
+          const isOpen = expanded.has(node.subject);
+          const topicCount = node.chapters.reduce((s, c) => s + c.topics.length, 0);
+          return (
+            <div key={node.subject}>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30 transition-colors text-left"
+                onClick={() => toggle(node.subject)}
+              >
+                {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-primary shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="font-medium flex-1 truncate">{node.subject}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{node.chapters.length} ch · {topicCount} tp</span>
+              </button>
+              {isOpen && (
+                <div className="pl-8 pb-1">
+                  {node.chapters.map((ch) => (
+                    <div key={ch.name} className="py-1">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-0.5">
+                        <Layers className="w-3 h-3 shrink-0" />
+                        <span className="font-medium text-foreground/80 truncate">{ch.name}</span>
+                        <span className="ml-auto shrink-0">{ch.topics.length} topics</span>
+                      </div>
+                      <div className="pl-4 space-y-0.5">
+                        {ch.topics.slice(0, 3).map((tp) => (
+                          <div key={tp} className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-muted-foreground/40 shrink-0" />
+                            {tp}
+                          </div>
+                        ))}
+                        {ch.topics.length > 3 && (
+                          <div className="text-xs text-muted-foreground/60 pl-2">+{ch.topics.length - 3} more</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Main dialog ───────────────────────────────────────────────────────────────
 function SyllabusImportDialog() {
   const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<ReturnType<typeof parseSyllabusCsv>>([]);
-  const [result, setResult] = useState<{ subjects: number; chapters: number; topics: number } | null>(null);
+  const [rows, setRows] = useState<FlatRow[]>([]);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const tree = buildTree(rows);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setParseError(null);
+    setRows([]);
+    setResult(null);
+
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const parsed = parseSyllabusCsv(ev.target?.result as string ?? "");
+      const text = ev.target?.result as string ?? "";
+      const ext = file.name.split(".").pop()?.toLowerCase();
+
+      let parsed: FlatRow[] | null = null;
+      if (ext === "json") {
+        parsed = parseJson(text);
+        if (parsed === null) {
+          setParseError("Invalid JSON. Expected an array of flat rows or a nested subject/chapter/topic tree.");
+          return;
+        }
+      } else {
+        parsed = parseCsv(text);
+        if (parsed.length === 0) {
+          setParseError("Could not parse CSV. Check that it has subject_name, chapter_name, and topic_name columns in the header row.");
+          return;
+        }
+      }
+
+      if (parsed.length === 0) {
+        setParseError("File parsed but no valid rows found.");
+        return;
+      }
       setRows(parsed);
-      setResult(null);
     };
     reader.readAsText(file);
   };
@@ -71,17 +315,18 @@ function SyllabusImportDialog() {
     if (!rows.length) return;
     setIsPending(true);
     try {
-      const token = localStorage.getItem("edtech_token") ?? "";
-      const res = await fetch("/api/admin/import-syllabus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rows }),
+      const { data, error } = await supabase.functions.invoke("import-syllabus", {
+        body: { rows },
       });
-      const data = await res.json();
-      if (!res.ok) { toast({ title: data.error || "Import failed", variant: "destructive" }); return; }
-      setResult(data.created);
-      toast({ title: "Syllabus imported!", description: `${data.created.subjects} subjects, ${data.created.chapters} chapters, ${data.created.topics} topics created.` });
-    } catch {
+      if (error) { toast({ title: error.message || "Import failed", variant: "destructive" }); return; }
+      if (data?.error) { toast({ title: data.error, variant: "destructive" }); return; }
+      setResult(data as ImportResult);
+      qc.invalidateQueries({ queryKey: ["subjects"] });
+      toast({
+        title: "Syllabus imported!",
+        description: `Created: ${data.created.subjects} subjects, ${data.created.chapters} chapters, ${data.created.topics} topics.`,
+      });
+    } catch (e) {
       toast({ title: "Network error", variant: "destructive" });
     } finally {
       setIsPending(false);
@@ -90,68 +335,138 @@ function SyllabusImportDialog() {
 
   const handleClose = (v: boolean) => {
     setOpen(v);
-    if (!v) { setRows([]); setResult(null); if (fileRef.current) fileRef.current.value = ""; }
+    if (!v) {
+      setRows([]);
+      setResult(null);
+      setParseError(null);
+      setShowTemplates(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
-        <FileSpreadsheet className="w-3.5 h-3.5" /> Import CSV
+        <FileSpreadsheet className="w-3.5 h-3.5" /> Import Syllabus
       </Button>
+
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-primary" /> Import Syllabus from CSV
+              <FileSpreadsheet className="w-5 h-5 text-primary" /> Import Syllabus
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="p-3 rounded-lg bg-muted/30 border border-border text-xs text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">Required CSV columns:</p>
-              <code className="block font-mono">subject_name, chapter_name, topic_name, topic_order</code>
-              <p><code className="font-mono">topic_order</code> is optional. Existing subjects/chapters/topics are skipped (no duplicates).</p>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label>CSV File</Label>
-              <div className="flex gap-2">
-                <Input type="file" accept=".csv,text/csv" ref={fileRef} onChange={handleFile} className="flex-1" />
-              </div>
-            </div>
-
-            {rows.length > 0 && !result && (
-              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm">
-                <p className="font-medium text-primary">{rows.length} rows parsed</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Preview (first 3):</p>
-                <ul className="mt-1 space-y-0.5 text-xs font-mono">
-                  {rows.slice(0, 3).map((r, i) => (
-                    <li key={i} className="truncate text-muted-foreground">{r.subject_name} → {r.chapter_name} → {r.topic_name}</li>
-                  ))}
-                  {rows.length > 3 && <li className="text-muted-foreground">…and {rows.length - 3} more</li>}
-                </ul>
-              </div>
-            )}
-
-            {result && (
-              <div className="p-3 rounded-lg bg-success/10 border border-success/20 text-sm flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 text-success shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-success">Import complete</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Created: {result.subjects} subject{result.subjects !== 1 ? "s" : ""}, {result.chapters} chapter{result.chapters !== 1 ? "s" : ""}, {result.topics} topic{result.topics !== 1 ? "s" : ""}
-                  </p>
+          <div className="space-y-4 pt-1">
+            {/* Format info + templates */}
+            <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+              <button
+                className="w-full flex items-center justify-between px-3 py-2.5 text-xs hover:bg-muted/40 transition-colors"
+                onClick={() => setShowTemplates((v) => !v)}
+              >
+                <span className="font-medium text-foreground flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5 text-primary" /> Format guide & templates
+                </span>
+                {showTemplates ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+              </button>
+              {showTemplates && (
+                <div className="px-3 pb-3 border-t border-border space-y-3 pt-3">
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <p><span className="font-semibold text-foreground">CSV</span> — flat table with one topic per row. Required columns: <code className="font-mono bg-muted px-1 rounded">subject_name</code>, <code className="font-mono bg-muted px-1 rounded">chapter_name</code>, <code className="font-mono bg-muted px-1 rounded">topic_name</code>. Optional: <code className="font-mono bg-muted px-1 rounded">topic_order</code>, <code className="font-mono bg-muted px-1 rounded">chapter_order</code>, <code className="font-mono bg-muted px-1 rounded">subject_order</code>, <code className="font-mono bg-muted px-1 rounded">telegram_url</code>, <code className="font-mono bg-muted px-1 rounded">youtube_url</code>.</p>
+                    <p className="mt-1"><span className="font-semibold text-foreground">JSON</span> — nested tree (subjects → chapters → topics) or flat array matching CSV column names.</p>
+                    <p className="mt-1 text-primary/80">Existing entries are never duplicated — they are silently skipped.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8"
+                      onClick={() => downloadFile(CSV_TEMPLATE, "syllabus-template.csv", "text/csv")}>
+                      <FileSpreadsheet className="w-3.5 h-3.5" /> Download CSV template
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8"
+                      onClick={() => downloadFile(JSON_TEMPLATE, "syllabus-template.json", "application/json")}>
+                      <FileJson className="w-3.5 h-3.5" /> Download JSON template
+                    </Button>
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {/* File picker */}
+            {!result && (
+              <div className="space-y-1.5">
+                <Label>File <span className="text-muted-foreground font-normal text-xs">(CSV or JSON)</span></Label>
+                <Input
+                  type="file"
+                  accept=".csv,.json,text/csv,application/json"
+                  ref={fileRef}
+                  onChange={handleFile}
+                  className="cursor-pointer"
+                />
               </div>
             )}
 
+            {/* Parse error */}
+            {parseError && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{parseError}</span>
+              </div>
+            )}
+
+            {/* Tree preview */}
+            {rows.length > 0 && !result && <TreePreview tree={tree} />}
+
+            {/* Import result */}
+            {result && (
+              <div className="rounded-lg border border-success/20 bg-success/5 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-success/20 bg-success/10">
+                  <CheckCircle className="w-4 h-4 text-success shrink-0" />
+                  <span className="text-sm font-semibold text-success">Import complete</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{result.totalRows} rows processed</span>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground border-b border-border/30">
+                      <th className="px-3 py-2 text-left font-medium">Level</th>
+                      <th className="px-3 py-2 text-center font-medium text-success">Created</th>
+                      <th className="px-3 py-2 text-center font-medium text-muted-foreground">Skipped (already existed)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/20">
+                    {(["subjects", "chapters", "topics"] as const).map((level) => (
+                      <tr key={level} className="hover:bg-muted/10">
+                        <td className="px-3 py-2 capitalize font-medium">{level}</td>
+                        <td className="px-3 py-2 text-center font-bold text-success">{result.created[level]}</td>
+                        <td className="px-3 py-2 text-center text-muted-foreground">{result.skipped[level]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Actions */}
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => handleClose(false)}>
                 {result ? "Close" : "Cancel"}
               </Button>
               {!result && (
-                <Button className="flex-1 gap-1.5" onClick={handleImport} disabled={rows.length === 0 || isPending}>
+                <Button
+                  className="flex-1 gap-1.5"
+                  onClick={handleImport}
+                  disabled={rows.length === 0 || isPending}
+                >
                   <Upload className="w-4 h-4" />
-                  {isPending ? "Importing…" : `Import ${rows.length} Rows`}
+                  {isPending ? "Importing…" : `Import ${rows.length} rows`}
+                </Button>
+              )}
+              {result && (
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-1.5"
+                  onClick={() => { setResult(null); setRows([]); setParseError(null); if (fileRef.current) fileRef.current.value = ""; }}
+                >
+                  Import another file
                 </Button>
               )}
             </div>
