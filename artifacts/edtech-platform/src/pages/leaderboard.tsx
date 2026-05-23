@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -73,12 +74,10 @@ export default function Leaderboard() {
   const { data: raw = [], isLoading } = useQuery<LeaderboardEntry[]>({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      const token = localStorage.getItem("edtech_token");
-      const res = await fetch("/api/leaderboard", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to fetch leaderboard");
-      return res.json();
+      const { data, error } = await supabase.functions.invoke("leaderboard");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as LeaderboardEntry[];
     },
     staleTime: 60_000,
   });

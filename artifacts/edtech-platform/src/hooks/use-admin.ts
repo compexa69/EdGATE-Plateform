@@ -48,12 +48,17 @@ export function useListUsers() {
   });
 }
 
+async function invokeAdminAction(body: Record<string, unknown>): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("admin-actions", { body });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+}
+
 export function useApproveUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
-      const { error } = await supabase.from("users").update({ status: "approved" }).eq("id", userId);
-      if (error) throw error;
+      await invokeAdminAction({ action: "approve", userId });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); },
   });
@@ -63,8 +68,7 @@ export function useSuspendUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
-      const { error } = await supabase.from("users").update({ status: "suspended" }).eq("id", userId);
-      if (error) throw error;
+      await invokeAdminAction({ action: "suspend", userId });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); },
   });
@@ -74,8 +78,7 @@ export function useBanUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
-      const { error } = await supabase.from("users").update({ status: "banned" }).eq("id", userId);
-      if (error) throw error;
+      await invokeAdminAction({ action: "ban", userId });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); },
   });
@@ -85,8 +88,7 @@ export function useUpdateUserRole() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      const { error } = await supabase.from("users").update({ role }).eq("id", userId);
-      if (error) throw error;
+      await invokeAdminAction({ action: "update-role", userId, role });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-users"] }); },
   });
@@ -95,19 +97,7 @@ export function useUpdateUserRole() {
 export function useResetUserProgress() {
   return useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
-      const [
-        { error: e1 },
-        { error: e2 },
-        { error: e3 },
-        { error: e4 },
-      ] = await Promise.all([
-        supabase.from("topic_progress").delete().eq("user_id", userId),
-        supabase.from("exam_attempts").delete().eq("user_id", userId),
-        supabase.from("exam_results").delete().eq("user_id", userId),
-        supabase.from("study_tasks").delete().eq("user_id", userId),
-      ]);
-      const firstError = e1 ?? e2 ?? e3 ?? e4;
-      if (firstError) throw firstError;
+      await invokeAdminAction({ action: "reset-progress", userId });
     },
   });
 }

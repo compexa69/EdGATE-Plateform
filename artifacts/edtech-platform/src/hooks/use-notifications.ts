@@ -72,23 +72,16 @@ export function useMarkNotificationRead() {
 export function useBroadcastNotification() {
   return useMutation({
     mutationFn: async (data: { title: string; message: string; type?: string }) => {
-      const { error: fnError } = await supabase.functions.invoke("broadcast-notification", {
-        body: data,
-      });
-      if (fnError) {
-        const { data: users, error } = await supabase.from("users").select("id").eq("status", "approved");
-        if (error) throw error;
-        const notifications = (users ?? []).map((u) => ({
-          user_id: u.id,
-          type: data.type ?? "announcement",
+      const { data: result, error } = await supabase.functions.invoke("admin-actions", {
+        body: {
+          action: "broadcast-notification",
           title: data.title,
           message: data.message,
-        }));
-        if (notifications.length > 0) {
-          const { error: insertError } = await supabase.from("notifications").insert(notifications);
-          if (insertError) throw insertError;
-        }
-      }
+          type: data.type ?? "announcement",
+        },
+      });
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
     },
   });
 }
