@@ -3,18 +3,50 @@ import { useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash, Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, Loader2, AlertTriangle, Youtube, VideoOff, Search, X, FileText, Save } from "lucide-react";
+import { Plus, Trash, Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, Loader2, AlertTriangle, Youtube, VideoOff, Search, X, FileText, Save, FileJson } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/lib/supabase";
 
-const TEMPLATE_CSV = `text,option1,option2,option3,option4,correct_option,marks,difficulty,topic_id,text_solution
-"What is the SI unit of force?",Newton,Joule,Watt,Pascal,0,4,easy,,Force = mass × acceleration; SI unit is Newton (N).
-"Which particle has no charge?",Proton,Electron,Neutron,Positron,2,4,medium,,Neutrons are electrically neutral particles found in the nucleus.
-"The value of Avogadro's number is approximately:",6.022×10²³,6.022×10²¹,6.022×10²⁵,6.022×10¹⁹,0,4,hard,,Avogadro's number NA ≈ 6.022 × 10²³ mol⁻¹.`;
+const TEMPLATE_CSV = `text,option1,option2,option3,option4,correct_option,marks,difficulty,topic_name,subject_name,chapter_name,topic_id,text_solution,image_url
+"What is the SI unit of force?",Newton,Joule,Watt,Pascal,0,4,easy,Newton's Laws,Physics,Mechanics,,Force = mass × acceleration; SI unit is Newton (N).,
+"Which particle has no charge?",Proton,Electron,Neutron,Positron,2,4,medium,,,,,"Neutrons are electrically neutral particles found in the nucleus.",
+"The value of Avogadro's number is approximately:",6.022×10²³,6.022×10²¹,6.022×10²⁵,6.022×10¹⁹,0,4,hard,Mole Concept,,,,Avogadro's number NA ≈ 6.022 × 10²³ mol⁻¹.,`;
+
+const TEMPLATE_JSON = JSON.stringify([
+  {
+    text: "What is the SI unit of force?",
+    options: ["Newton", "Joule", "Watt", "Pascal"],
+    correct_option: "0",
+    marks: 4,
+    difficulty: "easy",
+    topic_name: "Newton's Laws",
+    subject_name: "Physics",
+    chapter_name: "Mechanics",
+    text_solution: "Force = mass × acceleration; SI unit is Newton (N).",
+  },
+  {
+    text: "Which particle has no charge?",
+    options: ["Proton", "Electron", "Neutron", "Positron"],
+    correct_option: "2",
+    marks: 4,
+    difficulty: "medium",
+    text_solution: "Neutrons are electrically neutral particles found in the nucleus.",
+  },
+  {
+    text: "The value of Avogadro's number is approximately:",
+    options: ["6.022×10²³", "6.022×10²¹", "6.022×10²⁵", "6.022×10¹⁹"],
+    correct_option: "0",
+    marks: 4,
+    difficulty: "hard",
+    topic_name: "Mole Concept",
+    text_solution: "Avogadro's number NA ≈ 6.022 × 10²³ mol⁻¹.",
+  },
+], null, 2);
 
 type ParsedRow = {
   rowNum: number;
@@ -27,7 +59,11 @@ type ParsedRow = {
   marks: string;
   difficulty: string;
   topic_id: string;
+  topic_name: string;
+  subject_name: string;
+  chapter_name: string;
   text_solution: string;
+  image_url: string;
   errors: string[];
 };
 
@@ -79,7 +115,11 @@ function parseCSV(text: string): ParsedRow[] {
 
     const errors: string[] = [];
     if (!raw["text"]?.trim()) errors.push("Question text is required");
-    if (!raw["option1"]?.trim() || !raw["option2"]?.trim() || !raw["option3"]?.trim() || !raw["option4"]?.trim())
+
+    // Support options[] or option1..4
+    const hasOptions = headers.includes("option1") && headers.includes("option2") &&
+      headers.includes("option3") && headers.includes("option4");
+    if (hasOptions && (!raw["option1"]?.trim() || !raw["option2"]?.trim() || !raw["option3"]?.trim() || !raw["option4"]?.trim()))
       errors.push("All 4 options required");
     const co = parseInt(raw["correct_option"] ?? "", 10);
     if (isNaN(co) || co < 0 || co > 3) errors.push("correct_option must be 0–3");
@@ -99,22 +139,77 @@ function parseCSV(text: string): ParsedRow[] {
       marks: raw["marks"] ?? "4",
       difficulty: raw["difficulty"] ?? "medium",
       topic_id: raw["topic_id"] ?? "",
+      topic_name: raw["topic_name"] ?? "",
+      subject_name: raw["subject_name"] ?? "",
+      chapter_name: raw["chapter_name"] ?? "",
       text_solution: raw["text_solution"] ?? "",
+      image_url: raw["image_url"] ?? "",
       errors,
     });
   }
   return rows;
 }
 
-function downloadTemplate() {
-  const blob = new Blob([TEMPLATE_CSV], { type: "text/csv;charset=utf-8;" });
+function parseJSON(text: string): ParsedRow[] | null {
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); } catch { return null; }
+  if (!Array.isArray(parsed)) return null;
+
+  return (parsed as Array<Record<string, unknown>>).map((q, i) => {
+    const errors: string[] = [];
+    const text_ = String(q["text"] ?? "").trim();
+    if (!text_) errors.push("Question text is required");
+
+    let opts: string[] = [];
+    if (Array.isArray(q["options"])) {
+      opts = (q["options"] as unknown[]).map(String);
+    } else {
+      opts = [
+        String(q["option1"] ?? ""), String(q["option2"] ?? ""),
+        String(q["option3"] ?? ""), String(q["option4"] ?? ""),
+      ];
+    }
+    if (opts.length < 4 || opts.some((o) => !o.trim())) errors.push("All 4 options required");
+
+    const co = parseInt(String(q["correct_option"] ?? ""), 10);
+    if (isNaN(co) || co < 0 || co > 3) errors.push("correct_option must be 0–3");
+
+    const marksVal = q["marks"] !== undefined ? Number(q["marks"]) : 4;
+    if (marksVal <= 0 || isNaN(marksVal)) errors.push("marks must be a positive number");
+
+    const diff = String(q["difficulty"] ?? "medium").toLowerCase();
+    if (!["easy", "medium", "hard"].includes(diff)) errors.push("difficulty must be easy, medium, or hard");
+
+    return {
+      rowNum: i + 1,
+      text: text_,
+      option1: opts[0] ?? "",
+      option2: opts[1] ?? "",
+      option3: opts[2] ?? "",
+      option4: opts[3] ?? "",
+      correct_option: String(q["correct_option"] ?? ""),
+      marks: String(q["marks"] ?? "4"),
+      difficulty: diff,
+      topic_id: String(q["topic_id"] ?? ""),
+      topic_name: String(q["topic_name"] ?? ""),
+      subject_name: String(q["subject_name"] ?? ""),
+      chapter_name: String(q["chapter_name"] ?? ""),
+      text_solution: String(q["text_solution"] ?? ""),
+      image_url: String(q["image_url"] ?? ""),
+      errors,
+    };
+  });
+}
+
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = "questions_template.csv";
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
+function downloadTemplate() { downloadFile(TEMPLATE_CSV, "questions_template.csv", "text/csv;charset=utf-8;"); }
+function downloadJsonTemplate() { downloadFile(TEMPLATE_JSON, "questions_template.json", "application/json"); }
 
 type Question = {
   id: string;
@@ -171,35 +266,59 @@ export default function AdminQuestions() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      setParsedRows(parseCSV(text));
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (ext === "json") {
+        const result = parseJSON(text);
+        if (!result) { toast({ title: "Invalid JSON format", description: "Expected an array of question objects.", variant: "destructive" }); return; }
+        setParsedRows(result);
+      } else {
+        setParsedRows(parseCSV(text));
+      }
     };
     reader.readAsText(file);
   }, []);
 
   const handleImport = async () => {
-    if (!importFile) return;
+    if (validRows.length === 0) return;
     setIsImporting(true);
     try {
-      const token = localStorage.getItem("edtech_token");
-      const formData = new FormData();
-      formData.append("file", importFile);
-      const res = await fetch("/api/questions/import", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+      const questions = validRows.map((row) => ({
+        text: row.text,
+        options: [row.option1, row.option2, row.option3, row.option4],
+        correct_option: row.correct_option,
+        marks: parseFloat(row.marks) || 4,
+        difficulty: row.difficulty || "medium",
+        topic_id: row.topic_id || undefined,
+        topic_name: row.topic_name || undefined,
+        subject_name: row.subject_name || undefined,
+        chapter_name: row.chapter_name || undefined,
+        text_solution: row.text_solution || undefined,
+        image_url: row.image_url || undefined,
+      }));
+
+      const { data, error } = await supabase.functions.invoke("import-questions", {
+        body: { questions },
       });
-      if (!res.ok) {
-        const err = await res.json();
-        toast({ title: "Import failed", description: err.error, variant: "destructive" });
+
+      if (error) {
+        toast({ title: "Import failed", description: error.message, variant: "destructive" });
         return;
       }
-      const result: ImportResult = await res.json();
+      if (data?.error) {
+        toast({ title: "Import failed", description: data.error, variant: "destructive" });
+        return;
+      }
+
+      const result: ImportResult = data;
       setImportResult(result);
       if (result.imported > 0) {
         refetch();
-        toast({ title: `Imported ${result.imported} question${result.imported !== 1 ? "s" : ""}`, description: result.failed > 0 ? `${result.failed} rows had errors.` : "All rows imported successfully." });
+        toast({
+          title: `Imported ${result.imported} question${result.imported !== 1 ? "s" : ""}`,
+          description: result.failed > 0 ? `${result.failed} rows had errors.` : "All rows imported successfully.",
+        });
       } else {
-        toast({ title: "No questions imported", description: "All rows had validation errors.", variant: "destructive" });
+        toast({ title: "No questions imported", description: "All rows had errors.", variant: "destructive" });
       }
     } catch {
       toast({ title: "Network error", description: "Could not reach the server.", variant: "destructive" });
@@ -438,7 +557,7 @@ export default function AdminQuestions() {
         <div className="flex items-center gap-2 flex-wrap">
           <Dialog open={isImportOpen} onOpenChange={(open) => { setIsImportOpen(open); if (!open) resetImport(); }}>
             <DialogTrigger asChild>
-              <Button variant="outline"><Upload className="w-4 h-4 mr-2" /> Import CSV</Button>
+              <Button variant="outline"><Upload className="w-4 h-4 mr-2" /> Import</Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -453,26 +572,28 @@ export default function AdminQuestions() {
                     <CardContent className="pt-4 pb-4">
                       <div className="flex items-start gap-3 text-sm">
                         <AlertTriangle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                        <div className="space-y-1 text-muted-foreground">
-                          <p className="font-medium text-foreground">CSV Format Requirements</p>
-                          <p>Required columns: <code className="text-xs bg-muted px-1 rounded">text, option1, option2, option3, option4, correct_option</code></p>
-                          <p>Optional columns: <code className="text-xs bg-muted px-1 rounded">marks</code> (default 4), <code className="text-xs bg-muted px-1 rounded">difficulty</code> (easy/medium/hard), <code className="text-xs bg-muted px-1 rounded">topic_id</code>, <code className="text-xs bg-muted px-1 rounded">text_solution</code></p>
-                          <p><code className="text-xs bg-muted px-1 rounded">correct_option</code> is the 0-based index (0 = option1, 1 = option2, …)</p>
-                          <p>Max 500 rows per import. UTF-8 encoding required.</p>
+                        <div className="space-y-1.5 text-muted-foreground">
+                          <p className="font-medium text-foreground">CSV or JSON — choose your format</p>
+                          <p><span className="font-medium text-foreground">Required:</span> <code className="text-xs bg-muted px-1 rounded">text</code>, <code className="text-xs bg-muted px-1 rounded">option1–4</code> (or <code className="text-xs bg-muted px-1 rounded">options</code> array in JSON), <code className="text-xs bg-muted px-1 rounded">correct_option</code> (0–3 index)</p>
+                          <p><span className="font-medium text-foreground">Optional:</span> <code className="text-xs bg-muted px-1 rounded">marks</code> (default 4) · <code className="text-xs bg-muted px-1 rounded">difficulty</code> (easy/medium/hard) · <code className="text-xs bg-muted px-1 rounded">topic_name</code> + <code className="text-xs bg-muted px-1 rounded">subject_name</code> · <code className="text-xs bg-muted px-1 rounded">topic_id</code> · <code className="text-xs bg-muted px-1 rounded">text_solution</code> · <code className="text-xs bg-muted px-1 rounded">image_url</code></p>
+                          <p className="text-primary/80">Use <code className="text-xs bg-muted px-1 rounded">topic_name</code> + <code className="text-xs bg-muted px-1 rounded">subject_name</code>/<code className="text-xs bg-muted px-1 rounded">chapter_name</code> instead of UUIDs for easier authoring. Max 500 rows per import.</p>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" onClick={downloadTemplate} className="shrink-0">
-                      <Download className="w-4 h-4 mr-2" /> Download Template
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button variant="outline" size="sm" onClick={downloadTemplate} className="shrink-0 gap-1.5">
+                      <FileSpreadsheet className="w-3.5 h-3.5" /> CSV Template
                     </Button>
-                    <span className="text-xs text-muted-foreground">Start with the template to ensure correct column names.</span>
+                    <Button variant="outline" size="sm" onClick={downloadJsonTemplate} className="shrink-0 gap-1.5">
+                      <FileJson className="w-3.5 h-3.5" /> JSON Template
+                    </Button>
+                    <span className="text-xs text-muted-foreground">Download a template to see the expected format.</span>
                   </div>
 
                   <div>
-                    <Label className="mb-2 block">Select CSV File</Label>
+                    <Label className="mb-2 block">Select File <span className="text-muted-foreground font-normal text-xs">(CSV or JSON)</span></Label>
                     <div
                       className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-colors"
                       onClick={() => fileInputRef.current?.click()}
@@ -480,17 +601,20 @@ export default function AdminQuestions() {
                       <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
                       {importFile ? (
                         <div>
-                          <p className="font-medium text-foreground">{importFile.name}</p>
-                          <p className="text-sm text-muted-foreground mt-1">{parsedRows.length} rows detected</p>
+                          <p className="font-medium text-foreground flex items-center justify-center gap-2">
+                            {importFile.name.endsWith(".json") ? <FileJson className="w-4 h-4 text-primary" /> : <FileSpreadsheet className="w-4 h-4 text-primary" />}
+                            {importFile.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-1">{parsedRows.length} question{parsedRows.length !== 1 ? "s" : ""} detected</p>
                         </div>
                       ) : (
                         <div>
-                          <p className="font-medium">Click to choose a CSV file</p>
-                          <p className="text-sm text-muted-foreground mt-1">or drag and drop</p>
+                          <p className="font-medium">Click to choose a CSV or JSON file</p>
+                          <p className="text-sm text-muted-foreground mt-1">Max 500 questions · UTF-8 encoding</p>
                         </div>
                       )}
                     </div>
-                    <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileChange} />
+                    <input ref={fileInputRef} type="file" accept=".csv,.json,text/csv,application/json" className="hidden" onChange={handleFileChange} />
                   </div>
 
                   {parsedRows.length > 0 && (
