@@ -41,19 +41,19 @@ export default defineConfig({
   server: {
     port: parseInt(process.env.PORT ?? "5000"),
     strictPort: true,
-    host: "0.0.0.0",
+    host: "::",
     allowedHosts: true,
     headers: {
       "Cache-Control": "no-store, no-cache, must-revalidate",
       "Pragma": "no-cache",
     },
     fs: {
-      strict: true,
+      strict: false,
     },
   },
   preview: {
     port: parseInt(process.env.PORT ?? "5000"),
-    host: "0.0.0.0",
+    host: "::",
     allowedHosts: true,
   },
 });
