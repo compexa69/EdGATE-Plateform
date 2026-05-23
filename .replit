@@ -65,12 +65,15 @@ externalPort = 3000
 
 [userenv.shared]
 FROM_EMAIL = "delivered@resend.dev"
-PORT = "8080"
-VAPID_PUBLIC_KEY = "BJdYLaC4k610lnqnrdyag1mCyUXHisKB1clu2oEa4kW2GEX-HMOKOgspH22-crnDb_QyNuMeDpeHvTtTXX0gdsA"
+PORT = "5000"
+VAPID_PUBLIC_KEY = "BATBEqySS5TZrgUzaI2jVzKHkKtxbn7dhn_0bGA4CrKzBwTW-jvkvqR18pi7Eaqb6imOum8Oqjw_KS6sb8u2maE"
 VAPID_SUBJECT = "mailto:admin@edtech-platform.com"
-B2_BUCKET_NAME = "edtech-notes"
+B2_BUCKET_NAME = "edtech-upload"
 B2_ENDPOINT = "https://s3.us-east-005.backblazeb2.com"
 VITE_PORT = "18184"
+VITE_SUPABASE_URL = "https://gkxoysmqjermtcxhidwj.supabase.co"
+VITE_SUPABASE_ANON_KEY = "sb_publishable_7PmdZgql3ovhQR1-i8KGlA_CFTlR_oB"
+B2_APPLICATION_KEY_ID = "005c4a40a3dcf190000000005"
 
 [nix]
 channel = "stable-25_05"
