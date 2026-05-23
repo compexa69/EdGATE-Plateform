@@ -8,8 +8,8 @@ export interface UserProfile {
   email: string;
   mobile: string | null;
   role: "student" | "admin" | "super_admin";
-  status: "pending_approval" | "approved" | "suspended";
-  avatarUrl: string | null;
+  status: "pending_approval" | "approved" | "suspended" | "banned";
+  photoB2Key: string | null;
   createdAt: string;
 }
 
@@ -28,7 +28,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 async function fetchProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from("users")
-    .select("id, full_name, email, mobile, role, status, avatar_url, created_at")
+    .select("id, full_name, email, mobile, role, status, photo_b2_key, created_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -41,7 +41,7 @@ async function fetchProfile(userId: string): Promise<UserProfile | null> {
     mobile: data.mobile ?? null,
     role: data.role,
     status: data.status,
-    avatarUrl: data.avatar_url ?? null,
+    photoB2Key: data.photo_b2_key ?? null,
     createdAt: data.created_at,
   };
 }

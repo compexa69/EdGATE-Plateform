@@ -1,4 +1,5 @@
-import { useListSubjects, useListExams } from "@workspace/api-client-react";
+import { useListSubjects } from "@/hooks/use-subjects";
+import { useListExams } from "@/hooks/use-exams";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";

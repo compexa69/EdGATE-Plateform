@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useCreatePomodoroSession } from "@workspace/api-client-react";
+import { useCreatePomodoroSession } from "@/hooks/use-tasks";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Play, Pause, Square, Timer, Settings, X } from "lucide-react";

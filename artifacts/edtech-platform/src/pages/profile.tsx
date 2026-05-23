@@ -1,4 +1,4 @@
-import { useGetProfile, useUpdateProfile, useGetProfileUploadUrl, useChangePassword, useRemoveProfilePhoto } from "@workspace/api-client-react";
+import { useGetProfile, useUpdateProfile, useGetProfileUploadUrl, useChangePassword, useRemoveProfilePhoto } from "@/hooks/use-profile";
 import { useState, useRef, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";

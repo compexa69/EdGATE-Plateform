@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRegister } from "@workspace/api-client-react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 const registerSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
@@ -62,32 +63,44 @@ export default function Register() {
 
   const strength = getPasswordStrength(passwordValue);
 
-  const registerMutation = useRegister({
-    mutation: {
-      onSuccess: (_, vars) => {
-        toast({
-          title: "Account created!",
-          description: "Check your email for a verification code.",
-        });
-        setLocation(`/verify-email?email=${encodeURIComponent(vars.data.email)}`);
-      },
-      onError: (error) => {
-        toast({
-          title: "Registration failed",
-          description: (error as any)?.response?.data?.error || error.message || "An error occurred during registration.",
-          variant: "destructive",
-        });
-      },
+  const registerMutation = useMutation({
+    mutationFn: async (values: { fullName: string; email: string; mobile: string; password: string }) => {
+      const { data, error } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: {
+          data: {
+            full_name: values.fullName,
+            mobile: values.mobile,
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (_data, vars) => {
+      toast({
+        title: "Account created!",
+        description: "Check your email for a verification link.",
+      });
+      setLocation(`/verify-email?email=${encodeURIComponent(vars.email)}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Registration failed",
+        description: error?.message || "An error occurred during registration.",
+        variant: "destructive",
+      });
     },
   });
 
   const onSubmit = (values: z.infer<typeof registerSchema>) => {
-    registerMutation.mutate({ data: {
+    registerMutation.mutate({
       fullName: values.fullName,
       email: values.email,
       mobile: values.mobile,
-      password: values.password
-    } });
+      password: values.password,
+    });
   };
 
   return (

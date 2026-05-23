@@ -1,4 +1,5 @@
-import { useListQrScans, type QrScanEntry } from "@workspace/api-client-react";
+import { useListQrScans } from "@/hooks/use-tasks";
+import type { QrScanEntry } from "@/hooks/use-admin";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

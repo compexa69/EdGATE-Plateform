@@ -1,4 +1,4 @@
-import { useListQuestions, useCreateQuestion, useDeleteQuestion, useUpdateQuestion } from "@workspace/api-client-react";
+import { useListAdminQuestions as useListQuestions, useCreateQuestion, useDeleteQuestion, useUpdateQuestion } from "@/hooks/use-admin";
 import { useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

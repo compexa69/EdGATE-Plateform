@@ -14,6 +14,15 @@ export interface AdminUser {
   photoB2Key: string | null;
 }
 
+export interface QrScanEntry {
+  id: string;
+  questionId: string;
+  userId: string;
+  userName: string | null;
+  scannedAt: string;
+  examId: string | null;
+}
+
 export function useListUsers() {
   return useQuery<AdminUser[]>({
     queryKey: ["admin-users"],
@@ -101,6 +110,10 @@ export function useResetUserProgress() {
       if (firstError) throw firstError;
     },
   });
+}
+
+export function useListQuestions(filter?: { topicId?: string; difficulty?: string }) {
+  return useListAdminQuestions(filter);
 }
 
 export function useListAdminQuestions(filter?: { topicId?: string; difficulty?: string }) {

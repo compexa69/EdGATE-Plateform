@@ -10,7 +10,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { KeyRound, MailCheck } from "lucide-react";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -28,10 +27,14 @@ export default function ForgotPassword() {
 
   const mutation = useMutation({
     mutationFn: async ({ email }: { email: string }) => {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Something went wrong");
+      return data;
     },
     onSuccess: (_d, vars) => {
       setSentEmail(vars.email);
@@ -54,12 +57,15 @@ export default function ForgotPassword() {
             <MailCheck className="w-16 h-16 text-primary mx-auto" />
             <h2 className="text-2xl font-bold">Check Your Email</h2>
             <p className="text-muted-foreground">
-              If <strong className="text-foreground">{sentEmail}</strong> is registered, we've sent a password reset link to it.
+              If <strong className="text-foreground">{sentEmail}</strong> is registered, we've sent a reset code to it.
             </p>
             <div className="pt-2">
-              <Link href="/login">
-                <Button className="w-full" variant="outline">Back to Login</Button>
+              <Link href="/reset-password">
+                <Button className="w-full" variant="outline">Enter Reset Code</Button>
               </Link>
+            </div>
+            <div>
+              <Link href="/login" className="text-primary hover:underline text-sm">Back to Login</Link>
             </div>
           </CardContent>
         </Card>
@@ -76,7 +82,7 @@ export default function ForgotPassword() {
           </div>
           <CardTitle className="text-2xl font-bold">Forgot Password?</CardTitle>
           <CardDescription>
-            Enter your email and we'll send you a reset link.
+            Enter your email and we'll send you a reset code.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -96,7 +102,7 @@ export default function ForgotPassword() {
                 )}
               />
               <Button type="submit" className="w-full h-12 text-lg font-semibold" disabled={mutation.isPending}>
-                {mutation.isPending ? "Sending…" : "Send Reset Link"}
+                {mutation.isPending ? "Sending…" : "Send Reset Code"}
               </Button>
               <div className="text-center text-sm text-muted-foreground">
                 Remember your password?{" "}

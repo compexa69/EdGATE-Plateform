@@ -1,4 +1,5 @@
-import { useGetDashboardSummary, useGetWeakTopics, useGetPerformanceTrend, useListTasks, useGetStudyHeatmap, useGetProgressSummary } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetWeakTopics, useGetPerformanceTrend, useGetStudyHeatmap, useGetProgressSummary } from "@/hooks/use-dashboard";
+import { useListTasks } from "@/hooks/use-tasks";
 import { Flame, Target, Trophy, CheckCircle, BookOpen, AlertCircle, ListTodo } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

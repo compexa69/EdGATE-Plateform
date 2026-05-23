@@ -1,15 +1,13 @@
 import {
-  useListExams,
+  useAdminListExams as useListExams,
   useCreateExam,
   useDeleteExam,
   useListExamQuestions,
   useAddExamQuestion,
   useRemoveExamQuestion,
-  useListSubjects,
-  useListChapters,
-  useListTopics,
-  useListQuestions,
-} from "@workspace/api-client-react";
+} from "@/hooks/use-exams";
+import { useListSubjects, useListChapters, useListTopics } from "@/hooks/use-subjects";
+import { useListQuestions } from "@/hooks/use-admin";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

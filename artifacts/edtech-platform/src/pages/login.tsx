@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLogin, useResendVerification } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff, MailWarning } from "lucide-react";
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -18,7 +19,7 @@ const loginSchema = z.object({
 });
 
 export default function Login() {
-  const { login: setAuthToken } = useAuth();
+  const { login } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
@@ -29,41 +30,45 @@ export default function Login() {
     defaultValues: { email: "", password: "" },
   });
 
-  const loginMutation = useLogin({
-    mutation: {
-      onSuccess: (data) => {
-        setAuthToken(data.token);
-        setLocation("/dashboard");
-      },
-      onError: (error) => {
-        const msg = (error as any)?.response?.data?.error || error.message || "";
-        if (msg.toLowerCase().includes("verify")) {
-          setUnverifiedEmail(form.getValues("email"));
-        }
-        toast({
-          title: "Login failed",
-          description: msg || "Please check your credentials.",
-          variant: "destructive",
-        });
-      },
+  const loginMutation = useMutation({
+    mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: () => {
+      login();
+      setLocation("/dashboard");
+    },
+    onError: (error: any) => {
+      const msg = error?.message || "";
+      if (msg.toLowerCase().includes("email") && msg.toLowerCase().includes("confirm")) {
+        setUnverifiedEmail(form.getValues("email"));
+      }
+      toast({
+        title: "Login failed",
+        description: msg || "Please check your credentials.",
+        variant: "destructive",
+      });
     },
   });
 
-  const resendMutation = useResendVerification({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Verification email sent", description: "Check your inbox for the verification code." });
-        setLocation(`/verify-email?email=${encodeURIComponent(unverifiedEmail || "")}`);
-      },
-      onError: () => {
-        toast({ title: "Failed to resend", variant: "destructive" });
-      },
+  const resendMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { error } = await supabase.auth.resend({ type: "signup", email });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Verification email sent", description: "Check your inbox." });
+    },
+    onError: () => {
+      toast({ title: "Failed to resend", variant: "destructive" });
     },
   });
 
   const onSubmit = (values: z.infer<typeof loginSchema>) => {
     setUnverifiedEmail(null);
-    loginMutation.mutate({ data: values });
+    loginMutation.mutate(values);
   };
 
   return (
@@ -90,9 +95,9 @@ export default function Login() {
                 variant="outline"
                 className="border-warning/50 text-warning hover:bg-warning/10 w-full"
                 disabled={resendMutation.isPending}
-                onClick={() => resendMutation.mutate({ data: { email: unverifiedEmail } })}
+                onClick={() => resendMutation.mutate(unverifiedEmail)}
               >
-                {resendMutation.isPending ? "Sending…" : "Resend Verification Code"}
+                {resendMutation.isPending ? "Sending…" : "Resend Verification Email"}
               </Button>
             </div>
           )}

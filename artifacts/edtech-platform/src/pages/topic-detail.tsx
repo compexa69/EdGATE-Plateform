@@ -1,4 +1,4 @@
-import { useGetTopic, useCheckGate, useRecordLectureClick, useGetChapter, useGetUploadUrl, useConfirmUpload, useGetInlineNote, useSaveInlineNote } from "@workspace/api-client-react";
+import { useGetTopic, useCheckGate, useRecordLectureClick, useGetChapter, useGetUploadUrl, useConfirmUpload, useGetInlineNote, useSaveInlineNote } from "@/hooks/use-subjects";
 import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,19 +18,13 @@ export default function TopicDetail() {
   const [isPreview, setIsPreview] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
-  const { data: topic, isLoading: topicLoading } = useGetTopic(topicId, {
-    query: { enabled: !!topicId, queryKey: ["topic", topicId] }
-  });
+  const { data: topic, isLoading: topicLoading } = useGetTopic(topicId);
 
-  const { data: chapter } = useGetChapter(topic?.chapterId ?? "", {
-    query: { enabled: !!topic?.chapterId, queryKey: ["chapter", topic?.chapterId ?? ""] }
-  });
+  const { data: chapter } = useGetChapter(topic?.chapterId ?? "");
 
   const getUploadUrl = useGetUploadUrl();
   const confirmUpload = useConfirmUpload();
-  const { data: existingNote } = useGetInlineNote(topicId, {
-    query: { enabled: !!topicId, queryKey: ["inline-note", topicId] }
-  });
+  const { data: existingNote } = useGetInlineNote(topicId);
   const saveNote = useSaveInlineNote();
 
   useEffect(() => {
@@ -44,7 +38,7 @@ export default function TopicDetail() {
   const handleSaveNote = async () => {
     setSaveStatus("saving");
     try {
-      await saveNote.mutateAsync({ topicId, data: { content: noteContent } });
+      await saveNote.mutateAsync({ topicId, content: noteContent });
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2500);
     } catch {

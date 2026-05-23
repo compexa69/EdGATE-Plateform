@@ -5,7 +5,7 @@ import { Home, BookOpen, User, LogOut, Settings, Trophy, CalendarDays, FolderOpe
 import { PomodoroWidget } from "@/components/pomodoro";
 import { useThemeMode } from "@/App";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { subscribeToTable } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 interface AppNotification {
   id: string;
@@ -16,25 +16,30 @@ interface AppNotification {
   createdAt: string;
 }
 
-function getAuthToken(): string | null {
-  return typeof window !== "undefined" ? localStorage.getItem("edtech_token") : null;
+async function fetchNotifications(userId: string): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("id, type, title, message, is_read, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) return [];
+  return (data ?? []).map((n) => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    message: n.message,
+    isRead: n.is_read,
+    createdAt: n.created_at,
+  }));
 }
 
-async function fetchNotifications(): Promise<AppNotification[]> {
-  const token = getAuthToken();
-  const res = await fetch("/api/notifications", {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
-
-async function markAllRead(): Promise<void> {
-  const token = getAuthToken();
-  await fetch("/api/notifications/read-all", {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+async function markAllRead(userId: string): Promise<void> {
+  await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", userId)
+    .eq("is_read", false);
 }
 
 function NotificationBell() {
@@ -44,26 +49,14 @@ function NotificationBell() {
   const { user } = useAuth();
 
   const { data: notifications = [] } = useQuery<AppNotification[]>({
-    queryKey: ["notifications"],
-    queryFn: fetchNotifications,
+    queryKey: ["notifications", user?.id],
+    queryFn: () => fetchNotifications(user!.id),
     refetchInterval: 5 * 60_000,
-    enabled: !!user,
+    enabled: !!user?.id,
   });
 
-  useEffect(() => {
-    if (!user?.id) return;
-    const unsub = subscribeToTable<Record<string, unknown>>(
-      "notifications",
-      `user_id=eq.${user.id}`,
-      () => {
-        queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      },
-    );
-    return unsub;
-  }, [user?.id, queryClient]);
-
   const markAllMutation = useMutation({
-    mutationFn: markAllRead,
+    mutationFn: () => markAllRead(user!.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
@@ -94,13 +87,6 @@ function NotificationBell() {
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}h ago`;
     return `${Math.floor(h / 24)}d ago`;
-  };
-
-  const typeColor = (type: string) => {
-    if (type === "user_approved") return "bg-success/20 text-success";
-    if (type === "new_registration") return "bg-warning/20 text-warning";
-    if (type === "streak_milestone") return "bg-accent/20 text-accent";
-    return "bg-primary/20 text-primary";
   };
 
   return (
@@ -223,7 +209,7 @@ export function Layout({ children }: { children: ReactNode }) {
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
           >

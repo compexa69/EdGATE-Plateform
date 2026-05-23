@@ -32,12 +32,14 @@ export default function VerifyEmail() {
 
   const verifyMutation = useMutation({
     mutationFn: async ({ token }: { token: string }) => {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: "signup",
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Verification failed");
+      return data;
     },
     onSuccess: () => {
       setVerified(true);
@@ -55,8 +57,15 @@ export default function VerifyEmail() {
 
   const resendMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.auth.resend({ type: "signup", email });
-      if (error) throw error;
+      if (!email) throw new Error("Email is required");
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to resend");
+      return data;
     },
     onSuccess: () => {
       setResentAt(new Date());

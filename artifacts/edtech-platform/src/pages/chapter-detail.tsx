@@ -1,4 +1,4 @@
-import { useGetChapter, useListTopics } from "@workspace/api-client-react";
+import { useGetChapter, useListTopics } from "@/hooks/use-subjects";
 import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -11,13 +11,9 @@ export default function ChapterDetail() {
   const chapterId = params.chapterId!;
   const [, setLocation] = useLocation();
 
-  const { data: chapter, isLoading: chapterLoading } = useGetChapter(chapterId, {
-    query: { enabled: !!chapterId, queryKey: ["chapter", chapterId] } as any
-  });
+  const { data: chapter, isLoading: chapterLoading } = useGetChapter(chapterId);
 
-  const { data: topics, isLoading: topicsLoading } = useListTopics(chapterId, {
-    query: { enabled: !!chapterId, queryKey: ["topics", chapterId] } as any
-  });
+  const { data: topics, isLoading: topicsLoading } = useListTopics(chapterId);
 
   if (chapterLoading || topicsLoading) {
     return <div className="p-8">Loading chapter...</div>;

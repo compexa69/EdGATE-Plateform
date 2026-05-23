@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useListNotes, useDeleteNote, useGetDownloadUrl, useGetNoteAnnotations, useSaveNoteAnnotations } from "@workspace/api-client-react";
+import { useListNotes, useDeleteNote, useGetDownloadUrl, useGetNoteAnnotations, useSaveNoteAnnotations } from "@/hooks/use-notes";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

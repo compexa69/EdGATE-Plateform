@@ -1,4 +1,4 @@
-import { useGetExam, useStartExam, useSaveAnswer, useSubmitExam, usePauseExam, useResumeExam } from "@workspace/api-client-react";
+import { useGetExam, useStartExam, useSaveAnswer, useSubmitExam, usePauseExam, useResumeExam } from "@/hooks/use-exams";
 import { useParams, useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";

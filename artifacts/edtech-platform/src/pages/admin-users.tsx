@@ -1,4 +1,4 @@
-import { useListUsers, useApproveUser, useSuspendUser, useBanUser, useUpdateUserRole, useResetUserProgress } from "@workspace/api-client-react";
+import { useListUsers, useApproveUser, useSuspendUser, useBanUser, useUpdateUserRole, useResetUserProgress } from "@/hooks/use-admin";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

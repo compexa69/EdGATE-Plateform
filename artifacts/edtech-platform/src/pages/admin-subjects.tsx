@@ -2,7 +2,7 @@ import {
   useListSubjects, useCreateSubject, useUpdateSubject, useDeleteSubject,
   useListChapters, useCreateChapter, useUpdateChapter, useDeleteChapter,
   useListTopics, useCreateTopic, useUpdateTopic, useDeleteTopic,
-} from "@workspace/api-client-react";
+} from "@/hooks/use-subjects";
 import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

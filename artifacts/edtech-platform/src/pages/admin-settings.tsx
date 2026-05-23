@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Settings, Save, RefreshCw, ShieldAlert, History, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { useExportUserData } from "@workspace/api-client-react";
+import { useExportUserData } from "@/hooks/use-profile";
 
 interface ConfigEntry {
   value: string;

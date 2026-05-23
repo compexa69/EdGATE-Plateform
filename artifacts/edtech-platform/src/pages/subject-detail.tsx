@@ -1,4 +1,4 @@
-import { useGetSubject, useListChapters } from "@workspace/api-client-react";
+import { useGetSubject, useListChapters } from "@/hooks/use-subjects";
 import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";

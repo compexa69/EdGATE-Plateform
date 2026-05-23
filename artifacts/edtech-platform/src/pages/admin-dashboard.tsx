@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useGetAdminStats } from "@workspace/api-client-react";
+import { useGetAdminStats } from "@/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Users, BookOpen, FileQuestion, HardDrive, UserCheck, ListChecks, AlertTriangle, TrendingDown, MousePointerClick, Settings, Send, Bell, QrCode, Radio, RefreshCcw, Clock } from "lucide-react";
 import { Link } from "wouter";

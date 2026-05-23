@@ -1,4 +1,4 @@
-import { useListExternalTests, useCreateExternalTest, useDeleteExternalTest } from "@workspace/api-client-react";
+import { useListExternalTests, useCreateExternalTest, useDeleteExternalTest } from "@/hooks/use-tasks";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

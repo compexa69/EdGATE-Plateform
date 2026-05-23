@@ -249,6 +249,38 @@ async function generatePlanClientSide(
   };
 }
 
+export function useListTasks() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["tasks-today", user?.id],
+    enabled: !!user?.id,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const { data, error } = await supabase
+        .from("study_tasks")
+        .select("id, title, description, status, source, topic_id, sort_order, scheduled_date")
+        .eq("user_id", user!.id)
+        .eq("scheduled_date", today)
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status as Task["status"],
+        source: t.source as Task["source"],
+        topicId: t.topic_id,
+        topicName: null,
+        chapterName: null,
+        subjectName: null,
+        scheduledDate: t.scheduled_date,
+        sortOrder: t.sort_order,
+      }));
+    },
+  });
+}
+
 export function useListExternalTests() {
   const { user } = useAuth();
   return useQuery({
@@ -320,6 +352,29 @@ export function useDeleteExternalTest() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["external-tests"] }); },
+  });
+}
+
+export function useCreatePomodoroSession() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      durationMinutes: number;
+      breakMinutes?: number;
+      taskId?: string | null;
+      completedAt?: string;
+    }) => {
+      const { error } = await supabase.from("pomodoro_sessions").insert({
+        user_id: user!.id,
+        duration_minutes: data.durationMinutes,
+        break_minutes: data.breakMinutes ?? 5,
+        task_id: data.taskId ?? null,
+        completed_at: data.completedAt ?? new Date().toISOString(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pomodoro-sessions"] }); },
   });
 }
 

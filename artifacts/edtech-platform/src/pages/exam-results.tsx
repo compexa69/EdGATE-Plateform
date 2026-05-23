@@ -1,4 +1,4 @@
-import { useGetResult, useLogQrScan } from "@workspace/api-client-react";
+import { useGetResult, useLogQrScan } from "@/hooks/use-exams";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
