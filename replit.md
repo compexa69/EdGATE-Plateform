@@ -4,50 +4,77 @@ A dark-mode PWA for serious competitive exam preparation (JEE/NEET/GATE) with SR
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
-- `pnpm --filter @workspace/edtech-platform run dev` — run the frontend (port 18184)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run typecheck:libs` — build composite lib packages (run before api-server typecheck)
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/edtech-platform run dev` — run the frontend (port 5000)
+- Required env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase project credentials
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- Frontend: React + Vite, Tailwind CSS, React Query (generated hooks), React Router
-- API: Express 5, pino logging
-- DB: PostgreSQL + Drizzle ORM (`lib/db`)
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec in `lib/api-spec`)
-- Build: esbuild (ESM bundle)
-- Storage: Backblaze B2 (PDFs, photos) via `@aws-sdk/client-s3`
-- Email: Resend API
-- Auth: JWT (SESSION_SECRET), bcrypt passwords
+- Frontend: React + Vite, Tailwind CSS, React Query, React Router, Wouter
+- Auth + DB: Supabase (Auth, PostgreSQL, Edge Functions, Realtime)
+- Storage: Backblaze B2 via `b2-presign` Supabase Edge Function
+- Email: Resend API via `send-email` Supabase Edge Function
 
-## Where things live
+## Architecture — Fully Serverless (Supabase-only)
 
-- `artifacts/api-server/src/routes/` — all API route handlers
-- `artifacts/api-server/src/lib/auth.ts` — JWT sign/verify, requireAuth middleware
-- `artifacts/api-server/src/types/express.d.ts` — Express Request augmentation (user field)
+**No Express backend.** The workflow runs only the Vite frontend. All backend logic is handled by:
+
+1. **Supabase Auth** — signup, login, session management, email verification
+2. **Supabase DB (PostgreSQL)** — direct `supabase.from(...)` calls from frontend hooks
+3. **Supabase Edge Functions** (`supabase/functions/`) — B2 presigned URLs, email, exam scoring, admin actions
+4. **Backblaze B2** — PDF and photo file storage, accessed via `b2-presign` Edge Function
+
+## Database Schema — Single Canonical File
+
+**`supabase_schema.sql` (root)** is the ONE file to run in Supabase.
+
+> Supabase Dashboard → SQL Editor → New query → paste → Run
+
+Features:
+- Fully idempotent — safe to re-run at any time (DO blocks, IF NOT EXISTS, DROP IF EXISTS)
+- 23 tables with `public.` prefix
+- 8 enums with idempotent DO-block guards
+- Full RLS policies for all tables (approved users, own-row, admin access)
+- Supabase Auth trigger: auto-creates `public.users` profile on signup
+- First registered user → automatically `super_admin` + `approved`
+- Email-verified sync trigger (updates `email_verified` on auth confirm)
+- `updated_at` triggers on all mutable tables
+- Prefixed IDs (`sub_`, `chp_`, `top_`, `q_`, etc.)
+
+**Do NOT run** `supabase_setup.sql` — deleted. Do NOT run files in `scripts/` — deleted. There is now only one schema file.
+
+## Where Things Live
+
 - `artifacts/edtech-platform/src/` — React frontend, pages, components
-- `lib/db/src/schema/` — Drizzle table definitions (source of truth for DB shape)
-- `lib/db/src/schema/index.ts` — barrel export for all tables
-- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for API contracts)
-- `lib/api-zod/src/` — generated Zod schemas (do not edit manually)
+- `artifacts/edtech-platform/src/lib/supabase.ts` — Supabase client (reads VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY)
+- `artifacts/edtech-platform/src/hooks/` — all data hooks (`use-auth`, `use-subjects`, `use-notes`, `use-admin`, etc.) — all call Supabase directly
+- `supabase/functions/` — Edge Functions: `b2-presign`, `send-email`, `score-exam`, `leaderboard`, `admin-actions`, `import-questions`, `import-syllabus`
+- `supabase/functions/_shared/auth.ts` — Edge Function auth helper (uses SUPABASE_SERVICE_ROLE_KEY)
+- `supabase_schema.sql` — THE canonical Supabase SQL schema (run once in SQL Editor)
 
-## Architecture decisions
+## Environment Variables
 
-- **Contract-first API**: OpenAPI spec → Orval codegen → React Query hooks + Zod validators. Never write hooks by hand.
-- **SRS gating (v7.3)**: Topic progression is locked behind sequential steps: Lecture → LectureQuiz → DPP → PYQ → TopicTest → ChapterTest → PDFUpload. Stored in `topic_progress` table.
-- **First user = super_admin**: Registration logic auto-assigns `super_admin` role to the first user; subsequent users are `pending_approval`.
-- **Express global namespace augmentation**: `req.user` typed via `declare namespace Express { interface Request }` in `src/types/express.d.ts` (NOT via `declare module "express"` — that form doesn't merge correctly with the tsconfig `types: ["node"]` setup).
-- **B2 storage**: All file uploads (lecture PDFs, notes) go to Backblaze B2 via presigned S3-compatible URLs; file metadata stored in DB.
+| Variable | Type | Purpose |
+|---|---|---|
+| `VITE_SUPABASE_URL` | env (shared) | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | secret | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret | Edge Function admin DB access |
+| `B2_APPLICATION_KEY_ID` | env (shared) | Backblaze B2 key ID |
+| `B2_APPLICATION_KEY` | secret | Backblaze B2 secret key |
+| `B2_BUCKET_NAME` | env (shared) | B2 bucket name |
+| `B2_ENDPOINT` | env (shared) | B2 S3-compatible endpoint |
+
+## Architecture Decisions
+
+- **Supabase-only**: No Express server. Frontend calls Supabase directly; Edge Functions handle privileged operations with the service-role key.
+- **SRS gating**: Topic progression locked behind sequential steps: Lecture → LectureQuiz → DPP → PYQ → TopicTest → ChapterTest → PDFUpload. State in `topic_progress` table.
+- **First user = super_admin**: The `on_auth_user_created` DB trigger checks `COUNT(*) = 0` and assigns `super_admin` + `approved` to the very first signup.
+- **B2 storage**: All file uploads go to Backblaze B2 via presigned URLs generated by the `b2-presign` Edge Function. File metadata stored in `notes` table.
+- **RLS**: All tables have Row Level Security enabled. Policies enforce own-row access for students, full access for admins. Edge Functions bypass RLS using the service-role key.
 
 ## Product
 
-- Onboarding carousel → Auth (register/login with mobile OTP or email/password)
+- Onboarding carousel → Auth (register/login with Supabase Auth)
 - Subject → Chapter → Topic hierarchy with SRS-gated step progression
 - Per-topic: Lecture viewer, Quiz, DPP, PYQ, TopicTest, ChapterTest, PDF upload
 - Dashboard with streak, XP, Pomodoro timer, Today's tasks
@@ -55,7 +82,7 @@ A dark-mode PWA for serious competitive exam preparation (JEE/NEET/GATE) with SR
 - Admin panel: user approval, subject/chapter/topic/question management
 - Dark-mode-first design: Deep Slate (#0F172A) background, Focus Indigo (#6366F1) primary
 
-## User preferences
+## User Preferences
 
 - Dark-mode-first UI with Deep Slate (#0F172A) + Focus Indigo (#6366F1)
 - Mobile regex: `^(\+91)[\s-]?[6-9]\d{9}$`
@@ -63,12 +90,7 @@ A dark-mode PWA for serious competitive exam preparation (JEE/NEET/GATE) with SR
 
 ## Gotchas
 
-- Always run `pnpm run typecheck:libs` before `pnpm --filter @workspace/api-server run typecheck` — the DB lib must be rebuilt first.
-- Do NOT run `pnpm dev` at workspace root (no such script; individual workflows handle dev).
-- Zod schema names must match OpenAPI operationId conventions: `ListNotesQueryParams` not `ListNotesParams`, etc.
-- `examAttemptsTable` lives in `lib/db/src/schema/attempts.ts`; `examQuestionsTable` in `lib/db/src/schema/exams.ts`.
-- Vite artifact must use `PORT` env var (set by workflow); do not hardcode port.
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Do NOT run `pnpm dev` at workspace root (no such script).
+- Vite frontend uses `PORT` env var (defaults to 5000).
+- `supabase_schema.sql` uses `public.` schema prefix — all RLS policies reference `public.is_admin()`, `public.is_approved()`.
+- Edge Functions need `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` set in Supabase Dashboard → Settings → Edge Functions → Secrets.
