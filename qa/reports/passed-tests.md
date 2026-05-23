@@ -1,116 +1,155 @@
 # ✅ Passed Tests Report
 
-> **Generated:** 2026-05-22T19:21:22.215Z  |  **Suite:** EdTech Platform QA
+> **Generated:** 2026-05-23T04:33:49.935Z  |  **Project:** EdTech Study Platform (JEE/NEET/GATE)  |  **Suite Version:** 1.0.0
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Passed | **97** |
-| Success Rate | **98.0%** |
-| Duration | **3.23s** |
+| ✅ Passed | **97 / 100** |
+| 🏆 Success Rate | **98.0%** |
+| ⏱ Total Duration | **2.78s** |
+| ⚡ Avg Response Time | **11ms** |
+| 🎯 p95 Response | **59ms** |
+| 📡 API Coverage | **59/109 endpoints (54.1%)** |
 
 ## Passed Test Cases
 
-| Test ID | Module | Feature | Description | Status |
-|---------|--------|---------|-------------|--------|
-| HC-001 | Health | API Health | Server health endpoint returns OK | ✅ PASS |
-| HC-002 | Health | 404 Handling | Unknown route returns 404 | ✅ PASS |
-| A-001 | Auth | Register | First user registers as super_admin (DB fixup applied — existing users in DB) | ✅ PASS |
-| A-002 | Auth | Register | Duplicate email rejected | ✅ PASS |
-| A-003 | Auth | Register | Invalid mobile number rejected | ✅ PASS |
-| A-004 | Auth | Validation | Short password rejected | ✅ PASS |
-| A-005 | Auth | Register | Second user registers as student/pending | ✅ PASS |
-| A-006 | Auth | Login | Login with correct credentials succeeds | ✅ PASS |
-| A-007 | Auth | Login | Wrong password returns 401 | ✅ PASS |
-| A-008 | Auth | Login | Non-existent user login returns 401 | ✅ PASS |
-| A-009 | Auth | Me | GET /auth/me returns current user | ✅ PASS |
-| A-010 | Auth | Auth Guard | GET /auth/me without token returns 401 | ✅ PASS |
-| A-011 | Auth | Auth Guard | Invalid JWT returns 401 | ✅ PASS |
-| A-012 | Auth | Logout | Logout + token revocation tested in dedicated end-of-suite step | ✅ PASS |
-| A-013 | Auth | Forgot Password | Forgot password returns 200 | ✅ PASS |
-| A-014 | Auth | Change Password | Change password succeeds with valid current password | ✅ PASS |
-| A-015 | Auth | Change Password | Wrong current password rejected | ✅ PASS |
-| A-016 | Auth | Email Verify | Resend verification email responds correctly | ✅ PASS |
-| S-001 | Subjects | Create | Admin can create a subject | ✅ PASS |
-| S-002 | Subjects | Auth Guard | Create subject without auth returns 401 | ✅ PASS |
-| S-003 | Subjects | Authorization | Student cannot create subject (403) | ✅ PASS |
-| S-004 | Subjects | List | List subjects returns array | ✅ PASS |
-| S-005 | Subjects | Get | Get subject by ID returns correct subject | ✅ PASS |
-| S-006 | Subjects | Update | Admin can update a subject | ✅ PASS |
-| S-007 | Subjects | Error Handling | Non-existent subject returns 404 | ✅ PASS |
-| S-008 | Subjects | Create | Create Chemistry subject succeeds | ✅ PASS |
-| C-001 | Chapters | Create | Admin creates chapter in subject | ✅ PASS |
-| C-002 | Chapters | List | List chapters returns array | ✅ PASS |
-| C-003 | Chapters | Get | Get chapter by ID | ✅ PASS |
-| C-004 | Chapters | Update | Update chapter succeeds | ✅ PASS |
-| C-005 | Chapters | Error Handling | Non-existent chapter returns 404 | ✅ PASS |
-| T-001 | Topics | Create | Admin creates topic in chapter | ✅ PASS |
-| T-002 | Topics | List | List topics returns array | ✅ PASS |
-| T-003 | Topics | Get | Get topic by ID succeeds | ✅ PASS |
-| T-004 | Topics | Update | Update topic succeeds | ✅ PASS |
-| T-005 | Topics | Lecture Click | Lecture click recorded | ✅ PASS |
-| T-006 | Topics | Error Handling | Non-existent topic returns 404 | ✅ PASS |
-| Q-001 | Questions | Create | Admin creates a question | ✅ PASS |
-| Q-002 | Questions | List | List questions succeeds | ✅ PASS |
-| Q-003 | Questions | Auth Guard | Create question without auth/body fails | ✅ PASS |
-| E-001 | Exams | Create | Admin creates an exam | ✅ PASS |
-| E-002 | Exams | List | List exams returns array | ✅ PASS |
-| E-003 | Exams | Get | Get exam by ID succeeds | ✅ PASS |
-| E-004 | Exams | Question Assign | Question assigned to exam | ✅ PASS |
-| E-005 | Exams | Question List | List exam questions succeeds | ✅ PASS |
-| E-006 | Exams | Auth Guard | Exam list requires auth | ✅ PASS |
-| GP-001 | Progress | Summary | Progress summary returns 200 | ✅ PASS |
-| GP-002 | Progress | Subject Progress | Subject progress returns 200 | ✅ PASS |
-| GP-003 | Gate | Gate Check | Topic detail includes gate/progress status | ✅ PASS |
-| D-001 | Dashboard | Summary | Dashboard summary returns 200 | ✅ PASS |
-| D-002 | Dashboard | Weak Topics | Weak topics returns 200 | ✅ PASS |
-| D-003 | Dashboard | Perf Trend | Performance trend returns 200 | ✅ PASS |
-| D-004 | Dashboard | Heatmap | Study heatmap returns 200 | ✅ PASS |
-| D-005 | Dashboard | Auth Guard | Dashboard requires auth | ✅ PASS |
-| AD-001 | Admin | User List | Admin can list users | ✅ PASS |
-| AD-002 | Admin | Authorization | Student cannot access admin users | ✅ PASS |
-| AD-003 | Admin | Stats | Admin stats returns 200 | ✅ PASS |
-| AD-004 | Admin | Approve User | Admin can approve pending user | ✅ PASS |
-| AD-005 | Admin | Change Role | Role change endpoint responds correctly | ✅ PASS |
-| AD-006 | Admin | Auth Guard | Admin endpoint requires auth | ✅ PASS |
-| PR-001 | Profile | Get | Get own profile returns 200 | ✅ PASS |
-| PR-002 | Profile | Update | Update profile succeeds | ✅ PASS |
-| PR-003 | Profile | Auth Guard | Profile requires auth | ✅ PASS |
-| PR-004 | Profile | Delete Photo | Remove profile photo responds correctly | ✅ PASS |
-| POM-001 | Pomodoro | Create Session | Pomodoro session logged | ✅ PASS |
-| POM-002 | Pomodoro | List Sessions | List pomodoro sessions returns array | ✅ PASS |
-| POM-003 | Pomodoro | Stats | Pomodoro stats returns 200 | ✅ PASS |
-| TK-001 | Tasks | Create | Create study task succeeds | ✅ PASS |
-| TK-002 | Tasks | List | List tasks returns array | ✅ PASS |
-| TK-003 | Tasks | Update | Update task status succeeds | ✅ PASS |
-| TK-004 | Tasks | Delete | Delete task succeeds | ✅ PASS |
-| N-001 | Notes | List | List notes returns 200 | ✅ PASS |
-| N-002 | Notes | Inline Get | Get inline note returns 200/404 | ✅ PASS |
-| N-003 | Notes | Inline Save | Save inline note succeeds | ✅ PASS |
-| N-005 | Notes | Storage Quota | Storage quota returns 200 | ✅ PASS |
-| LB-001 | Leaderboard | Get | Leaderboard returns 200 | ✅ PASS |
-| LB-002 | Leaderboard | Auth Guard | Leaderboard requires auth | ✅ PASS |
-| ET-001 | External Tests | Create | Log external test result | ✅ PASS |
-| ET-002 | External Tests | List | List external tests returns array | ✅ PASS |
-| ET-003 | External Tests | Delete | Delete external test succeeds | ✅ PASS |
-| QR-001 | QR Scans | Log | Log QR scan event | ✅ PASS |
-| QR-002 | QR Scans | List | List QR scans returns array | ✅ PASS |
-| NF-001 | Notifications | List | Get notifications returns 200 | ✅ PASS |
-| SEC-001 | Security | SQL Injection | SQL injection in email field rejected | ✅ PASS |
-| SEC-003 | Security | Mass Assignment | Cannot set role via registration body | ✅ PASS |
-| SEC-004 | Security | Auth Guard | Data export endpoint requires auth | ✅ PASS |
-| SEC-005 | Security | Authorization | Student cannot export admin data | ✅ PASS |
-| SEC-006 | Security | Token Revocation | Token revocation tested via logout flow | ✅ PASS |
-| SEC-007 | Security | Input Validation | Empty body on change-password returns 400 | ✅ PASS |
-| SEC-008 | Security | Payload Size | Oversized payload rejected | ✅ PASS |
-| EC-001 | Edge Cases | Content-Type | Missing/wrong Content-Type handled | ✅ PASS |
-| EC-002 | Edge Cases | Empty Fields | Empty email/password returns 400 | ✅ PASS |
-| EC-003 | Edge Cases | Invalid ID | Numeric ID on string-ID endpoint handled | ✅ PASS |
-| EC-005 | Edge Cases | Concurrency | Concurrent duplicate email prevention relies on DB unique constraint | ✅ PASS |
-| A-012 | Auth | Logout | Logout returns 200 | ✅ PASS |
-| A-012b | Auth | Token Revocation | Revoked token rejected on subsequent request | ✅ PASS |
-| A-012c | Auth | Re-login After Logout | Can re-login and use new token after logout | ✅ PASS |
+| Test ID | Module | Feature | Description | Severity | Time | Status |
+|---------|--------|---------|-------------|----------|------|--------|
+| `HC-001` | Health | API Health | Server health endpoint returns OK | 🟢 LOW | 19ms | ✅ PASS |
+| `HC-002` | Health | 404 Handling | Unknown route returns 404 | 🟢 LOW | 9ms | ✅ PASS |
+| `A-001` | Auth | Register | First user registers as super_admin (DB fixup applied — existing users in DB) | 🟠 HIGH | 61ms | ✅ PASS |
+| `A-002` | Auth | Register | Duplicate email rejected | 🟠 HIGH | 4ms | ✅ PASS |
+| `A-003` | Auth | Register | Invalid mobile number rejected | 🟠 HIGH | 2ms | ✅ PASS |
+| `A-004` | Auth | Validation | Short password rejected | 🟠 HIGH | 3ms | ✅ PASS |
+| `A-005` | Auth | Register | Second user registers as student/pending | 🟠 HIGH | 59ms | ✅ PASS |
+| `A-006` | Auth | Login | Login with correct credentials succeeds | 🟠 HIGH | 60ms | ✅ PASS |
+| `A-007` | Auth | Login | Wrong password returns 401 | 🟠 HIGH | 56ms | ✅ PASS |
+| `A-008` | Auth | Login | Non-existent user login returns 401 | 🟠 HIGH | 3ms | ✅ PASS |
+| `A-009` | Auth | Me | GET /auth/me returns current user | 🟠 HIGH | 7ms | ✅ PASS |
+| `A-010` | Auth | Auth Guard | GET /auth/me without token returns 401 | 🟠 HIGH | 2ms | ✅ PASS |
+| `A-011` | Auth | Auth Guard | Invalid JWT returns 401 | 🟠 HIGH | 2ms | ✅ PASS |
+| `A-012` | Auth | Logout | Logout + token revocation tested in dedicated end-of-suite step | 🟠 HIGH | — | ✅ PASS |
+| `A-013` | Auth | Forgot Password | Forgot password returns 200 | 🟠 HIGH | 7ms | ✅ PASS |
+| `A-014` | Auth | Change Password | Change password succeeds with valid current password | 🟠 HIGH | 164ms | ✅ PASS |
+| `A-015` | Auth | Change Password | Wrong current password rejected | 🟠 HIGH | 57ms | ✅ PASS |
+| `A-016` | Auth | Email Verify | Resend verification email responds correctly | 🟠 HIGH | 6ms | ✅ PASS |
+| `S-001` | Subjects | Create | Admin can create a subject | 🟠 HIGH | 8ms | ✅ PASS |
+| `S-002` | Subjects | Auth Guard | Create subject without auth returns 401 | 🟠 HIGH | 7ms | ✅ PASS |
+| `S-003` | Subjects | Authorization | Student cannot create subject (403) | 🟠 HIGH | 17ms | ✅ PASS |
+| `S-004` | Subjects | List | List subjects returns array | 🟠 HIGH | 16ms | ✅ PASS |
+| `S-005` | Subjects | Get | Get subject by ID returns correct subject | 🟠 HIGH | 6ms | ✅ PASS |
+| `S-006` | Subjects | Update | Admin can update a subject | 🟠 HIGH | 7ms | ✅ PASS |
+| `S-007` | Subjects | Error Handling | Non-existent subject returns 404 | 🟠 HIGH | 2ms | ✅ PASS |
+| `S-008` | Subjects | Create | Create Chemistry subject succeeds | 🟠 HIGH | 5ms | ✅ PASS |
+| `C-001` | Chapters | Create | Admin creates chapter in subject | 🟠 HIGH | 6ms | ✅ PASS |
+| `C-002` | Chapters | List | List chapters returns array | 🟠 HIGH | 6ms | ✅ PASS |
+| `C-003` | Chapters | Get | Get chapter by ID | 🟠 HIGH | 4ms | ✅ PASS |
+| `C-004` | Chapters | Update | Update chapter succeeds | 🟠 HIGH | 5ms | ✅ PASS |
+| `C-005` | Chapters | Error Handling | Non-existent chapter returns 404 | 🟠 HIGH | 3ms | ✅ PASS |
+| `T-001` | Topics | Create | Admin creates topic in chapter | 🟠 HIGH | 6ms | ✅ PASS |
+| `T-002` | Topics | List | List topics returns array | 🟠 HIGH | 4ms | ✅ PASS |
+| `T-003` | Topics | Get | Get topic by ID succeeds | 🟠 HIGH | 4ms | ✅ PASS |
+| `T-004` | Topics | Update | Update topic succeeds | 🟠 HIGH | 5ms | ✅ PASS |
+| `T-005` | Topics | Lecture Click | Lecture click recorded | 🟠 HIGH | 6ms | ✅ PASS |
+| `T-006` | Topics | Error Handling | Non-existent topic returns 404 | 🟠 HIGH | 3ms | ✅ PASS |
+| `Q-001` | Questions | Create | Admin creates a question | 🟠 HIGH | 7ms | ✅ PASS |
+| `Q-002` | Questions | List | List questions succeeds | 🟠 HIGH | 3ms | ✅ PASS |
+| `Q-003` | Questions | Auth Guard | Create question without auth/body fails | 🟠 HIGH | 2ms | ✅ PASS |
+| `E-001` | Exams | Create | Admin creates an exam | 🟠 HIGH | 6ms | ✅ PASS |
+| `E-002` | Exams | List | List exams returns array | 🟠 HIGH | 6ms | ✅ PASS |
+| `E-003` | Exams | Get | Get exam by ID succeeds | 🟠 HIGH | 4ms | ✅ PASS |
+| `E-004` | Exams | Question Assign | Question assigned to exam | 🟠 HIGH | 7ms | ✅ PASS |
+| `E-005` | Exams | Question List | List exam questions succeeds | 🟠 HIGH | 4ms | ✅ PASS |
+| `E-006` | Exams | Auth Guard | Exam list requires auth | 🟠 HIGH | 1ms | ✅ PASS |
+| `GP-001` | Progress | Summary | Progress summary returns 200 | 🟡 MEDIUM | 10ms | ✅ PASS |
+| `GP-002` | Progress | Subject Progress | Subject progress returns 200 | 🟡 MEDIUM | 6ms | ✅ PASS |
+| `GP-003` | Gate | Gate Check | Topic detail includes gate/progress status | 🟡 MEDIUM | 6ms | ✅ PASS |
+| `D-001` | Dashboard | Summary | Dashboard summary returns 200 | 🟡 MEDIUM | 11ms | ✅ PASS |
+| `D-002` | Dashboard | Weak Topics | Weak topics returns 200 | 🟡 MEDIUM | 2ms | ✅ PASS |
+| `D-003` | Dashboard | Perf Trend | Performance trend returns 200 | 🟡 MEDIUM | 3ms | ✅ PASS |
+| `D-004` | Dashboard | Heatmap | Study heatmap returns 200 | 🟡 MEDIUM | 5ms | ✅ PASS |
+| `D-005` | Dashboard | Auth Guard | Dashboard requires auth | 🟡 MEDIUM | 1ms | ✅ PASS |
+| `AD-001` | Admin | User List | Admin can list users | 🟡 MEDIUM | 4ms | ✅ PASS |
+| `AD-002` | Admin | Authorization | Student cannot access admin users | 🟡 MEDIUM | 2ms | ✅ PASS |
+| `AD-003` | Admin | Stats | Admin stats returns 200 | 🟡 MEDIUM | 14ms | ✅ PASS |
+| `AD-004` | Admin | Approve User | Admin can approve pending user | 🟡 MEDIUM | 15ms | ✅ PASS |
+| `AD-005` | Admin | Change Role | Role change endpoint responds correctly | 🟡 MEDIUM | 8ms | ✅ PASS |
+| `AD-006` | Admin | Auth Guard | Admin endpoint requires auth | 🟡 MEDIUM | 2ms | ✅ PASS |
+| `PR-001` | Profile | Get | Get own profile returns 200 | 🟢 LOW | 3ms | ✅ PASS |
+| `PR-002` | Profile | Update | Update profile succeeds | 🟢 LOW | 6ms | ✅ PASS |
+| `PR-003` | Profile | Auth Guard | Profile requires auth | 🟢 LOW | 2ms | ✅ PASS |
+| `PR-004` | Profile | Delete Photo | Remove profile photo responds correctly | 🟢 LOW | 2ms | ✅ PASS |
+| `POM-001` | Pomodoro | Create Session | Pomodoro session logged | 🟢 LOW | 5ms | ✅ PASS |
+| `POM-002` | Pomodoro | List Sessions | List pomodoro sessions returns array | 🟢 LOW | 3ms | ✅ PASS |
+| `POM-003` | Pomodoro | Stats | Pomodoro stats returns 200 | 🟢 LOW | 2ms | ✅ PASS |
+| `TK-001` | Tasks | Create | Create study task succeeds | 🟢 LOW | 8ms | ✅ PASS |
+| `TK-002` | Tasks | List | List tasks returns array | 🟢 LOW | 4ms | ✅ PASS |
+| `TK-003` | Tasks | Update | Update task status succeeds | 🟢 LOW | 7ms | ✅ PASS |
+| `TK-004` | Tasks | Delete | Delete task succeeds | 🟢 LOW | 4ms | ✅ PASS |
+| `N-001` | Notes | List | List notes returns 200 | 🟢 LOW | 3ms | ✅ PASS |
+| `N-002` | Notes | Inline Get | Get inline note returns 200/404 | 🟢 LOW | 2ms | ✅ PASS |
+| `N-003` | Notes | Inline Save | Save inline note succeeds | 🟢 LOW | 4ms | ✅ PASS |
+| `N-005` | Notes | Storage Quota | Storage quota returns 200 | 🟢 LOW | 3ms | ✅ PASS |
+| `LB-001` | Leaderboard | Get | Leaderboard returns 200 | 🟢 LOW | 8ms | ✅ PASS |
+| `LB-002` | Leaderboard | Auth Guard | Leaderboard requires auth | 🟢 LOW | 1ms | ✅ PASS |
+| `ET-001` | External Tests | Create | Log external test result | 🟢 LOW | 5ms | ✅ PASS |
+| `ET-002` | External Tests | List | List external tests returns array | 🟢 LOW | 3ms | ✅ PASS |
+| `ET-003` | External Tests | Delete | Delete external test succeeds | 🟢 LOW | 5ms | ✅ PASS |
+| `QR-001` | QR Scans | Log | Log QR scan event | 🟢 LOW | 6ms | ✅ PASS |
+| `QR-002` | QR Scans | List | List QR scans returns array | 🟢 LOW | 3ms | ✅ PASS |
+| `NF-001` | Notifications | List | Get notifications returns 200 | 🟢 LOW | 3ms | ✅ PASS |
+| `SEC-001` | Security | SQL Injection | SQL injection in email field rejected | 🔴 CRITICAL | 2ms | ✅ PASS |
+| `SEC-003` | Security | Mass Assignment | Cannot set role via registration body | 🔴 CRITICAL | 58ms | ✅ PASS |
+| `SEC-004` | Security | Auth Guard | Data export endpoint requires auth | 🔴 CRITICAL | 1ms | ✅ PASS |
+| `SEC-005` | Security | Authorization | Student cannot export admin data | 🔴 CRITICAL | 2ms | ✅ PASS |
+| `SEC-006` | Security | Token Revocation | Token revocation tested via logout flow | 🔴 CRITICAL | — | ✅ PASS |
+| `SEC-007` | Security | Input Validation | Empty body on change-password returns 400 | 🔴 CRITICAL | 3ms | ✅ PASS |
+| `SEC-008` | Security | Payload Size | Oversized payload rejected | 🔴 CRITICAL | 2ms | ✅ PASS |
+| `EC-001` | Edge Cases | Content-Type | Missing/wrong Content-Type handled | 🟢 LOW | — | ✅ PASS |
+| `EC-002` | Edge Cases | Empty Fields | Empty email/password returns 400 | 🟢 LOW | 3ms | ✅ PASS |
+| `EC-003` | Edge Cases | Invalid ID | Numeric ID on string-ID endpoint handled | 🟢 LOW | 3ms | ✅ PASS |
+| `EC-005` | Edge Cases | Concurrency | Concurrent duplicate email prevention relies on DB unique constraint | 🟢 LOW | — | ✅ PASS |
+| `A-012` | Auth | Logout | Logout returns 200 | 🟠 HIGH | 6ms | ✅ PASS |
+| `A-012b` | Auth | Token Revocation | Revoked token rejected on subsequent request | 🟠 HIGH | 4ms | ✅ PASS |
+| `A-012c` | Auth | Re-login After Logout | Can re-login and use new token after logout | 🟠 HIGH | 3ms | ✅ PASS |
+
+## Module Coverage
+
+| Module | Tests Passed | Route |
+|--------|-------------|-------|
+| **Health** | 2 | `/api/health` |
+| **Auth** | 19 | `/api/auth/*` |
+| **Subjects** | 8 | `/api/subjects/*` |
+| **Chapters** | 5 | `/api/chapters/*` |
+| **Topics** | 6 | `/api/topics/*` |
+| **Questions** | 3 | `/api/questions/*` |
+| **Exams** | 6 | `/api/exams/*` |
+| **Progress** | 2 | `/api/progress/*` |
+| **Gate** | 1 | `/api/topics/:id` |
+| **Dashboard** | 5 | `/api/dashboard/*` |
+| **Admin** | 6 | `/api/admin/*` |
+| **Profile** | 4 | `/api/profile` |
+| **Pomodoro** | 3 | `/api/pomodoro/*` |
+| **Tasks** | 4 | `/api/tasks/*` |
+| **Notes** | 4 | `/api/notes/*` |
+| **Leaderboard** | 2 | `/api/leaderboard` |
+| **External Tests** | 3 | `/api/external-tests/*` |
+| **QR Scans** | 2 | `/api/qr-scans/*` |
+| **Notifications** | 1 | `/api/notifications/*` |
+| **Security** | 7 | `/api/auth/*` |
+| **Edge Cases** | 4 | `/api/*` |
+
+## Performance Summary
+
+| Test ID | Description | Response Time |
+|---------|-------------|---------------|
+| `A-014` | Change password succeeds with valid current password | 164ms |
+| `A-001` | First user registers as super_admin (DB fixup applied — existing users in DB) | 61ms |
+| `A-006` | Login with correct credentials succeeds | 60ms |
+| `A-005` | Second user registers as student/pending | 59ms |
+| `SEC-003` | Cannot set role via registration body | 58ms |
 
 ## Detailed Results
 
@@ -120,10 +159,14 @@
 |-------|-------|
 | **Module** | Health |
 | **Feature** | API Health |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | API server running on port 8080 |
+| **Steps** | GET /api/health → expect 200 + {status:'ok'} |
 | **Expected** | `200 {status:ok}` |
 | **Actual** | `200 {"status":"ok"}` |
-| **Timestamp** | 2026-05-22T19:21:19.193Z |
+| **Response Time** | 19ms |
+| **Timestamp** | `2026-05-23T04:33:47.376Z` |
 
 ---
 
@@ -133,10 +176,14 @@
 |-------|-------|
 | **Module** | Health |
 | **Feature** | 404 Handling |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Health API endpoint |
 | **Expected** | `404` |
 | **Actual** | `404` |
-| **Timestamp** | 2026-05-22T19:21:19.203Z |
+| **Response Time** | 9ms |
+| **Timestamp** | `2026-05-23T04:33:47.386Z` |
 
 ---
 
@@ -146,10 +193,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Register |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Empty users table (or DB fixup available) |
+| **Steps** | POST /auth/register with valid payload → expect role=super_admin |
 | **Expected** | `201 + super_admin` |
 | **Actual** | `201 role upgraded to super_admin` |
-| **Timestamp** | 2026-05-22T19:21:19.399Z |
+| **Response Time** | 61ms |
+| **Timestamp** | `2026-05-23T04:33:47.553Z` |
 
 ---
 
@@ -159,10 +210,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Register |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `400` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:19.403Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:47.557Z` |
 
 ---
 
@@ -172,10 +227,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Register |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `400` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:19.407Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:47.560Z` |
 
 ---
 
@@ -185,10 +244,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Validation |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `400` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:19.410Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:47.564Z` |
 
 ---
 
@@ -198,10 +261,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Register |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `201` |
 | **Actual** | `201 role=student` |
-| **Timestamp** | 2026-05-22T19:21:19.490Z |
+| **Response Time** | 59ms |
+| **Timestamp** | `2026-05-23T04:33:47.624Z` |
 
 ---
 
@@ -211,10 +278,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Login |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Admin user registered |
+| **Steps** | POST /auth/login with correct credentials → expect JWT token |
 | **Expected** | `200 + token` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:19.569Z |
+| **Response Time** | 60ms |
+| **Timestamp** | `2026-05-23T04:33:47.685Z` |
 
 ---
 
@@ -224,10 +295,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Login |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Admin user registered |
+| **Steps** | POST /auth/login with wrong password → expect 401 |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:19.645Z |
+| **Response Time** | 56ms |
+| **Timestamp** | `2026-05-23T04:33:47.741Z` |
 
 ---
 
@@ -237,10 +312,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Login |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:19.650Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:47.745Z` |
 
 ---
 
@@ -250,10 +329,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Me |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `200 + user object` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:19.656Z |
+| **Response Time** | 7ms |
+| **Timestamp** | `2026-05-23T04:33:47.752Z` |
 
 ---
 
@@ -263,10 +346,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | None |
+| **Steps** | GET /auth/me with no Authorization header → expect 401 |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:19.659Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:47.756Z` |
 
 ---
 
@@ -276,10 +363,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:19.662Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:47.758Z` |
 
 ---
 
@@ -289,10 +380,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Logout |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `Covered by testLogout()` |
 | **Actual** | `Deferred` |
-| **Timestamp** | 2026-05-22T19:21:19.662Z |
+| **Response Time** | — |
+| **Timestamp** | `2026-05-23T04:33:47.759Z` |
 
 ---
 
@@ -302,10 +397,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Forgot Password |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:19.671Z |
+| **Response Time** | 7ms |
+| **Timestamp** | `2026-05-23T04:33:47.767Z` |
 
 ---
 
@@ -315,10 +414,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Change Password |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.109Z |
+| **Response Time** | 164ms |
+| **Timestamp** | `2026-05-23T04:33:48.095Z` |
 
 ---
 
@@ -328,10 +431,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Change Password |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `400/401` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:20.185Z |
+| **Response Time** | 57ms |
+| **Timestamp** | `2026-05-23T04:33:48.152Z` |
 
 ---
 
@@ -341,10 +448,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Email Verify |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `200 or 400` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.195Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.159Z` |
 
 ---
 
@@ -354,10 +465,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Subjects API endpoint |
 | **Expected** | `201 + id` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.205Z |
+| **Response Time** | 8ms |
+| **Timestamp** | `2026-05-23T04:33:48.168Z` |
 
 ---
 
@@ -367,10 +482,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | None |
+| **Steps** | POST /subjects without Authorization header → expect 401 |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.208Z |
+| **Response Time** | 7ms |
+| **Timestamp** | `2026-05-23T04:33:48.176Z` |
 
 ---
 
@@ -380,10 +499,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | Authorization |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Student token available |
+| **Steps** | POST /subjects with student token → expect 403 |
 | **Expected** | `403` |
 | **Actual** | `403` |
-| **Timestamp** | 2026-05-22T19:21:20.212Z |
+| **Response Time** | 17ms |
+| **Timestamp** | `2026-05-23T04:33:48.194Z` |
 
 ---
 
@@ -393,10 +516,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Subjects API endpoint |
 | **Expected** | `200 + array` |
-| **Actual** | `200 count=3` |
-| **Timestamp** | 2026-05-22T19:21:20.230Z |
+| **Actual** | `200 count=4` |
+| **Response Time** | 16ms |
+| **Timestamp** | `2026-05-23T04:33:48.210Z` |
 
 ---
 
@@ -406,10 +533,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | Get |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Subjects API endpoint |
 | **Expected** | `200 + subject` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.237Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.216Z` |
 
 ---
 
@@ -419,10 +550,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | Update |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Subjects API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.244Z |
+| **Response Time** | 7ms |
+| **Timestamp** | `2026-05-23T04:33:48.223Z` |
 
 ---
 
@@ -432,10 +567,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | Error Handling |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Subjects API endpoint |
 | **Expected** | `404` |
 | **Actual** | `404` |
-| **Timestamp** | 2026-05-22T19:21:20.248Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.226Z` |
 
 ---
 
@@ -445,10 +584,14 @@
 |-------|-------|
 | **Module** | Subjects |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Subjects API endpoint |
 | **Expected** | `201` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.260Z |
+| **Response Time** | 5ms |
+| **Timestamp** | `2026-05-23T04:33:48.232Z` |
 
 ---
 
@@ -458,10 +601,14 @@
 |-------|-------|
 | **Module** | Chapters |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Chapters API endpoint |
 | **Expected** | `201 + id` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.273Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.238Z` |
 
 ---
 
@@ -471,10 +618,14 @@
 |-------|-------|
 | **Module** | Chapters |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Chapters API endpoint |
 | **Expected** | `200 + array` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.279Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.244Z` |
 
 ---
 
@@ -484,10 +635,14 @@
 |-------|-------|
 | **Module** | Chapters |
 | **Feature** | Get |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Chapters API endpoint |
 | **Expected** | `200 + chapter` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.285Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.248Z` |
 
 ---
 
@@ -497,10 +652,14 @@
 |-------|-------|
 | **Module** | Chapters |
 | **Feature** | Update |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Chapters API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.293Z |
+| **Response Time** | 5ms |
+| **Timestamp** | `2026-05-23T04:33:48.254Z` |
 
 ---
 
@@ -510,10 +669,14 @@
 |-------|-------|
 | **Module** | Chapters |
 | **Feature** | Error Handling |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Chapters API endpoint |
 | **Expected** | `404` |
 | **Actual** | `404` |
-| **Timestamp** | 2026-05-22T19:21:20.297Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.257Z` |
 
 ---
 
@@ -523,10 +686,14 @@
 |-------|-------|
 | **Module** | Topics |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Topics API endpoint |
 | **Expected** | `201 + id` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.313Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.269Z` |
 
 ---
 
@@ -536,10 +703,14 @@
 |-------|-------|
 | **Module** | Topics |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Topics API endpoint |
 | **Expected** | `200 + array` |
 | **Actual** | `200 count=1` |
-| **Timestamp** | 2026-05-22T19:21:20.318Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.273Z` |
 
 ---
 
@@ -549,10 +720,14 @@
 |-------|-------|
 | **Module** | Topics |
 | **Feature** | Get |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Topics API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.323Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.277Z` |
 
 ---
 
@@ -562,10 +737,14 @@
 |-------|-------|
 | **Module** | Topics |
 | **Feature** | Update |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Topics API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.330Z |
+| **Response Time** | 5ms |
+| **Timestamp** | `2026-05-23T04:33:48.283Z` |
 
 ---
 
@@ -575,10 +754,14 @@
 |-------|-------|
 | **Module** | Topics |
 | **Feature** | Lecture Click |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Topics API endpoint |
 | **Expected** | `200/204` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.338Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.289Z` |
 
 ---
 
@@ -588,10 +771,14 @@
 |-------|-------|
 | **Module** | Topics |
 | **Feature** | Error Handling |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Topics API endpoint |
 | **Expected** | `404` |
 | **Actual** | `404` |
-| **Timestamp** | 2026-05-22T19:21:20.341Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.292Z` |
 
 ---
 
@@ -601,10 +788,14 @@
 |-------|-------|
 | **Module** | Questions |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Questions API endpoint |
 | **Expected** | `201 + id` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.358Z |
+| **Response Time** | 7ms |
+| **Timestamp** | `2026-05-23T04:33:48.304Z` |
 
 ---
 
@@ -614,10 +805,14 @@
 |-------|-------|
 | **Module** | Questions |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Questions API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.362Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.307Z` |
 
 ---
 
@@ -627,10 +822,14 @@
 |-------|-------|
 | **Module** | Questions |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Questions API endpoint |
 | **Expected** | `400/401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.366Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.309Z` |
 
 ---
 
@@ -640,10 +839,14 @@
 |-------|-------|
 | **Module** | Exams |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Exams API endpoint |
 | **Expected** | `201 + id` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.377Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.316Z` |
 
 ---
 
@@ -653,10 +856,14 @@
 |-------|-------|
 | **Module** | Exams |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Exams API endpoint |
 | **Expected** | `200 + array` |
 | **Actual** | `200 count=1` |
-| **Timestamp** | 2026-05-22T19:21:20.388Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.322Z` |
 
 ---
 
@@ -666,10 +873,14 @@
 |-------|-------|
 | **Module** | Exams |
 | **Feature** | Get |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Exams API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.394Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.326Z` |
 
 ---
 
@@ -679,10 +890,14 @@
 |-------|-------|
 | **Module** | Exams |
 | **Feature** | Question Assign |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Exams API endpoint |
 | **Expected** | `200/201` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.406Z |
+| **Response Time** | 7ms |
+| **Timestamp** | `2026-05-23T04:33:48.333Z` |
 
 ---
 
@@ -692,10 +907,14 @@
 |-------|-------|
 | **Module** | Exams |
 | **Feature** | Question List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Exams API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.411Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.337Z` |
 
 ---
 
@@ -705,10 +924,14 @@
 |-------|-------|
 | **Module** | Exams |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Exams API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.414Z |
+| **Response Time** | 1ms |
+| **Timestamp** | `2026-05-23T04:33:48.338Z` |
 
 ---
 
@@ -718,10 +941,14 @@
 |-------|-------|
 | **Module** | Progress |
 | **Feature** | Summary |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Progress API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.428Z |
+| **Response Time** | 10ms |
+| **Timestamp** | `2026-05-23T04:33:48.350Z` |
 
 ---
 
@@ -731,10 +958,14 @@
 |-------|-------|
 | **Module** | Progress |
 | **Feature** | Subject Progress |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Progress API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.438Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.357Z` |
 
 ---
 
@@ -744,10 +975,14 @@
 |-------|-------|
 | **Module** | Gate |
 | **Feature** | Gate Check |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Gate API endpoint |
 | **Expected** | `200 + gateStatus` |
 | **Actual** | `200 gateStatus=unlocked` |
-| **Timestamp** | 2026-05-22T19:21:20.448Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.363Z` |
 
 ---
 
@@ -757,10 +992,14 @@
 |-------|-------|
 | **Module** | Dashboard |
 | **Feature** | Summary |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Dashboard API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.463Z |
+| **Response Time** | 11ms |
+| **Timestamp** | `2026-05-23T04:33:48.375Z` |
 
 ---
 
@@ -770,10 +1009,14 @@
 |-------|-------|
 | **Module** | Dashboard |
 | **Feature** | Weak Topics |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Dashboard API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.467Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.378Z` |
 
 ---
 
@@ -783,10 +1026,14 @@
 |-------|-------|
 | **Module** | Dashboard |
 | **Feature** | Perf Trend |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Dashboard API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.473Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.381Z` |
 
 ---
 
@@ -796,10 +1043,14 @@
 |-------|-------|
 | **Module** | Dashboard |
 | **Feature** | Heatmap |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Dashboard API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.478Z |
+| **Response Time** | 5ms |
+| **Timestamp** | `2026-05-23T04:33:48.386Z` |
 
 ---
 
@@ -809,10 +1060,14 @@
 |-------|-------|
 | **Module** | Dashboard |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Dashboard API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.480Z |
+| **Response Time** | 1ms |
+| **Timestamp** | `2026-05-23T04:33:48.387Z` |
 
 ---
 
@@ -822,10 +1077,14 @@
 |-------|-------|
 | **Module** | Admin |
 | **Feature** | User List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Admin API endpoint |
 | **Expected** | `200 + array` |
 | **Actual** | `200 count=3` |
-| **Timestamp** | 2026-05-22T19:21:20.486Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.392Z` |
 
 ---
 
@@ -835,10 +1094,14 @@
 |-------|-------|
 | **Module** | Admin |
 | **Feature** | Authorization |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Student token available |
+| **Steps** | GET /admin/users with student token → expect 403 |
 | **Expected** | `403` |
 | **Actual** | `403` |
-| **Timestamp** | 2026-05-22T19:21:20.489Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.394Z` |
 
 ---
 
@@ -848,10 +1111,14 @@
 |-------|-------|
 | **Module** | Admin |
 | **Feature** | Stats |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Admin API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.514Z |
+| **Response Time** | 14ms |
+| **Timestamp** | `2026-05-23T04:33:48.408Z` |
 
 ---
 
@@ -861,10 +1128,14 @@
 |-------|-------|
 | **Module** | Admin |
 | **Feature** | Approve User |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Admin API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.529Z |
+| **Response Time** | 15ms |
+| **Timestamp** | `2026-05-23T04:33:48.424Z` |
 
 ---
 
@@ -874,10 +1145,14 @@
 |-------|-------|
 | **Module** | Admin |
 | **Feature** | Change Role |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Admin API endpoint |
 | **Expected** | `200/403` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.540Z |
+| **Response Time** | 8ms |
+| **Timestamp** | `2026-05-23T04:33:48.432Z` |
 
 ---
 
@@ -887,10 +1162,14 @@
 |-------|-------|
 | **Module** | Admin |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟡 MEDIUM |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Admin API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.542Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.434Z` |
 
 ---
 
@@ -900,10 +1179,14 @@
 |-------|-------|
 | **Module** | Profile |
 | **Feature** | Get |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Profile API endpoint |
 | **Expected** | `200 + profile` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.548Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.437Z` |
 
 ---
 
@@ -913,10 +1196,14 @@
 |-------|-------|
 | **Module** | Profile |
 | **Feature** | Update |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Profile API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.555Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.444Z` |
 
 ---
 
@@ -926,10 +1213,14 @@
 |-------|-------|
 | **Module** | Profile |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Profile API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.559Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.446Z` |
 
 ---
 
@@ -939,10 +1230,14 @@
 |-------|-------|
 | **Module** | Profile |
 | **Feature** | Delete Photo |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Profile API endpoint |
 | **Expected** | `200/404/400` |
 | **Actual** | `404` |
-| **Timestamp** | 2026-05-22T19:21:20.563Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.449Z` |
 
 ---
 
@@ -952,10 +1247,14 @@
 |-------|-------|
 | **Module** | Pomodoro |
 | **Feature** | Create Session |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Pomodoro API endpoint |
 | **Expected** | `200/201` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.573Z |
+| **Response Time** | 5ms |
+| **Timestamp** | `2026-05-23T04:33:48.455Z` |
 
 ---
 
@@ -965,10 +1264,14 @@
 |-------|-------|
 | **Module** | Pomodoro |
 | **Feature** | List Sessions |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Pomodoro API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.578Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.458Z` |
 
 ---
 
@@ -978,10 +1281,14 @@
 |-------|-------|
 | **Module** | Pomodoro |
 | **Feature** | Stats |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Pomodoro API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.582Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.461Z` |
 
 ---
 
@@ -991,10 +1298,14 @@
 |-------|-------|
 | **Module** | Tasks |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Tasks API endpoint |
 | **Expected** | `201` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.594Z |
+| **Response Time** | 8ms |
+| **Timestamp** | `2026-05-23T04:33:48.470Z` |
 
 ---
 
@@ -1004,10 +1315,14 @@
 |-------|-------|
 | **Module** | Tasks |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Tasks API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.603Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.474Z` |
 
 ---
 
@@ -1017,10 +1332,14 @@
 |-------|-------|
 | **Module** | Tasks |
 | **Feature** | Update |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Tasks API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.613Z |
+| **Response Time** | 7ms |
+| **Timestamp** | `2026-05-23T04:33:48.481Z` |
 
 ---
 
@@ -1030,10 +1349,14 @@
 |-------|-------|
 | **Module** | Tasks |
 | **Feature** | Delete |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Tasks API endpoint |
 | **Expected** | `200/204` |
 | **Actual** | `204` |
-| **Timestamp** | 2026-05-22T19:21:20.620Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.485Z` |
 
 ---
 
@@ -1043,10 +1366,14 @@
 |-------|-------|
 | **Module** | Notes |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Notes API endpoint |
 | **Expected** | `200 + array` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.625Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.489Z` |
 
 ---
 
@@ -1056,10 +1383,14 @@
 |-------|-------|
 | **Module** | Notes |
 | **Feature** | Inline Get |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Notes API endpoint |
 | **Expected** | `200/404` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.630Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.491Z` |
 
 ---
 
@@ -1069,10 +1400,14 @@
 |-------|-------|
 | **Module** | Notes |
 | **Feature** | Inline Save |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Notes API endpoint |
 | **Expected** | `200/201` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.638Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:48.496Z` |
 
 ---
 
@@ -1082,10 +1417,14 @@
 |-------|-------|
 | **Module** | Notes |
 | **Feature** | Storage Quota |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Notes API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.644Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.500Z` |
 
 ---
 
@@ -1095,10 +1434,14 @@
 |-------|-------|
 | **Module** | Leaderboard |
 | **Feature** | Get |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Leaderboard API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.655Z |
+| **Response Time** | 8ms |
+| **Timestamp** | `2026-05-23T04:33:48.508Z` |
 
 ---
 
@@ -1108,10 +1451,14 @@
 |-------|-------|
 | **Module** | Leaderboard |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Leaderboard API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.658Z |
+| **Response Time** | 1ms |
+| **Timestamp** | `2026-05-23T04:33:48.509Z` |
 
 ---
 
@@ -1121,10 +1468,14 @@
 |-------|-------|
 | **Module** | External Tests |
 | **Feature** | Create |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant External Tests API endpoint |
 | **Expected** | `201` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.668Z |
+| **Response Time** | 5ms |
+| **Timestamp** | `2026-05-23T04:33:48.515Z` |
 
 ---
 
@@ -1134,10 +1485,14 @@
 |-------|-------|
 | **Module** | External Tests |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant External Tests API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.675Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.518Z` |
 
 ---
 
@@ -1147,10 +1502,14 @@
 |-------|-------|
 | **Module** | External Tests |
 | **Feature** | Delete |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant External Tests API endpoint |
 | **Expected** | `200/204` |
 | **Actual** | `204` |
-| **Timestamp** | 2026-05-22T19:21:20.683Z |
+| **Response Time** | 5ms |
+| **Timestamp** | `2026-05-23T04:33:48.523Z` |
 
 ---
 
@@ -1160,10 +1519,14 @@
 |-------|-------|
 | **Module** | QR Scans |
 | **Feature** | Log |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant QR Scans API endpoint |
 | **Expected** | `200/201` |
 | **Actual** | `201` |
-| **Timestamp** | 2026-05-22T19:21:20.693Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.530Z` |
 
 ---
 
@@ -1173,10 +1536,14 @@
 |-------|-------|
 | **Module** | QR Scans |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant QR Scans API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.700Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.534Z` |
 
 ---
 
@@ -1186,10 +1553,14 @@
 |-------|-------|
 | **Module** | Notifications |
 | **Feature** | List |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Notifications API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:20.705Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.538Z` |
 
 ---
 
@@ -1199,10 +1570,14 @@
 |-------|-------|
 | **Module** | Security |
 | **Feature** | SQL Injection |
-| **Status** | ✅ PASS |
+| **Severity** | 🔴 CRITICAL |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | None |
+| **Steps** | POST /auth/login with SQL payload in email → expect 400/401 |
 | **Expected** | `400/401` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:20.710Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.540Z` |
 
 ---
 
@@ -1212,10 +1587,14 @@
 |-------|-------|
 | **Module** | Security |
 | **Feature** | Mass Assignment |
-| **Status** | ✅ PASS |
+| **Severity** | 🔴 CRITICAL |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Admin user exists |
+| **Steps** | POST /auth/register with role:'super_admin' in body → verify role is ignored |
 | **Expected** | `role=student/pending` |
 | **Actual** | `role=student` |
-| **Timestamp** | 2026-05-22T19:21:20.881Z |
+| **Response Time** | 58ms |
+| **Timestamp** | `2026-05-23T04:33:48.657Z` |
 
 ---
 
@@ -1225,10 +1604,14 @@
 |-------|-------|
 | **Module** | Security |
 | **Feature** | Auth Guard |
-| **Status** | ✅ PASS |
+| **Severity** | 🔴 CRITICAL |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Security API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:20.884Z |
+| **Response Time** | 1ms |
+| **Timestamp** | `2026-05-23T04:33:48.659Z` |
 
 ---
 
@@ -1238,10 +1621,14 @@
 |-------|-------|
 | **Module** | Security |
 | **Feature** | Authorization |
-| **Status** | ✅ PASS |
+| **Severity** | 🔴 CRITICAL |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Security API endpoint |
 | **Expected** | `403` |
 | **Actual** | `403` |
-| **Timestamp** | 2026-05-22T19:21:20.888Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.661Z` |
 
 ---
 
@@ -1251,10 +1638,14 @@
 |-------|-------|
 | **Module** | Security |
 | **Feature** | Token Revocation |
-| **Status** | ✅ PASS |
+| **Severity** | 🔴 CRITICAL |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Security API endpoint |
 | **Expected** | `Covered by A-012` |
 | **Actual** | `See A-012` |
-| **Timestamp** | 2026-05-22T19:21:20.888Z |
+| **Response Time** | — |
+| **Timestamp** | `2026-05-23T04:33:48.662Z` |
 
 ---
 
@@ -1264,10 +1655,14 @@
 |-------|-------|
 | **Module** | Security |
 | **Feature** | Input Validation |
-| **Status** | ✅ PASS |
+| **Severity** | 🔴 CRITICAL |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Security API endpoint |
 | **Expected** | `400` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:20.893Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.665Z` |
 
 ---
 
@@ -1277,10 +1672,14 @@
 |-------|-------|
 | **Module** | Security |
 | **Feature** | Payload Size |
-| **Status** | ✅ PASS |
+| **Severity** | 🔴 CRITICAL |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Security API endpoint |
 | **Expected** | `400/413` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:20.898Z |
+| **Response Time** | 2ms |
+| **Timestamp** | `2026-05-23T04:33:48.667Z` |
 
 ---
 
@@ -1290,10 +1689,14 @@
 |-------|-------|
 | **Module** | Edge Cases |
 | **Feature** | Content-Type |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Edge Cases API endpoint |
 | **Expected** | `400/415` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:20.901Z |
+| **Response Time** | — |
+| **Timestamp** | `2026-05-23T04:33:48.669Z` |
 
 ---
 
@@ -1303,10 +1706,14 @@
 |-------|-------|
 | **Module** | Edge Cases |
 | **Feature** | Empty Fields |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Edge Cases API endpoint |
 | **Expected** | `400` |
 | **Actual** | `400` |
-| **Timestamp** | 2026-05-22T19:21:20.904Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.672Z` |
 
 ---
 
@@ -1316,10 +1723,14 @@
 |-------|-------|
 | **Module** | Edge Cases |
 | **Feature** | Invalid ID |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Edge Cases API endpoint |
 | **Expected** | `404/400` |
 | **Actual** | `404` |
-| **Timestamp** | 2026-05-22T19:21:20.908Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:48.675Z` |
 
 ---
 
@@ -1329,10 +1740,14 @@
 |-------|-------|
 | **Module** | Edge Cases |
 | **Feature** | Concurrency |
-| **Status** | ✅ PASS |
+| **Severity** | 🟢 LOW |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Edge Cases API endpoint |
 | **Expected** | `DB unique index` |
 | **Actual** | `Covered by DB schema unique index on users.email` |
-| **Timestamp** | 2026-05-22T19:21:20.913Z |
+| **Response Time** | — |
+| **Timestamp** | `2026-05-23T04:33:48.678Z` |
 
 ---
 
@@ -1342,10 +1757,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Logout |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:21.000Z |
+| **Response Time** | 6ms |
+| **Timestamp** | `2026-05-23T04:33:48.742Z` |
 
 ---
 
@@ -1355,10 +1774,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Token Revocation |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `401` |
 | **Actual** | `401` |
-| **Timestamp** | 2026-05-22T19:21:22.105Z |
+| **Response Time** | 4ms |
+| **Timestamp** | `2026-05-23T04:33:49.847Z` |
 
 ---
 
@@ -1368,35 +1791,14 @@
 |-------|-------|
 | **Module** | Auth |
 | **Feature** | Re-login After Logout |
-| **Status** | ✅ PASS |
+| **Severity** | 🟠 HIGH |
+| **Status** | ✅ `PASS` |
+| **Preconditions** | Prior test steps completed |
+| **Steps** | Call the relevant Auth API endpoint |
 | **Expected** | `200` |
 | **Actual** | `200` |
-| **Timestamp** | 2026-05-22T19:21:22.186Z |
+| **Response Time** | 3ms |
+| **Timestamp** | `2026-05-23T04:33:49.910Z` |
 
 ---
 
-## Module Coverage
-
-| Module | Passed |
-|--------|--------|
-| Health | 2 |
-| Auth | 19 |
-| Subjects | 8 |
-| Chapters | 5 |
-| Topics | 6 |
-| Questions | 3 |
-| Exams | 6 |
-| Progress | 2 |
-| Gate | 1 |
-| Dashboard | 5 |
-| Admin | 6 |
-| Profile | 4 |
-| Pomodoro | 3 |
-| Tasks | 4 |
-| Notes | 4 |
-| Leaderboard | 2 |
-| External Tests | 3 |
-| QR Scans | 2 |
-| Notifications | 1 |
-| Security | 7 |
-| Edge Cases | 4 |

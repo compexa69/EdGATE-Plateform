@@ -19,17 +19,22 @@ mkdirSync(REPORTS, { recursive: true });
 async function api(method, path, body, token) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const t0 = Date.now();
   try {
     const res = await fetch(`${BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
+    const rt = Date.now() - t0;
+    _lastResponseTime = rt;
+    _hitEndpoints.add(`${method} ${path.split("?")[0].replace(/\/[a-zA-Z0-9_-]{10,}/g, "/:id")}`);
     let data;
     try { data = await res.json(); } catch { data = {}; }
-    return { status: res.status, data };
+    return { status: res.status, data, responseTime: rt };
   } catch (e) {
-    return { status: 0, data: {}, error: e.message };
+    _lastResponseTime = Date.now() - t0;
+    return { status: 0, data: {}, error: e.message, responseTime: _lastResponseTime };
   }
 }
 
@@ -52,12 +57,49 @@ let _questionId = null;
 let _adminId = null;
 let _studentId = null;
 
+// Timing + coverage tracking
+let _lastResponseTime = 0;
+const _hitEndpoints = new Set();
+
+// Severity lookup by module/feature
+function severityOf(module, feature) {
+  if (module === "Security") return "CRITICAL";
+  if (module === "Auth") return "HIGH";
+  if (["Subjects","Chapters","Topics","Exams","Questions"].includes(module)) return "HIGH";
+  if (["Admin","Dashboard","Progress","Gate"].includes(module)) return "MEDIUM";
+  return "LOW";
+}
+
+// Preconditions + steps catalogue (keyed by test ID)
+const TEST_META = {
+  "HC-001": { pre: "API server running on port 8080", steps: "GET /api/health → expect 200 + {status:'ok'}" },
+  "A-001":  { pre: "Empty users table (or DB fixup available)", steps: "POST /auth/register with valid payload → expect role=super_admin" },
+  "A-006":  { pre: "Admin user registered", steps: "POST /auth/login with correct credentials → expect JWT token" },
+  "A-007":  { pre: "Admin user registered", steps: "POST /auth/login with wrong password → expect 401" },
+  "A-010":  { pre: "None", steps: "GET /auth/me with no Authorization header → expect 401" },
+  "SEC-001":{ pre: "None", steps: "POST /auth/login with SQL payload in email → expect 400/401" },
+  "SEC-003":{ pre: "Admin user exists", steps: "POST /auth/register with role:'super_admin' in body → verify role is ignored" },
+  "S-002":  { pre: "None", steps: "POST /subjects without Authorization header → expect 401" },
+  "S-003":  { pre: "Student token available", steps: "POST /subjects with student token → expect 403" },
+  "AD-002": { pre: "Student token available", steps: "GET /admin/users with student token → expect 403" },
+};
+
 function record(id, module, feature, desc, expected, actual, status, error = null, fix = null) {
-  results.push({ id, module, feature, desc, expected, actual, status, error, fix, ts: new Date().toISOString() });
+  const meta = TEST_META[id] || { pre: "Prior test steps completed", steps: `Call the relevant ${module} API endpoint` };
+  results.push({
+    id, module, feature, desc, expected, actual, status, error, fix,
+    ts: new Date().toISOString(),
+    responseTime: _lastResponseTime,
+    severity: severityOf(module, feature),
+    preconditions: meta.pre,
+    steps: meta.steps,
+  });
   const sym = status === "PASS" ? "✓" : status === "FAIL" ? "✗" : status === "SKIP" ? "⊘" : "◑";
   const col = status === "PASS" ? "\x1b[32m" : status === "FAIL" ? "\x1b[31m" : status === "SKIP" ? "\x1b[33m" : "\x1b[35m";
-  console.log(`  ${col}${sym}\x1b[0m [${id}] ${desc}`);
+  const time = _lastResponseTime > 0 ? ` \x1b[90m(${_lastResponseTime}ms)\x1b[0m` : "";
+  console.log(`  ${col}${sym}\x1b[0m [${id}] ${desc}${time}`);
   if (error) console.log(`       \x1b[31m↳ ${error}\x1b[0m`);
+  _lastResponseTime = 0;
 }
 
 function pass(id, mod, feat, desc, exp, act) { record(id, mod, feat, desc, exp, act, "PASS"); }
@@ -1189,7 +1231,32 @@ async function main() {
   console.log(`  Duration:       ${elapsed}s`);
   console.log("═══════════════════════════════════════════════\n");
 
-  return { results, stats: { total, pass: pass_.length, fail: fail_.length, partial: partial_.length, skip: skip_.length, successPct, elapsed } };
+  // Coverage statistics (109 total endpoints identified in codebase)
+  const TOTAL_ENDPOINTS = 109;
+  const hitCount = _hitEndpoints.size;
+  const coveragePct = ((hitCount / TOTAL_ENDPOINTS) * 100).toFixed(1);
+
+  // Response time stats (exclude 0ms / skip entries)
+  const times = results.filter(r => r.responseTime > 0).map(r => r.responseTime);
+  const avgTime = times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0;
+  const maxTime = times.length ? Math.max(...times) : 0;
+  const minTime = times.length ? Math.min(...times) : 0;
+  const p95Time = times.length ? times.sort((a,b)=>a-b)[Math.floor(times.length * 0.95)] : 0;
+
+  console.log(`  Coverage:       ${hitCount}/${TOTAL_ENDPOINTS} endpoints (${coveragePct}%)`);
+  console.log(`  Avg Response:   ${avgTime}ms  |  p95: ${p95Time}ms  |  max: ${maxTime}ms`);
+  console.log("═══════════════════════════════════════════════\n");
+
+  return {
+    results,
+    stats: {
+      total, pass: pass_.length, fail: fail_.length,
+      partial: partial_.length, skip: skip_.length,
+      successPct, elapsed,
+      coverage: { hit: hitCount, total: TOTAL_ENDPOINTS, pct: coveragePct, endpoints: [..._hitEndpoints] },
+      timing: { avg: avgTime, max: maxTime, min: minTime, p95: p95Time, samples: times },
+    },
+  };
 }
 
 export { main };

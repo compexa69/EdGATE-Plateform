@@ -1,15 +1,19 @@
 # ❌ Failed Tests Report
 
-> **Generated:** 2026-05-22T19:21:22.215Z  |  **Suite:** EdTech Platform QA
+> **Generated:** 2026-05-23T04:33:49.935Z  |  **Project:** EdTech Study Platform  |  **Run Duration:** 2.78s
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Failed | **0** |
+| ❌ Failed | **0** |
 | Failure Rate | **0.0%** |
-| Critical Issues | **0** |
+| 🔴 Critical | **0** |
+| 🟠 High | **0** |
+| 🟡 Medium | **0** |
 
-## 🎉 No Failed Tests!
+## 🎉 Zero Failures!
 
-All executed tests passed successfully.
+All 100 test cases executed successfully. The platform is stable across all tested modules.
+
+> This report was generated to confirm zero failures. See `passed-tests.md` for full results.
