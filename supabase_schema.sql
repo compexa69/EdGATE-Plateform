@@ -346,7 +346,7 @@ exception when duplicate_object then null; end $$;
 -- ============================================================
 -- 16. POMODORO SESSIONS
 -- Columns match what the frontend hook inserts/reads:
---   duration_minutes, break_minutes, task_id, completed_at
+--   duration_minutes, completed_at
 -- ============================================================
 create table if not exists public.pomodoro_sessions (
   id               text primary key default ('pom_' || replace(gen_random_uuid()::text, '-', '')),
@@ -357,6 +357,41 @@ create table if not exists public.pomodoro_sessions (
   completed_at     timestamptz not null default now(),
   created_at       timestamptz not null default now()
 );
+
+-- Migration: add any columns that may be missing when the table was created
+-- by an older schema version (start_time/end_time era). All blocks are safe to re-run.
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'pomodoro_sessions' and column_name = 'completed_at'
+  ) then
+    alter table public.pomodoro_sessions add column completed_at timestamptz not null default now();
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'pomodoro_sessions' and column_name = 'duration_minutes'
+  ) then
+    alter table public.pomodoro_sessions add column duration_minutes integer not null default 25;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'pomodoro_sessions' and column_name = 'break_minutes'
+  ) then
+    alter table public.pomodoro_sessions add column break_minutes integer not null default 5;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'pomodoro_sessions' and column_name = 'task_id'
+  ) then
+    alter table public.pomodoro_sessions add column task_id text references public.study_tasks(id) on delete set null;
+  end if;
+end $$;
 
 -- ============================================================
 -- 17. STUDY TASKS  (daily planner — auto-generated or manual)

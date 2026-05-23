@@ -60,7 +60,7 @@ export function useGetDashboardSummary() {
         ? Math.round(results.reduce((s, r) => s + r.accuracy, 0) / results.length)
         : 0;
 
-      const totalFocusMinutes = (pomodoro ?? []).reduce((s, p) => s + (p.focus_minutes ?? 0), 0);
+      const totalFocusMinutes = (pomodoro ?? []).reduce((s, p) => s + (p.duration_minutes ?? 0), 0);
 
       const streak = computeStreak(results ?? []);
       const xpPoints = topicsCompleted * 10 + passedResults * 20 + Math.floor(totalFocusMinutes / 30) * 5;
