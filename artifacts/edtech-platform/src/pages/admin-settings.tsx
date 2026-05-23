@@ -8,6 +8,7 @@ import { Settings, Save, RefreshCw, ShieldAlert, History, Download } from "lucid
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { useExportUserData } from "@/hooks/use-profile";
+import { supabase } from "@/lib/supabase";
 
 interface ConfigEntry {
   value: string;
@@ -24,25 +25,51 @@ interface AuditLog {
 }
 
 async function fetchConfig(): Promise<Record<string, ConfigEntry>> {
-  const res = await fetch("/api/admin/config", { credentials: "include" });
-  if (!res.ok) throw new Error("Failed to load config");
-  return res.json();
+  const { data, error } = await supabase
+    .from("system_config")
+    .select("key, value");
+  if (error) throw new Error(error.message);
+  const result: Record<string, ConfigEntry> = {};
+  for (const row of data || []) {
+    result[row.key] = { value: String(row.value), description: CONFIG_LABELS[row.key] ?? row.key };
+  }
+  return result;
 }
 
 async function saveConfig(updates: Record<string, string>): Promise<void> {
-  const res = await fetch("/api/admin/config", {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(updates),
-  });
-  if (!res.ok) throw new Error("Failed to save config");
+  const rows = Object.entries(updates).map(([key, value]) => ({ key, value }));
+  const { error } = await supabase
+    .from("system_config")
+    .upsert(rows, { onConflict: "key" });
+  if (error) throw new Error(error.message);
 }
 
 async function fetchAuditLogs(): Promise<AuditLog[]> {
-  const res = await fetch("/api/admin/audit-logs", { credentials: "include" });
-  if (!res.ok) throw new Error("Failed to load audit logs");
-  return res.json();
+  const { data: logs, error } = await supabase
+    .from("audit_logs")
+    .select("id, actor_id, action, details, target_id, created_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+
+  const actorIds = [...new Set((logs || []).map((l) => l.actor_id).filter(Boolean))];
+  let actorMap: Record<string, string> = {};
+  if (actorIds.length > 0) {
+    const { data: actors } = await supabase
+      .from("users")
+      .select("id, full_name")
+      .in("id", actorIds);
+    actorMap = Object.fromEntries((actors || []).map((a) => [a.id, a.full_name]));
+  }
+
+  return (logs || []).map((l) => ({
+    id: l.id,
+    actorName: actorMap[l.actor_id] ?? l.actor_id ?? "Unknown",
+    action: l.action,
+    details: l.details ?? null,
+    targetId: l.target_id ?? null,
+    createdAt: l.created_at,
+  }));
 }
 
 const CONFIG_LABELS: Record<string, string> = {
@@ -144,7 +171,6 @@ export default function AdminSettings() {
         </div>
       </div>
 
-      {/* Gate Configuration */}
       <Card className="border-card-border bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -187,7 +213,6 @@ export default function AdminSettings() {
         </CardContent>
       </Card>
 
-      {/* Audit Logs */}
       <Card className="border-card-border bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useGetAdminStats } from "@/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Users, BookOpen, FileQuestion, HardDrive, UserCheck, ListChecks, AlertTriangle, TrendingDown, MousePointerClick, Settings, Send, Bell, QrCode, Radio, RefreshCcw, Clock } from "lucide-react";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 interface LowCtrTopic {
   topicId: string;
@@ -40,29 +41,89 @@ interface LiveAttempt {
   elapsedMinutes: number;
 }
 
-function getToken() { return localStorage.getItem("edtech_token") ?? ""; }
-
 async function fetchQrAnalytics(): Promise<QrAnalytics> {
-  const res = await fetch("/api/admin/qr-analytics", { headers: { Authorization: `Bearer ${getToken()}` } });
-  if (!res.ok) throw new Error("Failed to fetch QR analytics");
-  return res.json();
+  const { data: scans, error } = await supabase
+    .from("qr_scans")
+    .select("id, question_id, user_id, scanned_at, exam_id, users(full_name)")
+    .order("scanned_at", { ascending: false })
+    .limit(200);
+  if (error) throw new Error(error.message);
+
+  const rows = scans || [];
+  const totalScans = rows.length;
+  const uniqueStudents = new Set(rows.map((r: any) => r.user_id)).size;
+
+  const countMap: Record<string, number> = {};
+  for (const r of rows) {
+    countMap[r.question_id] = (countMap[r.question_id] ?? 0) + 1;
+  }
+  const topQuestions = Object.entries(countMap)
+    .map(([questionId, scanCount]) => ({ questionId, scanCount }))
+    .sort((a, b) => b.scanCount - a.scanCount)
+    .slice(0, 10);
+
+  const recentScans = rows.slice(0, 20).map((r: any) => ({
+    id: r.id,
+    questionId: r.question_id,
+    userId: r.user_id,
+    userName: (r.users as any)?.full_name ?? null,
+    scannedAt: r.scanned_at,
+    examId: r.exam_id ?? null,
+  }));
+
+  return { totalScans, uniqueStudents, topQuestions, recentScans };
 }
 
 async function fetchLiveAttempts(): Promise<LiveAttempt[]> {
-  const res = await fetch("/api/admin/live-attempts", { headers: { Authorization: `Bearer ${getToken()}` } });
-  if (!res.ok) throw new Error("Failed to fetch live attempts");
-  return res.json();
+  const { data, error } = await supabase
+    .from("exam_attempts")
+    .select("id, user_id, exam_id, status, started_at, remaining_seconds, pause_count, exams(title, exam_type), users(full_name)")
+    .eq("status", "in_progress")
+    .order("started_at", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  const now = Date.now();
+  return (data || []).map((a: any) => {
+    const startMs = new Date(a.started_at).getTime();
+    const elapsedMinutes = Math.floor((now - startMs) / 60_000);
+    return {
+      id: a.id,
+      userId: a.user_id,
+      examId: a.exam_id,
+      status: a.status,
+      startTime: a.started_at,
+      remainingSeconds: a.remaining_seconds ?? 0,
+      pauseCount: a.pause_count ?? 0,
+      userName: (a.users as any)?.full_name ?? null,
+      examTitle: (a.exams as any)?.title ?? null,
+      examType: (a.exams as any)?.exam_type ?? null,
+      elapsedMinutes,
+    };
+  });
 }
 
-async function broadcastNotification(data: { title: string; message: string }) {
-  const res = await fetch("/api/admin/notifications/broadcast", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to send broadcast");
-  return res.json() as Promise<{ success: boolean; sent: number }>;
+async function broadcastNotification(payload: { title: string; message: string }): Promise<{ success: boolean; sent: number }> {
+  const { data: students, error } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", "student")
+    .eq("status", "approved");
+  if (error) throw new Error(error.message);
+
+  const rows = (students || []).map((s) => ({
+    user_id: s.id,
+    title: payload.title,
+    message: payload.message,
+    type: "broadcast",
+    read: false,
+  }));
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase.from("notifications").insert(rows);
+    if (insertError) throw new Error(insertError.message);
+  }
+
+  return { success: true, sent: rows.length };
 }
 
 function LiveAttemptsWidget() {
@@ -243,7 +304,6 @@ export default function AdminDashboard() {
         <p className="text-muted-foreground mt-1">Platform statistics and quick actions.</p>
       </div>
 
-      {/* Stat Cards Row 1 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-card border-card-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -294,7 +354,6 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Stat Cards Row 2 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="bg-card border-card-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -319,7 +378,6 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Live Monitor + QR Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <LiveAttemptsWidget />
         <QrAnalyticsWidget />

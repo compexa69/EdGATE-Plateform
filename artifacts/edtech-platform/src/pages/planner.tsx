@@ -32,6 +32,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ type Task = {
   chapterName: string | null;
   subjectName: string | null;
   scheduledDate: string;
+  sortOrder: number;
 };
 
 type GenerateResult = {
@@ -71,9 +73,6 @@ type PlanConfig = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const CONFIG_KEY = "edtech_planner_config";
-const TOKEN_KEY  = "edtech_token";
-
-function getToken() { return localStorage.getItem(TOKEN_KEY) ?? ""; }
 
 function toDateStr(d: Date) { return d.toISOString().split("T")[0]; }
 
@@ -83,7 +82,7 @@ function addDays(d: Date, n: number) {
 
 function weekStart(d: Date) {
   const r = new Date(d);
-  r.setDate(r.getDate() - r.getDay()); // Sunday
+  r.setDate(r.getDate() - r.getDay());
   r.setHours(0, 0, 0, 0);
   return r;
 }
@@ -109,51 +108,64 @@ function saveConfig(c: PlanConfig) {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
 }
 
-// ─── API calls ────────────────────────────────────────────────────────────────
+// ─── Supabase API helpers ──────────────────────────────────────────────────────
 
 async function fetchTasksRange(startDate: string, endDate: string): Promise<Task[]> {
-  const res = await fetch(`/api/tasks/range?startDate=${startDate}&endDate=${endDate}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error("Failed to load tasks");
-  return res.json();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, title, description, status, source, topic_id, scheduled_date, sort_order, topics(name, chapters(name, subjects(name)))")
+    .eq("user_id", user.id)
+    .gte("scheduled_date", startDate)
+    .lte("scheduled_date", endDate)
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data || []).map((t: any) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description ?? null,
+    status: t.status,
+    source: t.source,
+    topicId: t.topic_id ?? null,
+    topicName: t.topics?.name ?? null,
+    chapterName: t.topics?.chapters?.name ?? null,
+    subjectName: t.topics?.chapters?.subjects?.name ?? null,
+    scheduledDate: t.scheduled_date,
+    sortOrder: t.sort_order ?? 0,
+  }));
 }
 
-async function patchTask(taskId: string, status: Task["status"]): Promise<Task> {
-  const res = await fetch(`/api/tasks/${taskId}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
-  });
-  if (!res.ok) throw new Error("Failed to update task");
-  return res.json();
+async function patchTask(taskId: string, status: Task["status"]): Promise<void> {
+  const { error } = await supabase
+    .from("tasks")
+    .update({ status })
+    .eq("id", taskId);
+  if (error) throw new Error(error.message);
 }
 
 async function reorderTask(taskId: string, sortOrder: number): Promise<void> {
-  const res = await fetch(`/api/tasks/${taskId}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ sortOrder }),
-  });
-  if (!res.ok) throw new Error("Failed to reorder task");
+  const { error } = await supabase
+    .from("tasks")
+    .update({ sort_order: sortOrder })
+    .eq("id", taskId);
+  if (error) throw new Error(error.message);
 }
 
 async function deleteTask(taskId: string): Promise<void> {
-  const res = await fetch(`/api/tasks/${taskId}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) throw new Error("Failed to delete task");
+  const { error } = await supabase
+    .from("tasks")
+    .delete()
+    .eq("id", taskId);
+  if (error) throw new Error(error.message);
 }
 
 async function generatePlan(config: PlanConfig): Promise<GenerateResult> {
-  const res = await fetch("/api/tasks/generate-plan", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
-    body: JSON.stringify(config),
+  const { data, error } = await supabase.functions.invoke("generate-study-plan", {
+    body: config,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Failed to generate plan");
+  if (error) throw new Error(error.message ?? "Failed to generate plan");
+  if (data?.error) throw new Error(data.error);
   return data;
 }
 
@@ -258,7 +270,6 @@ function GenerateDialog({ onGenerated }: { onGenerated: (r: GenerateResult) => v
   const [open, setOpen] = useState(false);
   const [config, setConfig] = useState<PlanConfig>(() => {
     const saved = loadConfig();
-    const tomorrow = toDateStr(addDays(new Date(), 1));
     const def30 = toDateStr(addDays(new Date(), 30));
     return saved ?? { examDate: def30, dailyStudyHours: 4, targetScore: 70 };
   });
@@ -491,7 +502,6 @@ export default function Planner() {
     qc.invalidateQueries({ queryKey: ["tasks-range"] });
   }, [qc]);
 
-  // Build the 7-day columns
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(wsDate, i);
     const ds = toDateStr(d);
@@ -510,7 +520,6 @@ export default function Planner() {
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6 pb-24 md:pb-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
@@ -526,7 +535,6 @@ export default function Planner() {
         <GenerateDialog onGenerated={handleGenerated} />
       </div>
 
-      {/* Week stats bar */}
       {weekTotal > 0 && (
         <Card className="border-card-border bg-card">
           <CardContent className="pt-4 pb-4">
@@ -556,7 +564,6 @@ export default function Planner() {
         </Card>
       )}
 
-      {/* Week navigator */}
       <div className="flex items-center justify-between gap-4">
         <Button variant="outline" size="sm" onClick={() => setWeekOffset((p) => p - 1)}>
           <ChevronLeft className="w-4 h-4 mr-1" /> Prev
@@ -570,7 +577,6 @@ export default function Planner() {
         </Button>
       </div>
 
-      {/* Calendar grid */}
       {isLoading ? (
         <div className="flex items-center justify-center h-64 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" /> Loading schedule…
@@ -591,7 +597,6 @@ export default function Planner() {
                     : "border-border bg-card"
                   }`}
               >
-                {/* Day header */}
                 <div className={`px-3 py-2.5 border-b flex items-center justify-between
                   ${day.isToday ? "border-primary/30 bg-primary/10" : "border-border bg-muted/30"}`}>
                   <div>
@@ -612,7 +617,6 @@ export default function Planner() {
                   )}
                 </div>
 
-                {/* Task list — sortable within day */}
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -649,7 +653,6 @@ export default function Planner() {
         </div>
       )}
 
-      {/* Empty state — no tasks at all this week and no config */}
       {!isLoading && weekTotal === 0 && !savedConfig && (
         <Card className="border-dashed border-primary/30 bg-primary/5">
           <CardContent className="py-14 text-center space-y-4">
@@ -681,7 +684,6 @@ export default function Planner() {
         </Card>
       )}
 
-      {/* Legend */}
       {weekTotal > 0 && (
         <div className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">

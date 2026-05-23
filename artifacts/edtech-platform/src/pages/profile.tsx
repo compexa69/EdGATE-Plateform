@@ -15,13 +15,11 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { subscribeToPush, unsubscribeFromPush, getCurrentSubscription, isPushSupported } from "@/lib/push-manager";
+import { isPushSupported } from "@/lib/push-manager";
+import { supabase } from "@/lib/supabase";
 
-// ── M-05: Notification Preferences (SRS FR-NOT-02) ─────────────────────────────
 function NotificationPreferencesCard() {
   const { toast } = useToast();
-  const [pushEnabled, setPushEnabled] = useState(false);
-  const [isPushLoading, setIsPushLoading] = useState(false);
   const [prefDailyPlan, setPrefDailyPlan] = useState(() => {
     try { return localStorage.getItem("edtech_notif_daily_plan") !== "false"; } catch { return true; }
   });
@@ -30,54 +28,12 @@ function NotificationPreferencesCard() {
   });
 
   useEffect(() => {
-    getCurrentSubscription().then((sub) => setPushEnabled(!!sub));
-  }, []);
-
-  useEffect(() => {
     try { localStorage.setItem("edtech_notif_daily_plan", String(prefDailyPlan)); } catch {}
   }, [prefDailyPlan]);
 
   useEffect(() => {
     try { localStorage.setItem("edtech_notif_streak", String(prefStreak)); } catch {}
   }, [prefStreak]);
-
-  const handleTogglePush = async () => {
-    setIsPushLoading(true);
-    try {
-      if (pushEnabled) {
-        await unsubscribeFromPush();
-        const token = localStorage.getItem("edtech_token");
-        const sub = await getCurrentSubscription();
-        if (sub) {
-          await fetch("/api/notifications/subscribe", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-            body: JSON.stringify({ endpoint: sub.endpoint }),
-          });
-        }
-        setPushEnabled(false);
-        toast({ title: "Push notifications disabled" });
-      } else {
-        const sub = await subscribeToPush();
-        if (!sub) {
-          toast({ title: "Could not enable push", description: "Please allow notifications in your browser settings.", variant: "destructive" });
-          return;
-        }
-        const token = localStorage.getItem("edtech_token");
-        await fetch("/api/notifications/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ subscription: sub.toJSON() }),
-        });
-        setPushEnabled(true);
-        toast({ title: "Push notifications enabled!", description: "You'll receive study reminders even when the app is in the background." });
-      }
-    } catch {
-      toast({ title: "Error updating notification settings", variant: "destructive" });
-    } finally {
-      setIsPushLoading(false);
-    }
-  };
 
   return (
     <Card className="border-card-border">
@@ -91,29 +47,16 @@ function NotificationPreferencesCard() {
       <CardContent className="space-y-5">
         <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted/30 border border-border">
           <div className="flex items-start gap-3">
-            {pushEnabled
-              ? <Bell className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-              : <BellOff className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
-            }
+            <BellOff className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
             <div>
               <p className="text-sm font-medium text-foreground">Browser Push Notifications</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {!isPushSupported()
-                  ? "Not supported in this browser."
-                  : pushEnabled
-                    ? "Enabled — you'll receive alerts even when the app is closed."
-                    : "Enable to receive study reminders in your browser."}
+                Not available in this version. In-app notifications are active.
               </p>
             </div>
           </div>
-          <Button
-            size="sm"
-            variant={pushEnabled ? "outline" : "default"}
-            onClick={handleTogglePush}
-            disabled={isPushLoading || !isPushSupported()}
-            className="shrink-0"
-          >
-            {isPushLoading ? "…" : pushEnabled ? "Disable" : "Enable"}
+          <Button size="sm" variant="outline" disabled className="shrink-0">
+            Unavailable
           </Button>
         </div>
 
@@ -126,7 +69,6 @@ function NotificationPreferencesCard() {
             <Switch
               checked={prefDailyPlan}
               onCheckedChange={setPrefDailyPlan}
-              disabled={!pushEnabled}
               aria-label="Daily plan reminders"
             />
           </div>
@@ -138,7 +80,6 @@ function NotificationPreferencesCard() {
             <Switch
               checked={prefStreak}
               onCheckedChange={setPrefStreak}
-              disabled={!pushEnabled}
               aria-label="Streak reminders"
             />
           </div>
@@ -249,7 +190,7 @@ function ChangePasswordModal() {
                   <div className="relative">
                     <Input type={showCurrent ? "text" : "password"} placeholder="••••••••" {...field} />
                     <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowCurrent(!showCurrent)}>
-                      {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showCurrent ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </FormControl>
@@ -263,7 +204,7 @@ function ChangePasswordModal() {
                   <div className="relative">
                     <Input type={showNew ? "text" : "password"} placeholder="••••••••" {...field} />
                     <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowNew(!showNew)}>
-                      {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showNew ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </FormControl>
@@ -278,7 +219,7 @@ function ChangePasswordModal() {
                   <div className="relative">
                     <Input type={showConfirm ? "text" : "password"} placeholder="••••••••" {...field} />
                     <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowConfirm(!showConfirm)}>
-                      {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showConfirm ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </FormControl>
@@ -300,13 +241,10 @@ function ChangePasswordModal() {
 
 function ChangeEmailModal({ currentEmail }: { currentEmail: string }) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"request" | "confirm">("request");
   const [newEmail, setNewEmail] = useState("");
-  const [token, setToken] = useState("");
   const [isPending, setIsPending] = useState(false);
+  const [sent, setSent] = useState(false);
   const { toast } = useToast();
-
-  const getToken = () => localStorage.getItem("edtech_token");
 
   const handleRequest = async () => {
     if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
@@ -315,48 +253,28 @@ function ChangeEmailModal({ currentEmail }: { currentEmail: string }) {
     }
     setIsPending(true);
     try {
-      const res = await fetch("/api/auth/request-email-change", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ newEmail }),
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw new Error(error.message);
+      setSent(true);
+      toast({
+        title: "Confirmation emails sent",
+        description: "Check both your current and new email to confirm the change.",
       });
-      const data = await res.json();
-      if (!res.ok) { toast({ title: data.error || "Failed to send code", variant: "destructive" }); return; }
-      toast({ title: "Verification code sent", description: `Check ${newEmail} for your 6-digit code.` });
-      setStep("confirm");
-    } catch {
-      toast({ title: "Network error", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: err.message || "Failed to request email change", variant: "destructive" });
     } finally {
       setIsPending(false);
     }
   };
 
-  const handleConfirm = async () => {
-    if (!token.trim()) { toast({ title: "Enter the verification code", variant: "destructive" }); return; }
-    setIsPending(true);
-    try {
-      const res = await fetch("/api/auth/confirm-email-change", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ token: token.trim().toUpperCase() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast({ title: data.error || "Invalid code", variant: "destructive" }); return; }
-      toast({ title: "Email updated", description: `Your email is now ${data.newEmail}. Please log in again.` });
-      setOpen(false);
-      setStep("request");
-      setNewEmail("");
-      setToken("");
-      setTimeout(() => window.location.href = "/login", 1500);
-    } catch {
-      toast({ title: "Network error", variant: "destructive" });
-    } finally {
-      setIsPending(false);
-    }
+  const handleClose = () => {
+    setOpen(false);
+    setSent(false);
+    setNewEmail("");
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setStep("request"); setNewEmail(""); setToken(""); } }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="w-full justify-start gap-3 h-11">
           <AtSign className="w-4 h-4 text-muted-foreground" />
@@ -369,7 +287,15 @@ function ChangeEmailModal({ currentEmail }: { currentEmail: string }) {
             <AtSign className="w-5 h-5 text-primary" /> Change Email Address
           </DialogTitle>
         </DialogHeader>
-        {step === "request" ? (
+        {sent ? (
+          <div className="space-y-4 pt-2">
+            <div className="p-4 rounded-lg bg-success/10 border border-success/20 text-sm text-success">
+              <p className="font-semibold">Confirmation emails sent!</p>
+              <p className="mt-1 text-xs">Check both <strong>{currentEmail}</strong> and <strong>{newEmail}</strong> and click the confirmation links to complete the change.</p>
+            </div>
+            <Button className="w-full" onClick={handleClose}>Done</Button>
+          </div>
+        ) : (
           <div className="space-y-4 pt-2">
             <p className="text-sm text-muted-foreground">Current email: <strong className="text-foreground">{currentEmail}</strong></p>
             <div className="space-y-1.5">
@@ -382,32 +308,11 @@ function ChangeEmailModal({ currentEmail }: { currentEmail: string }) {
                 onKeyDown={(e) => e.key === "Enter" && handleRequest()}
               />
             </div>
-            <p className="text-xs text-muted-foreground">A verification code will be sent to your new email address.</p>
+            <p className="text-xs text-muted-foreground">Confirmation links will be sent to both your current and new email address.</p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button variant="outline" className="flex-1" onClick={handleClose}>Cancel</Button>
               <Button className="flex-1" onClick={handleRequest} disabled={isPending}>
-                {isPending ? "Sending…" : "Send Code"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4 pt-2">
-            <p className="text-sm text-muted-foreground">Enter the verification code sent to <strong className="text-foreground">{newEmail}</strong>.</p>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Verification Code</label>
-              <Input
-                placeholder="XXXXXX"
-                value={token}
-                onChange={(e) => setToken(e.target.value.toUpperCase())}
-                className="font-mono tracking-widest text-center text-lg"
-                maxLength={6}
-                onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
-              />
-            </div>
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setStep("request")}>Back</Button>
-              <Button className="flex-1" onClick={handleConfirm} disabled={isPending}>
-                {isPending ? "Confirming…" : "Confirm Change"}
+                {isPending ? "Sending…" : "Send Confirmation"}
               </Button>
             </div>
           </div>
@@ -432,18 +337,16 @@ function DeleteAccountModal({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     }
     setIsPending(true);
     try {
-      const token = localStorage.getItem("edtech_token");
-      const res = await fetch("/api/profile", {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) { toast({ title: data.error || "Failed to delete account", variant: "destructive" }); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase.from("users").delete().eq("id", user.id);
+      if (error) throw new Error(error.message);
       toast({ title: "Account deleted", description: "Your account has been permanently removed." });
+      await supabase.auth.signOut();
       logout();
       setLocation("/login");
-    } catch {
-      toast({ title: "Network error", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: err.message || "Failed to delete account", variant: "destructive" });
     } finally {
       setIsPending(false);
     }
@@ -556,12 +459,11 @@ export default function Profile() {
         data: { fileName: `profile_${profile.id}.jpg`, fileSizeBytes: compressed.size }
       });
       await fetch(uploadUrl, { method: "PUT", body: compressed, headers: { "Content-Type": "image/jpeg" } });
-      const token = localStorage.getItem("edtech_token");
-      await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ photoB2Key: b2Key }),
-      });
+      const { error } = await supabase
+        .from("users")
+        .update({ photo_b2_key: b2Key })
+        .eq("id", profile.id);
+      if (error) throw new Error(error.message);
       toast({ title: "Photo updated successfully" });
       refetch();
     } catch {

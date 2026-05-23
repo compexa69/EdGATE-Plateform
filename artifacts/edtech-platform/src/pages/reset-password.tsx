@@ -10,9 +10,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
 const schema = z.object({
-  token: z.string().min(1, "Reset code is required"),
   newPassword: z.string()
     .min(8, "Password must be at least 8 characters")
     .regex(/[A-Z]/, "Must contain at least one uppercase letter")
@@ -34,19 +34,13 @@ export default function ResetPassword() {
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { token: "", newPassword: "", confirmPassword: "" },
+    defaultValues: { newPassword: "", confirmPassword: "" },
   });
 
   const mutation = useMutation({
-    mutationFn: async ({ token, newPassword }: { token: string; newPassword: string }) => {
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not reset password");
-      return data;
+    mutationFn: async ({ newPassword }: { newPassword: string }) => {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       setDone(true);
@@ -54,12 +48,12 @@ export default function ResetPassword() {
       setTimeout(() => setLocation("/login"), 2500);
     },
     onError: (error: any) => {
-      toast({ title: "Reset failed", description: error?.message || "Could not reset password.", variant: "destructive" });
+      toast({ title: "Reset failed", description: error?.message || "Could not reset password. Please request a new reset link.", variant: "destructive" });
     },
   });
 
   const onSubmit = (values: z.infer<typeof schema>) => {
-    mutation.mutate({ token: values.token, newPassword: values.newPassword });
+    mutation.mutate({ newPassword: values.newPassword });
   };
 
   if (done) {
@@ -84,30 +78,11 @@ export default function ResetPassword() {
             <KeyRound className="w-12 h-12 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
-          <CardDescription>Enter the code from your email and choose a new password.</CardDescription>
+          <CardDescription>Choose a new password for your account.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              <FormField
-                control={form.control}
-                name="token"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Reset Code</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="A1B2C3"
-                        className="text-center text-xl font-mono tracking-[0.4em] uppercase h-12"
-                        maxLength={6}
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="newPassword"
@@ -122,6 +97,7 @@ export default function ResetPassword() {
                         </button>
                       </div>
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">Min 8 chars, uppercase, lowercase, number, special character</p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -148,6 +124,8 @@ export default function ResetPassword() {
                 {mutation.isPending ? "Resetting…" : "Reset Password"}
               </Button>
               <div className="text-center text-sm text-muted-foreground">
+                <Link href="/forgot-password" className="text-primary hover:underline">Request a new reset link</Link>
+                {" · "}
                 <Link href="/login" className="text-primary hover:underline">Back to Login</Link>
               </div>
             </form>
